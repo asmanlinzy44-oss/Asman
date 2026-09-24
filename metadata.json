@@ -1,0 +1,6 @@
+{
+  "name": "A/L Kalvi - Sri Lankan A/L Tamil Medium Study Portal",
+  "description": "Free educational portal for Sri Lankan G.C.E. Advanced Level Tamil medium students with past papers, theory notes, FWC papers, school term test papers, and in-website theory video player with Google Drive integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
