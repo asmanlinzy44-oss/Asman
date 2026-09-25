@@ -1,5 +1,5 @@
 import React from 'react';
-import { User as UserIcon, LogOut, BookmarkCheck, Timer } from 'lucide-react';
+import { User as UserIcon, LogOut, BookmarkCheck, Timer, MessageSquare } from 'lucide-react';
 import { User, ResourceCategory } from '../types';
 import { StudyProLogo } from './StudyProLogo';
 
@@ -12,6 +12,7 @@ interface HeaderProps {
   savedCount: number;
   onOpenSaved: () => void;
   onOpenTimer: () => void;
+  onOpenContactUs?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   savedCount,
   onOpenSaved,
   onOpenTimer,
+  onOpenContactUs,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 text-slate-800 shadow-xs">
@@ -100,6 +102,18 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Header Actions */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          {/* Contact Help Desk */}
+          {onOpenContactUs && (
+            <button
+              onClick={onOpenContactUs}
+              className="px-2.5 py-1.5 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer border border-slate-200 flex items-center gap-1.5 text-xs font-bold"
+              title="Contact Us / Help Desk"
+            >
+              <MessageSquare className="w-4 h-4 text-[#0066FF]" />
+              <span className="hidden md:inline">Contact</span>
+            </button>
+          )}
+
           {/* Focus Timer */}
           <button
             onClick={onOpenTimer}

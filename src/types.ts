@@ -107,3 +107,14 @@ export interface QuestQuestion {
   explanation: string;
   xpReward: number;
 }
+
+export interface UserReport {
+  id: string;
+  username: string;
+  contactInfo?: string;
+  category: string;
+  message: string;
+  createdAt: number;
+  resolved?: boolean;
+}
+

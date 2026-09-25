@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, Zap, BookOpen, FileText, Award, School, 
   Video, ArrowRight, ExternalLink, Download, Clock, 
-  CheckCircle2, Compass, ShieldCheck, Flame, Layers
+  CheckCircle2, Compass, ShieldCheck, Flame, Layers,
+  Instagram, MessageSquare
 } from 'lucide-react';
 import { StreamId, ResourceCategory } from '../types';
 import { ExamCountdown } from './ExamCountdown';
@@ -12,6 +13,8 @@ interface HomePageProps {
   onNavigateToTab: (tab: ResourceCategory) => void;
   onOpenTimer: () => void;
   onOpenAuth: () => void;
+  onOpenContactUs: () => void;
+  onOpenAdminLogin: () => void;
   user: any;
 }
 
@@ -106,6 +109,8 @@ export const HomePage: React.FC<HomePageProps> = ({
   onNavigateToTab,
   onOpenTimer,
   onOpenAuth,
+  onOpenContactUs,
+  onOpenAdminLogin,
   user,
 }) => {
   // Moving word cycler
@@ -266,6 +271,14 @@ export const HomePage: React.FC<HomePageProps> = ({
             >
               <Clock className="w-4 h-4 text-[#0066FF]" />
               <span>Focus Timer (25m)</span>
+            </button>
+
+            <button
+              onClick={onOpenContactUs}
+              className="px-5 py-3 rounded-2xl bg-blue-50 hover:bg-blue-100 text-[#0066FF] font-extrabold text-sm border border-blue-200 shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <MessageSquare className="w-4 h-4 text-[#0066FF]" />
+              <span>Contact Us</span>
             </button>
           </div>
         </div>
@@ -435,11 +448,40 @@ export const HomePage: React.FC<HomePageProps> = ({
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 mt-14 py-8 text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <StudyProLogo size="sm" variant="light" />
+            {/* Secret Admin Panel Trigger */}
+            <button
+              onClick={onOpenAdminLogin}
+              className="p-1 rounded-xl hover:bg-slate-100 transition-all cursor-pointer group focus:outline-none"
+              title="Study Pro (Click for Admin System)"
+            >
+              <StudyProLogo size="sm" variant="light" />
+            </button>
             <span className="text-slate-400">| Sri Lankan G.C.E. A/L Academic Portal</span>
           </div>
+
+          {/* Center Links: Instagram & Contact Us */}
+          <div className="flex items-center gap-4">
+            <a
+              href="https://www.instagram.com/asman_linzy/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-amber-500/10 border border-pink-200 text-pink-700 font-bold text-xs hover:border-pink-400 hover:text-pink-800 transition-all group shadow-2xs"
+            >
+              <Instagram className="w-3.5 h-3.5 text-pink-600 group-hover:scale-110 transition-transform" />
+              <span>@asman_linzy</span>
+            </a>
+
+            <button
+              onClick={onOpenContactUs}
+              className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Contact Us</span>
+            </button>
+          </div>
+
           <p>© {new Date().getFullYear()} Study Pro. Built for Sri Lankan Advanced Level Students.</p>
         </div>
       </footer>

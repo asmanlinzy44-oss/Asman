@@ -24,6 +24,9 @@ import { BookmarksModal } from './components/BookmarksModal';
 import { StudyTimerModal } from './components/StudyTimerModal';
 import { TermFoldersView } from './components/TermFoldersView';
 import { PastPaperFoldersView } from './components/PastPaperFoldersView';
+import { ContactUsModal } from './components/ContactUsModal';
+import { AdminLoginModal } from './components/AdminLoginModal';
+import { AdminPanelModal } from './components/AdminPanelModal';
 
 export default function App() {
   // Local storage persisted state - ensure newly uploaded past papers, physics papers and terms are always loaded
@@ -107,6 +110,41 @@ export default function App() {
   const [authReason, setAuthReason] = useState('');
   const [isBookmarksOpen, setIsBookmarksOpen] = useState(false);
   const [isTimerOpen, setIsTimerOpen] = useState(false);
+  const [isContactOpen, setIsContactOpen] = useState(false);
+  const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
+    return localStorage.getItem('studypro_admin_session') === 'true';
+  });
+
+  const handleAdminLoginSuccess = () => {
+    setIsAdminLoggedIn(true);
+    setIsAdminLoginOpen(false);
+    setIsAdminPanelOpen(true);
+    localStorage.setItem('studypro_admin_session', 'true');
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdminLoggedIn(false);
+    setIsAdminPanelOpen(false);
+    localStorage.removeItem('studypro_admin_session');
+  };
+
+  const handleAddPaper = (newPaper: PaperResource) => {
+    setPapers((prev) => [newPaper, ...prev]);
+  };
+
+  const handleAddVideo = (newVideo: VideoLesson) => {
+    setVideos((prev) => [newVideo, ...prev]);
+  };
+
+  const handleDeletePaper = (paperId: string) => {
+    setPapers((prev) => prev.filter((p) => p.id !== paperId));
+  };
+
+  const handleDeleteVideo = (videoId: string) => {
+    setVideos((prev) => prev.filter((v) => v.id !== videoId));
+  };
 
   // Active Viewers
   const [previewResource, setPreviewResource] = useState<PaperResource | null>(null);
@@ -345,6 +383,7 @@ export default function App() {
         savedCount={user?.bookmarks.length || 0}
         onOpenSaved={() => setIsBookmarksOpen(true)}
         onOpenTimer={() => setIsTimerOpen(true)}
+        onOpenContactUs={() => setIsContactOpen(true)}
       />
 
       {/* 2. Router: Home Page (Attractive Hub) or Dedicated Category Archive */}
@@ -358,6 +397,14 @@ export default function App() {
           onOpenAuth={() => {
             setAuthReason('');
             setIsAuthOpen(true);
+          }}
+          onOpenContactUs={() => setIsContactOpen(true)}
+          onOpenAdminLogin={() => {
+            if (isAdminLoggedIn) {
+              setIsAdminPanelOpen(true);
+            } else {
+              setIsAdminLoginOpen(true);
+            }
           }}
           user={user}
         />
@@ -691,6 +738,33 @@ export default function App() {
         onToggleWatched={handleToggleWatchedVideo}
         isWatched={activeVideo ? user?.watchedVideoIds?.includes(activeVideo.id) : false}
         onOpenPdfPreview={handleOpenPdfPreview}
+      />
+
+      {/* Student Contact Us & Help Desk Modal */}
+      <ContactUsModal
+        isOpen={isContactOpen}
+        onClose={() => setIsContactOpen(false)}
+        currentUser={user}
+      />
+
+      {/* Secret Admin Login Gate Modal (Triggered by clicking bottom Studypro logo) */}
+      <AdminLoginModal
+        isOpen={isAdminLoginOpen}
+        onClose={() => setIsAdminLoginOpen(false)}
+        onSuccess={handleAdminLoginSuccess}
+      />
+
+      {/* Administrator Dashboard & Content Management */}
+      <AdminPanelModal
+        isOpen={isAdminPanelOpen}
+        onClose={() => setIsAdminPanelOpen(false)}
+        onLogout={handleAdminLogout}
+        onAddPaper={handleAddPaper}
+        onAddVideo={handleAddVideo}
+        papers={papers}
+        videos={videos}
+        onDeletePaper={handleDeletePaper}
+        onDeleteVideo={handleDeleteVideo}
       />
     </div>
   );

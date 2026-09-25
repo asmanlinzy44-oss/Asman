@@ -121,12 +121,16 @@ export function extractYoutubeId(urlOrId: string): string {
  */
 export function getYoutubeEmbedUrl(
   youtubeId: string, 
-  options: { autoplay?: boolean; startSeconds?: number; controls?: number } = {}
+  options: { autoplay?: boolean; startSeconds?: number; controls?: number; quality?: string } = {}
 ): string {
   const cleanId = extractYoutubeId(youtubeId);
   const autoplay = options.autoplay ? 1 : 0;
   const controls = typeof options.controls === 'number' ? options.controls : 0;
   const start = options.startSeconds ? `&start=${Math.floor(options.startSeconds)}` : '';
+  const vq = options.quality && options.quality !== 'auto' ? `&vq=${options.quality}` : '';
+  const origin = typeof window !== 'undefined' && window.location?.origin 
+    ? `&origin=${encodeURIComponent(window.location.origin)}` 
+    : '';
   
-  return `https://www.youtube-nocookie.com/embed/${cleanId}?autoplay=${autoplay}&rel=0&modestbranding=1&controls=${controls}&playsinline=1&enablejsapi=1&iv_load_policy=3&fs=0${start}`;
+  return `https://www.youtube-nocookie.com/embed/${cleanId}?autoplay=${autoplay}&rel=0&modestbranding=1&controls=${controls}&playsinline=1&enablejsapi=1&iv_load_policy=3&fs=0${origin}${vq}${start}`;
 }
