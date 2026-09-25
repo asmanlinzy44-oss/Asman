@@ -24,6 +24,7 @@ interface PastPaperFoldersViewProps {
   onSelectSubject: (subjectId: string) => void;
   selectedYear: string;
   onSelectYear: (year: string) => void;
+  selectedStream?: string;
   papers: PaperResource[];
   onPreview: (resource: PaperResource, mode?: 'paper' | 'scheme') => void;
   isBookmarked?: (id: string) => boolean;
@@ -55,9 +56,9 @@ const SUBJECT_FOLDERS: SubjectFolderConfig[] = [
     nameEn: 'Physics Past Papers',
     nameTa: 'பௌதிகவியல் வினாத்தாள்கள்',
     icon: '⚛️',
-    badge: '2020–2023 Available',
+    badge: '1975–2026 Master Archive (51+ Years)',
     colorTheme: 'blue',
-    description: 'தேசிய க.பொ.த (உயர்தரம்) பௌதிகவியல் Paper 1 & Paper 2 வினாத்தாள்களும் உத்தியோகபூர்வ புள்ளியிடல் திட்டங்களும்.',
+    description: '1975 முதல் 2026 வரையிலான 51+ வருட முழுமையான பௌதிகவியல் வினாத்தாள்களும், Paper 1 MCQs விடைகளும், உத்தியோகபூர்வ புள்ளியிடல் திட்டங்களும்.',
   },
   {
     id: 'biology',
@@ -84,6 +85,7 @@ export const PastPaperFoldersView: React.FC<PastPaperFoldersViewProps> = ({
   onSelectSubject,
   selectedYear,
   onSelectYear,
+  selectedStream = 'all',
   papers,
   onPreview,
   isBookmarked,
@@ -91,12 +93,23 @@ export const PastPaperFoldersView: React.FC<PastPaperFoldersViewProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
+  const visibleSubjectFolders = useMemo(() => {
+    if (selectedStream === 'bio') {
+      return SUBJECT_FOLDERS.filter((f) => f.id === 'biology' || f.id === 'chemistry' || f.id === 'physics');
+    }
+    if (selectedStream === 'maths') {
+      return SUBJECT_FOLDERS.filter((f) => f.id === 'c-maths' || f.id === 'physics' || f.id === 'chemistry');
+    }
+    return SUBJECT_FOLDERS;
+  }, [selectedStream]);
+
   // Filter out master container placeholders from list so individual years render neatly
   const actualPapers = useMemo(() => {
     return papers.filter(
       (p) =>
         p.id !== 'past-chem-master-1980-2026' &&
         p.id !== 'past-bio-master-1994-2026' &&
+        p.id !== 'past-phy-master-1975-2026' &&
         p.id !== 'past-master-folder'
     );
   }, [papers]);
@@ -158,9 +171,9 @@ export const PastPaperFoldersView: React.FC<PastPaperFoldersViewProps> = ({
           </p>
         </div>
 
-        {/* 4 Big Subject Folders (Physics, Chemistry, Biology, Combined Maths) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-5">
-          {SUBJECT_FOLDERS.map((folder) => {
+        {/* Subject Folders */}
+        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${visibleSubjectFolders.length} gap-3.5 pt-5`}>
+          {visibleSubjectFolders.map((folder) => {
             const isSelected = selectedSubject === folder.id;
             const count = getSubjectCount(folder.id);
 
@@ -402,7 +415,7 @@ export const PastPaperFoldersView: React.FC<PastPaperFoldersViewProps> = ({
       )}
 
       {/* 2.6 Master Google Drive Folder Showcase (1994–2026 Biology Complete Archive) */}
-      {(selectedSubject === 'biology' || selectedSubject === 'all') && (
+      {selectedStream !== 'maths' && (selectedSubject === 'biology' || selectedSubject === 'all') && (
         <div className="bg-gradient-to-r from-rose-950 via-pink-950 to-slate-900 border-2 border-rose-500/40 rounded-3xl p-5 sm:p-6 text-white shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-80 h-80 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
           
@@ -454,6 +467,66 @@ export const PastPaperFoldersView: React.FC<PastPaperFoldersViewProps> = ({
                 className="px-5 py-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 border border-rose-500/30 transition-colors cursor-pointer"
               >
                 <Eye className="w-4 h-4 text-rose-400" />
+                <span>Browse Folder Contents in App</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2.7 Master Google Drive Folder Showcase (1975–2026 Physics Complete Archive) */}
+      {(selectedSubject === 'physics' || selectedSubject === 'all') && (
+        <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-2 border-blue-500/40 rounded-3xl p-5 sm:p-6 text-white shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+            <div className="space-y-2 max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-sky-300 text-xs font-bold border border-blue-500/30">
+                <FolderOpen className="w-4 h-4 text-sky-400" />
+                <span>Google Drive Master Folder Archive (1975–2026)</span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                1975–2026 G.C.E. A/L Physics Complete Past Papers & Schemes
+              </h3>
+              <div className="text-xs font-bold text-sky-300">
+                1975–2026 க.பொ.த (உயர்தரம்) பௌதிகவியல் முழுமையான கடந்தகால வினாத்தாள்கள் & விடைக்குறிப்புகள் [Master Folder]
+              </div>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                All 1975 to 2026 Physics past papers with complete MCQs keys, structured essays, essay questions, and official marking schemes are provided separately inside this official Google Drive master folder.
+              </p>
+              <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                <span className="px-2.5 py-1 rounded-lg bg-blue-900/60 border border-blue-500/30 font-bold text-sky-200">
+                  ⚛️ 51+ Years (1975–2026)
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-blue-900/60 border border-blue-500/30 font-bold text-sky-200">
+                  📄 All Years Organized Inside
+                </span>
+                <span className="px-2.5 py-1 rounded-lg bg-blue-900/60 border border-blue-500/30 font-bold text-sky-200">
+                  📝 Question Papers + Answer Schemes
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 shrink-0">
+              <a
+                href="https://drive.google.com/drive/folders/1PKl9THSXS4bz1o8iarrXvt_43ezGszSi"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-5 py-3 rounded-2xl bg-[#0066FF] hover:bg-blue-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all transform hover:scale-[1.02] cursor-pointer"
+              >
+                <FolderOpen className="w-4 h-4" />
+                <span>Open Google Drive Folder</span>
+                <ExternalLink className="w-4 h-4" />
+              </a>
+
+              <button
+                onClick={() => {
+                  const masterRes = papers.find((p) => p.id === 'past-phy-master-1975-2026');
+                  if (masterRes) onPreview(masterRes, 'paper');
+                }}
+                className="px-5 py-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700 text-sky-300 font-bold text-xs flex items-center justify-center gap-2 border border-blue-500/30 transition-colors cursor-pointer"
+              >
+                <Eye className="w-4 h-4 text-sky-400" />
                 <span>Browse Folder Contents in App</span>
               </button>
             </div>

@@ -117,8 +117,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       'Chemistry': 'sub-chemistry',
       'Combined Mathematics': 'sub-combined-maths',
       'Biology': 'sub-biology',
-      'Information & Comm. Tech (ICT)': 'sub-ict',
-      'Agricultural Science': 'sub-agri',
     };
 
     const newPaper: PaperResource = {
@@ -160,8 +158,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       'Chemistry': 'sub-chemistry',
       'Combined Mathematics': 'sub-combined-maths',
       'Biology': 'sub-biology',
-      'Information & Comm. Tech (ICT)': 'sub-ict',
-      'Agricultural Science': 'sub-agri',
     };
 
     const newVideo: VideoLesson = {
@@ -416,6 +412,29 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Stream */}
+                <div>
+                  <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
+                    Stream
+                  </label>
+                  <select
+                    value={paperStream}
+                    onChange={(e) => {
+                      const newStream = e.target.value as StreamId;
+                      setPaperStream(newStream);
+                      if (newStream === 'bio' && paperSubject === 'Combined Mathematics') {
+                        setPaperSubject('Biology');
+                      } else if (newStream === 'maths' && paperSubject === 'Biology') {
+                        setPaperSubject('Combined Mathematics');
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
+                  >
+                    <option value="maths">Physical Science (Combined Maths)</option>
+                    <option value="bio">Biological Science (Bio)</option>
+                  </select>
+                </div>
+
                 {/* Subject */}
                 <div>
                   <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
@@ -426,27 +445,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     onChange={(e) => setPaperSubject(e.target.value)}
                     className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
                   >
-                    <option value="Physics">Physics</option>
-                    <option value="Chemistry">Chemistry</option>
-                    <option value="Combined Mathematics">Combined Mathematics</option>
-                    <option value="Biology">Biology</option>
-                    <option value="Information & Comm. Tech (ICT)">Information & Comm. Tech (ICT)</option>
-                    <option value="Agricultural Science">Agricultural Science</option>
-                  </select>
-                </div>
-
-                {/* Stream */}
-                <div>
-                  <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                    Stream
-                  </label>
-                  <select
-                    value={paperStream}
-                    onChange={(e) => setPaperStream(e.target.value as StreamId)}
-                    className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
-                  >
-                    <option value="maths">Physical Science (Combined Maths)</option>
-                    <option value="bio">Biological Science (Bio)</option>
+                    {paperStream === 'bio' ? (
+                      <>
+                        <option value="Biology">Biology</option>
+                        <option value="Chemistry">Chemistry</option>
+                        <option value="Physics">Physics</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="Combined Mathematics">Combined Mathematics</option>
+                        <option value="Physics">Physics</option>
+                        <option value="Chemistry">Chemistry</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -585,6 +596,29 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Stream */}
+                <div>
+                  <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
+                    Stream
+                  </label>
+                  <select
+                    value={videoStream}
+                    onChange={(e) => {
+                      const newStream = e.target.value as StreamId;
+                      setVideoStream(newStream);
+                      if (newStream === 'bio' && videoSubject === 'Combined Mathematics') {
+                        setVideoSubject('Biology');
+                      } else if (newStream === 'maths' && videoSubject === 'Biology') {
+                        setVideoSubject('Combined Mathematics');
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
+                  >
+                    <option value="maths">Physical Science (Maths)</option>
+                    <option value="bio">Biological Science (Bio)</option>
+                  </select>
+                </div>
+
                 {/* Subject */}
                 <div>
                   <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
@@ -595,27 +629,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     onChange={(e) => setVideoSubject(e.target.value)}
                     className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
                   >
-                    <option value="Physics">Physics</option>
-                    <option value="Chemistry">Chemistry</option>
-                    <option value="Combined Mathematics">Combined Mathematics</option>
-                    <option value="Biology">Biology</option>
-                    <option value="Information & Comm. Tech (ICT)">Information & Comm. Tech (ICT)</option>
-                    <option value="Agricultural Science">Agricultural Science</option>
-                  </select>
-                </div>
-
-                {/* Stream */}
-                <div>
-                  <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                    Stream
-                  </label>
-                  <select
-                    value={videoStream}
-                    onChange={(e) => setVideoStream(e.target.value as StreamId)}
-                    className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
-                  >
-                    <option value="maths">Physical Science (Maths)</option>
-                    <option value="bio">Biological Science (Bio)</option>
+                    {videoStream === 'bio' ? (
+                      <>
+                        <option value="Biology">Biology</option>
+                        <option value="Chemistry">Chemistry</option>
+                        <option value="Physics">Physics</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="Combined Mathematics">Combined Mathematics</option>
+                        <option value="Physics">Physics</option>
+                        <option value="Chemistry">Chemistry</option>
+                      </>
+                    )}
                   </select>
                 </div>
 

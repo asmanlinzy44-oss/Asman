@@ -31,9 +31,9 @@ import { AdminPanelModal } from './components/AdminPanelModal';
 export default function App() {
   // Local storage persisted state - ensure newly uploaded past papers, physics papers and terms are always loaded
   const [papers, setPapers] = useState<PaperResource[]>(() => {
-    const isPastPapersLoaded = localStorage.getItem('studypro_pastpapers_1975_2026_phy_v6');
+    const isPastPapersLoaded = localStorage.getItem('studypro_fwc_all_terms1_6_maths_chem_phy_bio_v12');
     if (!isPastPapersLoaded) {
-      localStorage.setItem('studypro_pastpapers_1975_2026_phy_v6', 'true');
+      localStorage.setItem('studypro_fwc_all_terms1_6_maths_chem_phy_bio_v12', 'true');
       localStorage.setItem('studypro_papers_data', JSON.stringify(INITIAL_PAPERS));
       return INITIAL_PAPERS;
     }
@@ -286,8 +286,26 @@ export default function App() {
         }
       }
 
-      if (selectedStream !== 'all' && p.stream !== selectedStream && p.stream !== 'all') {
-        return false;
+      if (selectedStream !== 'all') {
+        if (selectedStream === 'bio') {
+          // Bio Stream: Only Biology, Chemistry, Physics (no Combined Maths, no Agricultural Science)
+          const isBioSubject = p.subjectId === 'biology' || p.subjectId === 'chemistry' || p.subjectId === 'physics';
+          if (!isBioSubject && p.stream !== 'bio' && p.stream !== 'all') {
+            return false;
+          }
+          if (p.subjectId === 'c-maths' || p.stream === 'maths') {
+            return false;
+          }
+        } else if (selectedStream === 'maths') {
+          // Maths Stream: Only Combined Maths, Physics, Chemistry (no Biology)
+          const isMathsSubject = p.subjectId === 'c-maths' || p.subjectId === 'physics' || p.subjectId === 'chemistry';
+          if (!isMathsSubject && p.stream !== 'maths' && p.stream !== 'all') {
+            return false;
+          }
+          if (p.subjectId === 'biology' || p.stream === 'bio') {
+            return false;
+          }
+        }
       }
       if (selectedSubject !== 'all' && p.subjectId !== selectedSubject) {
         return false;
@@ -326,8 +344,16 @@ export default function App() {
   // Filtered Videos for dedicated Video Lessons archive
   const filteredVideos = useMemo(() => {
     return videos.filter((v) => {
-      if (selectedStream !== 'all' && v.stream !== selectedStream) {
-        return false;
+      if (selectedStream !== 'all') {
+        if (selectedStream === 'bio') {
+          const isBioSubject = v.subjectId === 'biology' || v.subjectId === 'chemistry' || v.subjectId === 'physics';
+          if (!isBioSubject && v.stream !== 'bio' && v.stream !== 'all') return false;
+          if (v.subjectId === 'c-maths' || v.stream === 'maths') return false;
+        } else if (selectedStream === 'maths') {
+          const isMathsSubject = v.subjectId === 'c-maths' || v.subjectId === 'physics' || v.subjectId === 'chemistry';
+          if (!isMathsSubject && v.stream !== 'maths' && v.stream !== 'all') return false;
+          if (v.subjectId === 'biology' || v.stream === 'bio') return false;
+        }
       }
       if (selectedSubject !== 'all' && v.subjectId !== selectedSubject) {
         return false;
@@ -343,6 +369,33 @@ export default function App() {
       return true;
     });
   }, [videos, selectedStream, selectedSubject, searchQuery]);
+
+  // Dedicated Subject Options based on Stream:
+  // Bio Stream: Only Biology, Chemistry, Physics (no Agricultural Science, no Combined Maths)
+  // Maths Stream: Only Combined Mathematics, Physics, Chemistry (no Biology)
+  // All Streams: Combined Mathematics, Physics, Chemistry, Biology
+  const visibleSubjectOptions = useMemo(() => {
+    if (selectedStream === 'bio') {
+      return [
+        { id: 'biology', nameEn: 'Biology', nameTa: 'உயிரியல்' },
+        { id: 'chemistry', nameEn: 'Chemistry', nameTa: 'இரசாயனவியல்' },
+        { id: 'physics', nameEn: 'Physics', nameTa: 'பௌதிகவியல்' },
+      ];
+    }
+    if (selectedStream === 'maths') {
+      return [
+        { id: 'c-maths', nameEn: 'Combined Mathematics', nameTa: 'இணைந்த கணிதம்' },
+        { id: 'physics', nameEn: 'Physics', nameTa: 'பௌதிகவியல்' },
+        { id: 'chemistry', nameEn: 'Chemistry', nameTa: 'இரசாயனவியல்' },
+      ];
+    }
+    return [
+      { id: 'c-maths', nameEn: 'Combined Mathematics', nameTa: 'இணைந்த கணிதம்' },
+      { id: 'physics', nameEn: 'Physics', nameTa: 'பௌதிகவியல்' },
+      { id: 'chemistry', nameEn: 'Chemistry', nameTa: 'இரசாயனவியல்' },
+      { id: 'biology', nameEn: 'Biology', nameTa: 'உயிரியல்' },
+    ];
+  }, [selectedStream]);
 
   const bookmarkedResourcesList = useMemo(() => {
     if (!user) return [];
@@ -452,6 +505,7 @@ export default function App() {
               onSelectTerm={(termId) => setSelectedTerm(termId)}
               selectedSubject={selectedSubject}
               onSelectSubject={(subjId) => setSelectedSubject(subjId)}
+              selectedStream={selectedStream}
               papers={papers.filter((p) => p.category === 'fwc-papers' || p.category === 'term-papers')}
             />
           )}
@@ -463,6 +517,7 @@ export default function App() {
               onSelectSubject={(subjId) => setSelectedSubject(subjId)}
               selectedYear={selectedYear}
               onSelectYear={(yr) => setSelectedYear(yr)}
+              selectedStream={selectedStream}
               papers={papers.filter((p) => p.category === 'past-papers')}
               onPreview={handleOpenPreview}
               isBookmarked={(id) => Boolean(user?.bookmarks?.includes(id))}
@@ -521,11 +576,12 @@ export default function App() {
                   >
                     <option value="all">All Folders (FWC & All Terms)</option>
                     <option value="FWC Pilot">⭐ FWC Pilot Exams (Thondaimanaru)</option>
-                    <option value="1st Term">📁 1st Term (Physics 2022–2027)</option>
-                    <option value="2nd Term">📁 2nd Term</option>
-                    <option value="3rd Term">📁 3rd Term (Year-End Exams)</option>
-                    <option value="4th & 5th Term">📁 4th & 5th Term (Pre-Board)</option>
-                    <option value="Trial Exam">📁 Trial / 6th Term Benchmark</option>
+                    <option value="1st Term">📁 1st Term (FWC Terms 1–6)</option>
+                    <option value="2nd Term">📁 2nd Term (FWC Terms 1–6)</option>
+                    <option value="3rd Term">📁 3rd Term (FWC Terms 1–6)</option>
+                    <option value="4th Term">📁 4th Term (FWC Terms 1–6)</option>
+                    <option value="5th Term">📁 5th Term (FWC Terms 1–6)</option>
+                    <option value="6th Term">📁 6th Term / Final Trial (FWC Terms 1–6)</option>
                   </select>
                 </div>
               )}
@@ -547,7 +603,7 @@ export default function App() {
                 </select>
               </div>
 
-              {/* Subject Selector */}
+              {/* Subject Selector: Bio stream shows Biology, Chemistry, Physics; Maths stream shows Combined Maths, Physics, Chemistry */}
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-bold text-slate-500">Subject:</span>
                 <select
@@ -556,7 +612,7 @@ export default function App() {
                   className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 >
                   <option value="all">All Subjects</option>
-                  {SUBJECTS.filter((s) => selectedStream === 'all' || s.stream === selectedStream).map((s) => (
+                  {visibleSubjectOptions.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.nameEn}
                     </option>
