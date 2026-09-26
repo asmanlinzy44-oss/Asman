@@ -9,6 +9,8 @@ interface VideoCardProps {
   onPlay: (video: VideoLesson) => void;
   onRequireLogin: () => void;
   isWatched: boolean;
+  isUnlocked?: boolean;
+  onRequireUnlock?: () => void;
 }
 
 export const VideoCard: React.FC<VideoCardProps> = ({
@@ -17,10 +19,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   onPlay,
   onRequireLogin,
   isWatched,
+  isUnlocked = false,
+  onRequireUnlock,
 }) => {
   const handleClick = () => {
-    if (!user) {
-      onRequireLogin();
+    if (!isUnlocked) {
+      if (onRequireUnlock) {
+        onRequireUnlock();
+      } else {
+        onRequireLogin();
+      }
     } else {
       onPlay(video);
     }
@@ -34,28 +42,36 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           onClick={handleClick}
           className="relative aspect-video bg-slate-950 overflow-hidden cursor-pointer flex items-center justify-center group/thumb"
         >
-          {/* YouTube Thumbnail Image */}
-          <img
-            src={`https://img.youtube.com/vi/${video.youtubeId}/hqdefault.jpg`}
-            alt={video.titleEn}
-            className="w-full h-full object-cover opacity-85 group-hover/thumb:opacity-95 group-hover/thumb:scale-105 transition-all duration-300"
-            referrerPolicy="no-referrer"
-            onError={(e) => {
-              (e.target as HTMLElement).style.display = 'none';
-            }}
-          />
+          {isUnlocked ? (
+            <>
+              {/* YouTube Thumbnail Image */}
+              <img
+                src={`https://img.youtube.com/vi/${video.youtubeId}/hqdefault.jpg`}
+                alt={video.titleEn}
+                className="w-full h-full object-cover opacity-85 group-hover/thumb:opacity-95 group-hover/thumb:scale-105 transition-all duration-300"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
 
-          {/* Overlay Scrim */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+              {/* Overlay Scrim */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
-          {/* Central Play/Lock Button */}
-          <div className="absolute z-10 w-12 h-12 rounded-2xl bg-[#0066FF] text-white flex items-center justify-center group-hover/thumb:bg-blue-600 group-hover/thumb:scale-110 transition-transform shadow-lg border border-white/20">
-            {!user ? (
-              <Lock className="w-5 h-5 text-amber-300" />
-            ) : (
-              <Play className="w-5 h-5 fill-current ml-0.5" />
-            )}
-          </div>
+              {/* Central Play Button */}
+              <div className="absolute z-10 w-12 h-12 rounded-2xl bg-[#0066FF] text-white flex items-center justify-center group-hover/thumb:bg-blue-600 group-hover/thumb:scale-110 transition-transform shadow-lg border border-white/20">
+                <Play className="w-5 h-5 fill-current ml-0.5" />
+              </div>
+            </>
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 flex flex-col items-center justify-center p-4 text-center select-none relative">
+              <div className="w-12 h-12 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center mb-2 shadow-inner group-hover/thumb:scale-110 transition-transform">
+                <Lock className="w-6 h-6 text-amber-300" />
+              </div>
+              <span className="text-xs font-bold text-slate-200">Thumbnail Locked</span>
+              <span className="text-[10px] text-amber-200/80 mt-0.5 font-medium">Unlock to View Video</span>
+            </div>
+          )}
 
           {/* Duration & Watched Indicator */}
           <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-xs text-white z-10">
@@ -69,9 +85,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({
                 <CheckCircle className="w-3 h-3" />
                 Completed
               </span>
-            ) : !user ? (
-              <span className="bg-amber-400 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-                Login to Watch
+            ) : !isUnlocked ? (
+              <span className="bg-amber-400 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1">
+                <Lock className="w-2.5 h-2.5" />
+                Locked
               </span>
             ) : (
               <span className="bg-blue-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md">

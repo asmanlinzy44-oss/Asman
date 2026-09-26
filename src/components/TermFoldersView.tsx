@@ -4,6 +4,7 @@ import {
   X, ChevronRight, BookOpen, ExternalLink, Eye, Award, Atom, FlaskConical, Calculator
 } from 'lucide-react';
 import { PaperResource } from '../types';
+import { playRoboticFolder, playRoboticClick } from '../utils/audio';
 
 export interface TermFolderDef {
   id: string; // 'all' | '1st Term' | '2nd Term' | '3rd Term' | '4th Term' | '5th Term' | '6th Term' | 'FWC Pilot'
@@ -240,10 +241,29 @@ export const TermFoldersView: React.FC<TermFoldersViewProps> = ({
           const count = getTermCount(folder.id);
           const hasUploadedBadge = folder.badge;
 
+          // Find direct drive link if a specific subject is selected
+          const subjectDriveLink =
+            selectedSubject === 'c-maths'
+              ? fwcMathsTerms.find((m) => m.term === folder.id)?.link
+              : selectedSubject === 'physics'
+              ? fwcPhyTerms.find((p) => p.term === folder.id)?.link
+              : selectedSubject === 'chemistry'
+              ? fwcChemTerms.find((c) => c.term === folder.id)?.link
+              : selectedSubject === 'biology'
+              ? fwcBioTerms.find((b) => b.term === folder.id)?.link
+              : null;
+
           return (
             <div
               key={folder.id}
-              onClick={() => onSelectTerm(isSelected ? 'all' : folder.id)}
+              onClick={() => {
+                playRoboticFolder();
+                onSelectTerm(isSelected ? 'all' : folder.id);
+                setTimeout(() => {
+                  const el = document.getElementById('fwc-papers-results');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
+              }}
               className={`relative rounded-2xl p-3.5 transition-all duration-200 cursor-pointer flex flex-col justify-between group border select-none ${
                 isSelected
                   ? 'bg-gradient-to-b from-blue-50/90 to-white border-blue-500 shadow-md ring-2 ring-blue-500/20 transform -translate-y-0.5'
@@ -310,15 +330,29 @@ export const TermFoldersView: React.FC<TermFoldersViewProps> = ({
                     isSelected ? 'text-[#0066FF]' : 'text-slate-400 group-hover:text-slate-600'
                   }`}
                 >
-                  {isSelected ? 'Open' : 'View'}
+                  {isSelected ? 'Selected' : 'Open Folder'}
                 </span>
-                <ChevronRight
-                  className={`w-3 h-3 transition-transform ${
-                    isSelected
-                      ? 'text-[#0066FF] translate-x-0.5'
-                      : 'text-slate-300 group-hover:text-[#0066FF] group-hover:translate-x-0.5'
-                  }`}
-                />
+                
+                {subjectDriveLink ? (
+                  <a
+                    href={subjectDriveLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                    title={`Open ${folder.name} in Google Drive`}
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                ) : (
+                  <ChevronRight
+                    className={`w-3 h-3 transition-transform ${
+                      isSelected
+                        ? 'text-[#0066FF] translate-x-0.5'
+                        : 'text-slate-300 group-hover:text-[#0066FF] group-hover:translate-x-0.5'
+                    }`}
+                  />
+                )}
               </div>
             </div>
           );
@@ -326,288 +360,444 @@ export const TermFoldersView: React.FC<TermFoldersViewProps> = ({
       </div>
 
       {/* Interactive FWC Combined Maths Complete 1–6 Terms Showcase Banner */}
-      {selectedStream !== 'bio' && (selectedSubject === 'c-maths' || selectedSubject === 'all') && (
-        <div className="bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 border-2 border-purple-500/40 rounded-3xl p-5 sm:p-6 text-white shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
-            <div className="space-y-2 max-w-2xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs font-bold border border-purple-500/30">
-                <Calculator className="w-4 h-4 text-purple-400" />
-                <span>Thondaimanaru Field Work Centre (FWC) Combined Mathematics Archive</span>
-              </div>
-              <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                FWC Combined Maths Terms 1, 2, 3, 4, 5 & 6 Examination Papers & Step Solutions
-              </h3>
-              <div className="text-xs font-bold text-purple-300">
-                தொண்டைமானாறு கள நிலையம் (FWC) இணைந்த கணிதம் தவணை 1 முதல் 6 வரையிலான முழுமையான வினாத்தாள்களும் படிமுறைத் தீர்வுகளும்
-              </div>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                All 6 terms of FWC Combined Mathematics (Pure & Applied) examination papers are uploaded with official step-by-step marking schemes and solutions. Touch any term below to jump straight to its folder:
-              </p>
+      {selectedStream !== 'bio' && (selectedSubject === 'c-maths' || selectedSubject === 'all') && (() => {
+        const activeMathsItem =
+          fwcMathsTerms.find((m) => m.term === selectedTerm) ||
+          (selectedTerm !== 'all' ? fwcMathsTerms.find((m) => selectedTerm.includes(m.term)) : null) ||
+          fwcMathsTerms[0];
 
-              {/* Term Fast-Jumper Chips */}
-              <div className="flex flex-wrap items-center gap-2 pt-2">
-                {fwcMathsTerms.map((m) => (
-                  <button
-                    key={m.term}
-                    onClick={() => {
-                      onSelectTerm(m.term);
-                      onSelectSubject('c-maths');
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
-                      selectedTerm === m.term
-                        ? 'bg-purple-400 text-slate-950 border-purple-300 shadow-sm font-black ring-2 ring-purple-300/40'
-                        : 'bg-purple-900/60 hover:bg-purple-800/80 text-purple-200 border-purple-500/30'
-                    }`}
-                  >
-                    <span>📁</span>
-                    <span>{m.title}</span>
-                    <ChevronRight className="w-3 h-3" />
-                  </button>
-                ))}
+        return (
+          <div className="bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-900 border-2 border-purple-500/40 rounded-3xl p-5 sm:p-6 text-white shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+            
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="space-y-2 max-w-2xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 text-xs font-bold border border-purple-500/30">
+                  <Calculator className="w-4 h-4 text-purple-400" />
+                  <span>Thondaimanaru Field Work Centre (FWC) Combined Mathematics Archive</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  FWC Combined Maths Terms 1, 2, 3, 4, 5 & 6 Examination Papers & Step Solutions
+                </h3>
+                <div className="text-xs font-bold text-purple-300">
+                  தொண்டைமானாறு கள நிலையம் (FWC) இணைந்த கணிதம் தவணை 1 முதல் 6 வரையிலான முழுமையான வினாத்தாள்களும் படிமுறைத் தீர்வுகளும்
+                </div>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  All 6 terms of FWC Combined Mathematics (Pure & Applied) are uploaded. Touch any term below to view its papers or directly open its Drive folder:
+                </p>
+
+                {/* Term Fast-Jumper Chips */}
+                <div className="flex flex-wrap items-center gap-2 pt-2">
+                  {fwcMathsTerms.map((m) => {
+                    const isTermActive = selectedTerm === m.term;
+                    return (
+                      <div
+                        key={m.term}
+                        className={`inline-flex items-center rounded-xl overflow-hidden border transition-all ${
+                          isTermActive
+                            ? 'border-purple-300 ring-2 ring-purple-300/40 shadow-sm'
+                            : 'border-purple-500/30 hover:border-purple-400'
+                        }`}
+                      >
+                        <button
+                          onClick={() => {
+                            onSelectTerm(m.term);
+                            onSelectSubject('c-maths');
+                            setTimeout(() => {
+                              const el = document.getElementById('fwc-papers-results');
+                              if (el) el.scrollIntoView({ behavior: 'smooth' });
+                            }, 100);
+                          }}
+                          className={`px-3 py-1.5 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                            isTermActive
+                              ? 'bg-purple-400 text-slate-950 font-black'
+                              : 'bg-purple-900/60 hover:bg-purple-800/80 text-purple-200'
+                          }`}
+                          title={`Select ${m.title} & View Papers`}
+                        >
+                          <span>📁</span>
+                          <span>{m.title}</span>
+                        </button>
+                        <a
+                          href={m.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`px-2 py-1.5 text-xs transition-colors flex items-center justify-center cursor-pointer border-l border-purple-500/30 ${
+                            isTermActive
+                              ? 'bg-purple-300 hover:bg-purple-200 text-slate-950'
+                              : 'bg-purple-950 hover:bg-purple-800 text-purple-300'
+                          }`}
+                          title={`Open ${m.title} Google Drive folder directly`}
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 shrink-0">
-              <a
-                href="https://drive.google.com/drive/folders/1ZdIODWG_-rzNw-782VuLRrIJS247xtXi"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-5 py-3 rounded-2xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all transform hover:scale-[1.02] cursor-pointer"
-              >
-                <FolderOpen className="w-4 h-4" />
-                <span>Open FWC Maths Term 1 Drive</span>
-                <ExternalLink className="w-4 h-4" />
-              </a>
+              <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 shrink-0">
+                <a
+                  href={activeMathsItem.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-5 py-3 rounded-2xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all transform hover:scale-[1.02] cursor-pointer"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  <span>Open FWC Maths {activeMathsItem.title} Drive</span>
+                  <ExternalLink className="w-4 h-4" />
+                </a>
 
-              <button
-                onClick={() => {
-                  onSelectSubject('c-maths');
-                  onSelectTerm('all');
-                }}
-                className="px-5 py-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700 text-purple-300 font-bold text-xs flex items-center justify-center gap-2 border border-purple-500/30 transition-colors cursor-pointer"
-              >
-                <Eye className="w-4 h-4 text-purple-400" />
-                <span>View All FWC Maths Papers</span>
-              </button>
+                <button
+                  onClick={() => {
+                    onSelectSubject('c-maths');
+                    onSelectTerm('all');
+                    setTimeout(() => {
+                      const el = document.getElementById('fwc-papers-results');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }, 100);
+                  }}
+                  className="px-5 py-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700 text-purple-300 font-bold text-xs flex items-center justify-center gap-2 border border-purple-500/30 transition-colors cursor-pointer"
+                >
+                  <Eye className="w-4 h-4 text-purple-400" />
+                  <span>View All FWC Maths Papers</span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Interactive FWC Physics Complete 1–6 Terms Showcase Banner */}
-      {(selectedSubject === 'physics' || selectedSubject === 'all') && (
-        <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-2 border-blue-500/40 rounded-3xl p-5 sm:p-6 text-white shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
-            <div className="space-y-2 max-w-2xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-sky-300 text-xs font-bold border border-blue-500/30">
-                <Atom className="w-4 h-4 text-sky-400" />
-                <span>Thondaimanaru Field Work Centre (FWC) Physics Archive</span>
-              </div>
-              <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                FWC Physics Terms 1, 2, 3, 4, 5 & 6 Examination Papers & Schemes
-              </h3>
-              <div className="text-xs font-bold text-sky-300">
-                தொண்டைமானாறு கள நிலையம் (FWC) பௌதிகவியல் தவணை 1 முதல் 6 வரையிலான முழுமையான வினாத்தாள்களும் புள்ளியிடல் திட்டங்களும்
-              </div>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                All 6 terms of FWC Physics examination papers are uploaded with official step-by-step marking schemes. Touch any term below to jump straight to its folder:
-              </p>
+      {(selectedSubject === 'physics' || selectedSubject === 'all') && (() => {
+        const activePhyItem =
+          fwcPhyTerms.find((p) => p.term === selectedTerm) ||
+          (selectedTerm !== 'all' ? fwcPhyTerms.find((p) => selectedTerm.includes(p.term)) : null) ||
+          fwcPhyTerms[0];
 
-              {/* Term Fast-Jumper Chips */}
-              <div className="flex flex-wrap items-center gap-2 pt-2">
-                {fwcPhyTerms.map((p) => (
-                  <button
-                    key={p.term}
-                    onClick={() => {
-                      onSelectTerm(p.term);
-                      onSelectSubject('physics');
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
-                      selectedTerm === p.term
-                        ? 'bg-sky-400 text-slate-950 border-sky-300 shadow-sm font-black ring-2 ring-sky-300/40'
-                        : 'bg-blue-900/60 hover:bg-blue-800/80 text-sky-200 border-blue-500/30'
-                    }`}
-                  >
-                    <span>📁</span>
-                    <span>{p.title}</span>
-                    <ChevronRight className="w-3 h-3" />
-                  </button>
-                ))}
+        return (
+          <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-2 border-blue-500/40 rounded-3xl p-5 sm:p-6 text-white shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+            
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="space-y-2 max-w-2xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-sky-300 text-xs font-bold border border-blue-500/30">
+                  <Atom className="w-4 h-4 text-sky-400" />
+                  <span>Thondaimanaru Field Work Centre (FWC) Physics Archive</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  FWC Physics Terms 1, 2, 3, 4, 5 & 6 Examination Papers & Schemes
+                </h3>
+                <div className="text-xs font-bold text-sky-300">
+                  தொண்டைமானாறு கள நிலையம் (FWC) பௌதிகவியல் தவணை 1 முதல் 6 வரையிலான முழுமையான வினாத்தாள்களும் புள்ளியிடல் திட்டங்களும்
+                </div>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  All 6 terms of FWC Physics examination papers are uploaded with official step-by-step marking schemes. Touch any term below to view its papers or directly open its Drive folder:
+                </p>
+
+                {/* Term Fast-Jumper Chips */}
+                <div className="flex flex-wrap items-center gap-2 pt-2">
+                  {fwcPhyTerms.map((p) => {
+                    const isTermActive = selectedTerm === p.term;
+                    return (
+                      <div
+                        key={p.term}
+                        className={`inline-flex items-center rounded-xl overflow-hidden border transition-all ${
+                          isTermActive
+                            ? 'border-sky-300 ring-2 ring-sky-300/40 shadow-sm'
+                            : 'border-blue-500/30 hover:border-blue-400'
+                        }`}
+                      >
+                        <button
+                          onClick={() => {
+                            onSelectTerm(p.term);
+                            onSelectSubject('physics');
+                            setTimeout(() => {
+                              const el = document.getElementById('fwc-papers-results');
+                              if (el) el.scrollIntoView({ behavior: 'smooth' });
+                            }, 100);
+                          }}
+                          className={`px-3 py-1.5 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                            isTermActive
+                              ? 'bg-sky-400 text-slate-950 font-black'
+                              : 'bg-blue-900/60 hover:bg-blue-800/80 text-sky-200'
+                          }`}
+                          title={`Select ${p.title} & View Papers`}
+                        >
+                          <span>📁</span>
+                          <span>{p.title}</span>
+                        </button>
+                        <a
+                          href={p.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`px-2 py-1.5 text-xs transition-colors flex items-center justify-center cursor-pointer border-l border-blue-500/30 ${
+                            isTermActive
+                              ? 'bg-sky-300 hover:bg-sky-200 text-slate-950'
+                              : 'bg-blue-950 hover:bg-blue-800 text-sky-300'
+                          }`}
+                          title={`Open ${p.title} Google Drive folder directly`}
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 shrink-0">
-              <a
-                href="https://drive.google.com/drive/folders/1T-zfsSFwpA16EVtvoimLUSnZzj4J1EtT"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-5 py-3 rounded-2xl bg-[#0066FF] hover:bg-blue-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all transform hover:scale-[1.02] cursor-pointer"
-              >
-                <FolderOpen className="w-4 h-4" />
-                <span>Open FWC Physics Term 1 Drive</span>
-                <ExternalLink className="w-4 h-4" />
-              </a>
+              <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 shrink-0">
+                <a
+                  href={activePhyItem.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-5 py-3 rounded-2xl bg-[#0066FF] hover:bg-blue-500 text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all transform hover:scale-[1.02] cursor-pointer"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  <span>Open FWC Physics {activePhyItem.title} Drive</span>
+                  <ExternalLink className="w-4 h-4" />
+                </a>
 
-              <button
-                onClick={() => {
-                  onSelectSubject('physics');
-                  onSelectTerm('all');
-                }}
-                className="px-5 py-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700 text-sky-300 font-bold text-xs flex items-center justify-center gap-2 border border-blue-500/30 transition-colors cursor-pointer"
-              >
-                <Eye className="w-4 h-4 text-sky-400" />
-                <span>View All FWC Physics Papers</span>
-              </button>
+                <button
+                  onClick={() => {
+                    onSelectSubject('physics');
+                    onSelectTerm('all');
+                    setTimeout(() => {
+                      const el = document.getElementById('fwc-papers-results');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }, 100);
+                  }}
+                  className="px-5 py-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700 text-sky-300 font-bold text-xs flex items-center justify-center gap-2 border border-blue-500/30 transition-colors cursor-pointer"
+                >
+                  <Eye className="w-4 h-4 text-sky-400" />
+                  <span>View All FWC Physics Papers</span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Interactive FWC Chemistry Complete 1–6 Terms Showcase Banner */}
-      {(selectedSubject === 'chemistry' || selectedSubject === 'all') && (
-        <div className="bg-gradient-to-r from-teal-950 via-emerald-950 to-slate-900 border-2 border-emerald-500/40 rounded-3xl p-5 sm:p-6 text-white shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
-            <div className="space-y-2 max-w-2xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
-                <FlaskConical className="w-4 h-4 text-emerald-400" />
-                <span>Thondaimanaru Field Work Centre (FWC) Chemistry Archive</span>
-              </div>
-              <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                FWC Chemistry Terms 1, 2, 3, 4, 5 & 6 Examination Papers & Schemes
-              </h3>
-              <div className="text-xs font-bold text-emerald-300">
-                தொண்டைமானாறு கள நிலையம் (FWC) இரசாயனவியல் தவணை 1 முதல் 6 வரையிலான முழுமையான வினாத்தாள்களும் புள்ளியிடல் திட்டங்களும்
-              </div>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                All 6 terms of FWC Chemistry examination papers are uploaded with official step-by-step marking schemes. Touch any term below to jump straight to its folder:
-              </p>
+      {(selectedSubject === 'chemistry' || selectedSubject === 'all') && (() => {
+        const activeChemItem =
+          fwcChemTerms.find((c) => c.term === selectedTerm) ||
+          (selectedTerm !== 'all' ? fwcChemTerms.find((c) => selectedTerm.includes(c.term)) : null) ||
+          fwcChemTerms[0];
 
-              {/* Term Fast-Jumper Chips */}
-              <div className="flex flex-wrap items-center gap-2 pt-2">
-                {fwcChemTerms.map((c) => (
-                  <button
-                    key={c.term}
-                    onClick={() => {
-                      onSelectTerm(c.term);
-                      onSelectSubject('chemistry');
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
-                      selectedTerm === c.term
-                        ? 'bg-emerald-400 text-slate-950 border-emerald-300 shadow-sm font-black ring-2 ring-emerald-300/40'
-                        : 'bg-emerald-900/60 hover:bg-emerald-800/80 text-emerald-200 border-emerald-500/30'
-                    }`}
-                  >
-                    <span>📁</span>
-                    <span>{c.title}</span>
-                    <ChevronRight className="w-3 h-3" />
-                  </button>
-                ))}
+        return (
+          <div className="bg-gradient-to-r from-teal-950 via-emerald-950 to-slate-900 border-2 border-emerald-500/40 rounded-3xl p-5 sm:p-6 text-white shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+            
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="space-y-2 max-w-2xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
+                  <FlaskConical className="w-4 h-4 text-emerald-400" />
+                  <span>Thondaimanaru Field Work Centre (FWC) Chemistry Archive</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  FWC Chemistry Terms 1, 2, 3, 4, 5 & 6 Examination Papers & Schemes
+                </h3>
+                <div className="text-xs font-bold text-emerald-300">
+                  தொண்டைமானாறு கள நிலையம் (FWC) இரசாயனவியல் தவணை 1 முதல் 6 வரையிலான முழுமையான வினாத்தாள்களும் புள்ளியிடல் திட்டங்களும்
+                </div>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  All 6 terms of FWC Chemistry examination papers are uploaded with official step-by-step marking schemes. Touch any term below to view its papers or directly open its Drive folder:
+                </p>
+
+                {/* Term Fast-Jumper Chips */}
+                <div className="flex flex-wrap items-center gap-2 pt-2">
+                  {fwcChemTerms.map((c) => {
+                    const isTermActive = selectedTerm === c.term;
+                    return (
+                      <div
+                        key={c.term}
+                        className={`inline-flex items-center rounded-xl overflow-hidden border transition-all ${
+                          isTermActive
+                            ? 'border-emerald-300 ring-2 ring-emerald-300/40 shadow-sm'
+                            : 'border-emerald-500/30 hover:border-emerald-400'
+                        }`}
+                      >
+                        <button
+                          onClick={() => {
+                            onSelectTerm(c.term);
+                            onSelectSubject('chemistry');
+                            setTimeout(() => {
+                              const el = document.getElementById('fwc-papers-results');
+                              if (el) el.scrollIntoView({ behavior: 'smooth' });
+                            }, 100);
+                          }}
+                          className={`px-3 py-1.5 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                            isTermActive
+                              ? 'bg-emerald-400 text-slate-950 font-black'
+                              : 'bg-emerald-900/60 hover:bg-emerald-800/80 text-emerald-200'
+                          }`}
+                          title={`Select ${c.title} & View Papers`}
+                        >
+                          <span>📁</span>
+                          <span>{c.title}</span>
+                        </button>
+                        <a
+                          href={c.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`px-2 py-1.5 text-xs transition-colors flex items-center justify-center cursor-pointer border-l border-emerald-500/30 ${
+                            isTermActive
+                              ? 'bg-emerald-300 hover:bg-emerald-200 text-slate-950'
+                              : 'bg-emerald-950 hover:bg-emerald-800 text-emerald-300'
+                          }`}
+                          title={`Open ${c.title} Google Drive folder directly`}
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 shrink-0">
-              <a
-                href="https://drive.google.com/drive/folders/1dJjXv4nREJDzdREIYNdR9fwlv0KAlhRb"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all transform hover:scale-[1.02] cursor-pointer"
-              >
-                <FolderOpen className="w-4 h-4" />
-                <span>Open FWC Chemistry Term 1 Drive</span>
-                <ExternalLink className="w-4 h-4" />
-              </a>
+              <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 shrink-0">
+                <a
+                  href={activeChemItem.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all transform hover:scale-[1.02] cursor-pointer"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  <span>Open FWC Chemistry {activeChemItem.title} Drive</span>
+                  <ExternalLink className="w-4 h-4" />
+                </a>
 
-              <button
-                onClick={() => {
-                  onSelectSubject('chemistry');
-                  onSelectTerm('all');
-                }}
-                className="px-5 py-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 border border-emerald-500/30 transition-colors cursor-pointer"
-              >
-                <Eye className="w-4 h-4 text-emerald-400" />
-                <span>View All FWC Chemistry Papers</span>
-              </button>
+                <button
+                  onClick={() => {
+                    onSelectSubject('chemistry');
+                    onSelectTerm('all');
+                    setTimeout(() => {
+                      const el = document.getElementById('fwc-papers-results');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }, 100);
+                  }}
+                  className="px-5 py-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 border border-emerald-500/30 transition-colors cursor-pointer"
+                >
+                  <Eye className="w-4 h-4 text-emerald-400" />
+                  <span>View All FWC Chemistry Papers</span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Interactive FWC Biology Complete 1–6 Terms Showcase Banner */}
-      {selectedStream !== 'maths' && (selectedSubject === 'biology' || selectedSubject === 'all') && (
-        <div className="bg-gradient-to-r from-rose-950 via-pink-950 to-slate-900 border-2 border-rose-500/40 rounded-3xl p-5 sm:p-6 text-white shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
-            <div className="space-y-2 max-w-2xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 text-xs font-bold border border-rose-500/30">
-                <Award className="w-4 h-4 text-rose-400" />
-                <span>Thondaimanaru Field Work Centre (FWC) Biology Archive</span>
-              </div>
-              <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                FWC Biology Terms 1, 2, 3, 4, 5 & 6 Examination Papers & Schemes
-              </h3>
-              <div className="text-xs font-bold text-rose-300">
-                தொண்டைமானாறு கள நிலையம் (FWC) உயிரியல் தவணை 1 முதல் 6 வரையிலான முழுமையான வினாத்தாள்களும் புள்ளியிடல் திட்டங்களும்
-              </div>
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                All 6 terms of FWC Biology examination papers are uploaded with official step-by-step marking schemes. Touch any term below to jump straight to its folder:
-              </p>
+      {selectedStream !== 'maths' && (selectedSubject === 'biology' || selectedSubject === 'all') && (() => {
+        const activeBioItem =
+          fwcBioTerms.find((b) => b.term === selectedTerm) ||
+          (selectedTerm !== 'all' ? fwcBioTerms.find((b) => selectedTerm.includes(b.term)) : null) ||
+          fwcBioTerms[0];
 
-              {/* Term Fast-Jumper Chips */}
-              <div className="flex flex-wrap items-center gap-2 pt-2">
-                {fwcBioTerms.map((b) => (
-                  <button
-                    key={b.term}
-                    onClick={() => {
-                      onSelectTerm(b.term);
-                      onSelectSubject('biology');
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
-                      selectedTerm === b.term
-                        ? 'bg-rose-400 text-slate-950 border-rose-300 shadow-sm font-black ring-2 ring-rose-300/40'
-                        : 'bg-rose-900/60 hover:bg-rose-800/80 text-rose-200 border-rose-500/30'
-                    }`}
-                  >
-                    <span>📁</span>
-                    <span>{b.title}</span>
-                    <ChevronRight className="w-3 h-3" />
-                  </button>
-                ))}
+        return (
+          <div className="bg-gradient-to-r from-rose-950 via-pink-950 to-slate-900 border-2 border-rose-500/40 rounded-3xl p-5 sm:p-6 text-white shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+            
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="space-y-2 max-w-2xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 text-xs font-bold border border-rose-500/30">
+                  <Award className="w-4 h-4 text-rose-400" />
+                  <span>Thondaimanaru Field Work Centre (FWC) Biology Archive</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                  FWC Biology Terms 1, 2, 3, 4, 5 & 6 Examination Papers & Schemes
+                </h3>
+                <div className="text-xs font-bold text-rose-300">
+                  தொண்டைமானாறு கள நிலையம் (FWC) உயிரியல் தவணை 1 முதல் 6 வரையிலான முழுமையான வினாத்தாள்களும் புள்ளியிடல் திட்டங்களும்
+                </div>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  All 6 terms of FWC Biology examination papers are uploaded with official step-by-step marking schemes. Touch any term below to view its papers or directly open its Drive folder:
+                </p>
+
+                {/* Term Fast-Jumper Chips */}
+                <div className="flex flex-wrap items-center gap-2 pt-2">
+                  {fwcBioTerms.map((b) => {
+                    const isTermActive = selectedTerm === b.term;
+                    return (
+                      <div
+                        key={b.term}
+                        className={`inline-flex items-center rounded-xl overflow-hidden border transition-all ${
+                          isTermActive
+                            ? 'border-rose-300 ring-2 ring-rose-300/40 shadow-sm'
+                            : 'border-rose-500/30 hover:border-rose-400'
+                        }`}
+                      >
+                        <button
+                          onClick={() => {
+                            onSelectTerm(b.term);
+                            onSelectSubject('biology');
+                            setTimeout(() => {
+                              const el = document.getElementById('fwc-papers-results');
+                              if (el) el.scrollIntoView({ behavior: 'smooth' });
+                            }, 100);
+                          }}
+                          className={`px-3 py-1.5 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                            isTermActive
+                              ? 'bg-rose-400 text-slate-950 font-black'
+                              : 'bg-rose-900/60 hover:bg-rose-800/80 text-rose-200'
+                          }`}
+                          title={`Select ${b.title} & View Papers`}
+                        >
+                          <span>📁</span>
+                          <span>{b.title}</span>
+                        </button>
+                        <a
+                          href={b.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`px-2 py-1.5 text-xs transition-colors flex items-center justify-center cursor-pointer border-l border-rose-500/30 ${
+                            isTermActive
+                              ? 'bg-rose-300 hover:bg-rose-200 text-slate-950'
+                              : 'bg-rose-950 hover:bg-rose-800 text-rose-300'
+                          }`}
+                          title={`Open ${b.title} Google Drive folder directly`}
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 shrink-0">
-              <a
-                href="https://drive.google.com/drive/folders/1jQL3RY0gJrcOq-SxZfbqrmwao3EnVACM"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-5 py-3 rounded-2xl bg-rose-500 hover:bg-rose-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all transform hover:scale-[1.02] cursor-pointer"
-              >
-                <FolderOpen className="w-4 h-4" />
-                <span>Open FWC Biology Term 1 Drive</span>
-                <ExternalLink className="w-4 h-4" />
-              </a>
+              <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 shrink-0">
+                <a
+                  href={activeBioItem.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-5 py-3 rounded-2xl bg-rose-500 hover:bg-rose-400 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg transition-all transform hover:scale-[1.02] cursor-pointer"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  <span>Open FWC Biology {activeBioItem.title} Drive</span>
+                  <ExternalLink className="w-4 h-4" />
+                </a>
 
-              <button
-                onClick={() => {
-                  onSelectSubject('biology');
-                  onSelectTerm('all');
-                }}
-                className="px-5 py-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 border border-rose-500/30 transition-colors cursor-pointer"
-              >
-                <Eye className="w-4 h-4 text-rose-400" />
-                <span>View All FWC Biology Papers</span>
-              </button>
+                <button
+                  onClick={() => {
+                    onSelectSubject('biology');
+                    onSelectTerm('all');
+                    setTimeout(() => {
+                      const el = document.getElementById('fwc-papers-results');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }, 100);
+                  }}
+                  className="px-5 py-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-700 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 border border-rose-500/30 transition-colors cursor-pointer"
+                >
+                  <Eye className="w-4 h-4 text-rose-400" />
+                  <span>View All FWC Biology Papers</span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Active Folder Breadcrumb / Feedback Banner */}
       {selectedTerm !== 'all' && (

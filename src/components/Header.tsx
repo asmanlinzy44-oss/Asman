@@ -1,7 +1,8 @@
-import React from 'react';
-import { User as UserIcon, LogOut, BookmarkCheck, Timer, MessageSquare } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User as UserIcon, LogOut, BookmarkCheck, Timer, MessageSquare, Volume2, VolumeX } from 'lucide-react';
 import { User, ResourceCategory } from '../types';
 import { StudyProLogo } from './StudyProLogo';
+import { playRoboticTab, playRoboticClick, isRoboticSoundEnabled, setRoboticSoundEnabled } from '../utils/audio';
 
 interface HeaderProps {
   currentTab: ResourceCategory | 'home';
@@ -26,12 +27,32 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenTimer,
   onOpenContactUs,
 }) => {
+  const [soundOn, setSoundOn] = useState<boolean>(true);
+
+  useEffect(() => {
+    setSoundOn(isRoboticSoundEnabled());
+  }, []);
+
+  const handleToggleSound = () => {
+    const nextState = !soundOn;
+    setSoundOn(nextState);
+    setRoboticSoundEnabled(nextState);
+    if (nextState) {
+      setTimeout(() => playRoboticClick(), 50);
+    }
+  };
+
+  const handleNav = (tab: ResourceCategory | 'home') => {
+    playRoboticTab();
+    onTabChange(tab);
+  };
+
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 text-slate-800 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         {/* Logo and Brand: Study Pro */}
         <button
-          onClick={() => onTabChange('home')}
+          onClick={() => handleNav('home')}
           className="flex items-center text-left focus-visible:outline-none cursor-pointer group"
           title="Study Pro - Home"
         >
@@ -41,7 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Primary Desktop Navigation */}
         <nav className="hidden lg:flex items-center gap-1.5 text-sm font-semibold text-slate-600">
           <button
-            onClick={() => onTabChange('home')}
+            onClick={() => handleNav('home')}
             className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
               currentTab === 'home'
                 ? 'bg-blue-50 text-[#0066FF] font-bold shadow-xs'
@@ -51,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
             Home
           </button>
           <button
-            onClick={() => onTabChange('past-papers')}
+            onClick={() => handleNav('past-papers')}
             className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
               currentTab === 'past-papers'
                 ? 'bg-blue-50 text-[#0066FF] font-bold shadow-xs'
@@ -61,7 +82,7 @@ export const Header: React.FC<HeaderProps> = ({
             Past Papers
           </button>
           <button
-            onClick={() => onTabChange('fwc-papers')}
+            onClick={() => handleNav('fwc-papers')}
             className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
               currentTab === 'fwc-papers' || currentTab === 'term-papers'
                 ? 'bg-blue-50 text-[#0066FF] font-bold shadow-xs'
@@ -74,17 +95,20 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </button>
           <button
-            onClick={() => onTabChange('theory-notes')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
+            onClick={() => handleNav('theory-notes')}
+            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
               currentTab === 'theory-notes'
                 ? 'bg-blue-50 text-[#0066FF] font-bold shadow-xs'
                 : 'hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
-            Theory Notes
+            <span>Resources</span>
+            <span className="text-[10px] bg-blue-100 text-[#0066FF] px-1.5 py-0.2 rounded-md font-extrabold">
+              4 Folders
+            </span>
           </button>
           <button
-            onClick={() => onTabChange('theory-videos')}
+            onClick={() => handleNav('theory-videos')}
             className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
               currentTab === 'theory-videos'
                 ? 'bg-blue-50 text-[#0066FF] font-bold shadow-xs'
@@ -102,10 +126,36 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Header Actions */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          {/* Robotic Sound FX Toggle */}
+          <button
+            onClick={handleToggleSound}
+            className={`px-2.5 py-1.5 rounded-xl transition-all cursor-pointer border flex items-center gap-1.5 text-xs font-bold ${
+              soundOn
+                ? 'text-[#0066FF] bg-blue-50/80 border-blue-200 hover:bg-blue-100'
+                : 'text-slate-400 bg-slate-50 border-slate-200 hover:text-slate-600'
+            }`}
+            title={soundOn ? 'Robotic SFX Active (Click to Mute)' : 'Robotic SFX Muted (Click to Enable)'}
+          >
+            {soundOn ? (
+              <>
+                <Volume2 className="w-4 h-4 text-[#0066FF] animate-pulse" />
+                <span className="hidden xl:inline text-[11px] font-mono">SFX ON</span>
+              </>
+            ) : (
+              <>
+                <VolumeX className="w-4 h-4 text-slate-400" />
+                <span className="hidden xl:inline text-[11px] font-mono">SFX OFF</span>
+              </>
+            )}
+          </button>
+
           {/* Contact Help Desk */}
           {onOpenContactUs && (
             <button
-              onClick={onOpenContactUs}
+              onClick={() => {
+                playRoboticClick();
+                onOpenContactUs();
+              }}
               className="px-2.5 py-1.5 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer border border-slate-200 flex items-center gap-1.5 text-xs font-bold"
               title="Contact Us / Help Desk"
             >
@@ -116,7 +166,10 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Focus Timer */}
           <button
-            onClick={onOpenTimer}
+            onClick={() => {
+              playRoboticClick();
+              onOpenTimer();
+            }}
             className="px-2.5 py-1.5 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer border border-slate-200 flex items-center gap-1.5 text-xs font-bold"
             title="Focus Pomodoro Timer"
           >
@@ -126,7 +179,10 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Bookmarks */}
           <button
-            onClick={onOpenSaved}
+            onClick={() => {
+              playRoboticClick();
+              onOpenSaved();
+            }}
             className="p-2 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors relative cursor-pointer border border-slate-200"
             title="Saved Bookmarks"
           >
@@ -146,7 +202,10 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-[10px] text-[#0066FF] font-bold">A/L Candidate</span>
               </div>
               <button
-                onClick={onLogout}
+                onClick={() => {
+                  playRoboticClick();
+                  onLogout();
+                }}
                 title="Logout"
                 className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer border border-slate-200"
               >
@@ -155,7 +214,10 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           ) : (
             <button
-              onClick={onOpenAuth}
+              onClick={() => {
+                playRoboticClick();
+                onOpenAuth();
+              }}
               className="px-3.5 py-1.5 text-xs font-bold rounded-xl text-white bg-[#0066FF] hover:bg-blue-600 transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
             >
               <UserIcon className="w-3.5 h-3.5" />
@@ -168,7 +230,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Mobile Sub-Navigation Bar */}
       <div className="lg:hidden flex items-center gap-1 px-4 py-2 bg-slate-50/90 border-t border-slate-200 overflow-x-auto text-xs font-bold scrollbar-none">
         <button
-          onClick={() => onTabChange('home')}
+          onClick={() => handleNav('home')}
           className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors ${
             currentTab === 'home' ? 'bg-[#0066FF] text-white' : 'text-slate-600'
           }`}
@@ -176,7 +238,7 @@ export const Header: React.FC<HeaderProps> = ({
           Home
         </button>
         <button
-          onClick={() => onTabChange('past-papers')}
+          onClick={() => handleNav('past-papers')}
           className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors ${
             currentTab === 'past-papers' ? 'bg-[#0066FF] text-white' : 'text-slate-600'
           }`}
@@ -184,7 +246,7 @@ export const Header: React.FC<HeaderProps> = ({
           Past Papers
         </button>
         <button
-          onClick={() => onTabChange('fwc-papers')}
+          onClick={() => handleNav('fwc-papers')}
           className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors ${
             currentTab === 'fwc-papers' || currentTab === 'term-papers' ? 'bg-[#0066FF] text-white' : 'text-slate-600'
           }`}
@@ -192,15 +254,15 @@ export const Header: React.FC<HeaderProps> = ({
           FWC & Term Tests
         </button>
         <button
-          onClick={() => onTabChange('theory-notes')}
+          onClick={() => handleNav('theory-notes')}
           className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors ${
             currentTab === 'theory-notes' ? 'bg-[#0066FF] text-white' : 'text-slate-600'
           }`}
         >
-          Theory Notes
+          Resources
         </button>
         <button
-          onClick={() => onTabChange('theory-videos')}
+          onClick={() => handleNav('theory-videos')}
           className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors ${
             currentTab === 'theory-videos' ? 'bg-[#0066FF] text-white' : 'text-slate-600'
           }`}

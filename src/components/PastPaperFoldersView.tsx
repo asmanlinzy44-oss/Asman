@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { PaperResource } from '../types';
 import { getDriveDirectViewUrl, getDriveDirectDownloadUrl } from '../utils/drive';
+import { playRoboticFolder, playRoboticClick } from '../utils/audio';
 
 interface PastPaperFoldersViewProps {
   selectedSubject: string;
@@ -204,6 +205,7 @@ export const PastPaperFoldersView: React.FC<PastPaperFoldersViewProps> = ({
               <div
                 key={folder.id}
                 onClick={() => {
+                  playRoboticFolder();
                   onSelectSubject(isSelected ? 'all' : folder.id);
                   onSelectYear('all');
                 }}

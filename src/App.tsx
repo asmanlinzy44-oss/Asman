@@ -6,7 +6,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, Filter, BookOpen, Video, FileText, 
-  ArrowLeft, ExternalLink, Download, Lock, CheckCircle
+  ArrowLeft, ExternalLink, Download, Lock, CheckCircle, KeyRound, Unlock,
+  UserCheck, AlertCircle
 } from 'lucide-react';
 import { 
   PaperResource, VideoLesson, User, ResourceCategory, 
@@ -27,13 +28,17 @@ import { PastPaperFoldersView } from './components/PastPaperFoldersView';
 import { ContactUsModal } from './components/ContactUsModal';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
+import { VideoLockModal } from './components/VideoLockModal';
+import { ResourcesFoldersView } from './components/ResourcesFoldersView';
+import { playRoboticTab, playRoboticClick, playRoboticUnlock, playRoboticError } from './utils/audio';
 
 export default function App() {
-  // Local storage persisted state - ensure newly uploaded past papers, physics papers and terms are always loaded
+  // Local storage persisted state - ensure newly uploaded past papers, physics papers, terms and hydro videos are always loaded
   const [papers, setPapers] = useState<PaperResource[]>(() => {
-    const isPastPapersLoaded = localStorage.getItem('studypro_fwc_all_terms1_6_maths_chem_phy_bio_v12');
+    const PAPERS_CACHE_KEY = 'studypro_fwc_terms_1_to_6_and_hydro_videos_v18';
+    const isPastPapersLoaded = localStorage.getItem(PAPERS_CACHE_KEY);
     if (!isPastPapersLoaded) {
-      localStorage.setItem('studypro_fwc_all_terms1_6_maths_chem_phy_bio_v12', 'true');
+      localStorage.setItem(PAPERS_CACHE_KEY, 'true');
       localStorage.setItem('studypro_papers_data', JSON.stringify(INITIAL_PAPERS));
       return INITIAL_PAPERS;
     }
@@ -56,14 +61,28 @@ export default function App() {
   });
 
   const [videos, setVideos] = useState<VideoLesson[]>(() => {
-    const isVideosLoaded = localStorage.getItem('studypro_chem_video_v1');
+    const VIDEOS_CACHE_KEY = 'studypro_hydro_videos_unit2_v18';
+    const isVideosLoaded = localStorage.getItem(VIDEOS_CACHE_KEY);
     if (!isVideosLoaded) {
-      localStorage.setItem('studypro_chem_video_v1', 'true');
+      localStorage.setItem(VIDEOS_CACHE_KEY, 'true');
       localStorage.setItem('studypro_videos_data', JSON.stringify(INITIAL_VIDEOS));
       return INITIAL_VIDEOS;
     }
     const saved = localStorage.getItem('studypro_videos_data');
-    return saved ? JSON.parse(saved) : INITIAL_VIDEOS;
+    if (!saved) return INITIAL_VIDEOS;
+    try {
+      const parsed: VideoLesson[] = JSON.parse(saved);
+      const existingIds = new Set(parsed.map((v) => v.id));
+      const missingVideos = INITIAL_VIDEOS.filter((v) => !existingIds.has(v.id));
+      if (missingVideos.length > 0) {
+        const merged = [...INITIAL_VIDEOS];
+        localStorage.setItem('studypro_videos_data', JSON.stringify(merged));
+        return merged;
+      }
+      return parsed;
+    } catch {
+      return INITIAL_VIDEOS;
+    }
   });
 
   const [user, setUser] = useState<User | null>(() => {
@@ -116,6 +135,16 @@ export default function App() {
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('studypro_admin_session') === 'true';
   });
+
+  // Student Video Lock (Index 4428 & Password 1016)
+  const [isVideoUnlocked, setIsVideoUnlocked] = useState<boolean>(() => {
+    return localStorage.getItem('studypro_video_unlocked') === 'true';
+  });
+  const [isVideoLockOpen, setIsVideoLockOpen] = useState(false);
+  const [targetUnlockVideo, setTargetUnlockVideo] = useState<VideoLesson | null>(null);
+  const [inlineIndex, setInlineIndex] = useState('');
+  const [inlinePassword, setInlinePassword] = useState('');
+  const [inlineError, setInlineError] = useState('');
 
   const handleAdminLoginSuccess = () => {
     setIsAdminLoggedIn(true);
@@ -220,9 +249,9 @@ export default function App() {
   };
 
   const handlePlayVideo = (video: VideoLesson) => {
-    if (!user) {
-      setAuthReason('Theory video lectures are reserved for registered students. Sign in for instant access.');
-      setIsAuthOpen(true);
+    if (!isVideoUnlocked) {
+      setTargetUnlockVideo(video);
+      setIsVideoLockOpen(true);
       return;
     }
     setActiveVideo(video);
@@ -424,35 +453,55 @@ export default function App() {
       <Header
         currentTab={activeTab}
         onTabChange={(tab) => {
+          playRoboticTab();
           setActiveTab(tab);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         user={user}
         onOpenAuth={() => {
+          playRoboticClick();
           setAuthReason('');
           setIsAuthOpen(true);
         }}
         onLogout={handleLogout}
         savedCount={user?.bookmarks.length || 0}
-        onOpenSaved={() => setIsBookmarksOpen(true)}
-        onOpenTimer={() => setIsTimerOpen(true)}
-        onOpenContactUs={() => setIsContactOpen(true)}
+        onOpenSaved={() => {
+          playRoboticClick();
+          setIsBookmarksOpen(true);
+        }}
+        onOpenTimer={() => {
+          playRoboticClick();
+          setIsTimerOpen(true);
+        }}
+        onOpenContactUs={() => {
+          playRoboticClick();
+          setIsContactOpen(true);
+        }}
       />
 
       {/* 2. Router: Home Page (Attractive Hub) or Dedicated Category Archive */}
       {activeTab === 'home' ? (
         <HomePage
           onNavigateToTab={(tab) => {
+            playRoboticTab();
             setActiveTab(tab);
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          onOpenTimer={() => setIsTimerOpen(true)}
+          onOpenTimer={() => {
+            playRoboticClick();
+            setIsTimerOpen(true);
+          }}
           onOpenAuth={() => {
+            playRoboticClick();
             setAuthReason('');
             setIsAuthOpen(true);
           }}
-          onOpenContactUs={() => setIsContactOpen(true)}
+          onOpenContactUs={() => {
+            playRoboticClick();
+            setIsContactOpen(true);
+          }}
           onOpenAdminLogin={() => {
+            playRoboticClick();
             if (isAdminLoggedIn) {
               setIsAdminPanelOpen(true);
             } else {
@@ -468,7 +517,10 @@ export default function App() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
             <div>
               <button
-                onClick={() => setActiveTab('home')}
+                onClick={() => {
+                  playRoboticTab();
+                  setActiveTab('home');
+                }}
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0066FF] hover:underline mb-2 cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
@@ -479,11 +531,19 @@ export default function App() {
                   ? 'FWC Pilot & School Term Tests'
                   : activeTab === 'past-papers'
                   ? 'National G.C.E. A/L Past Papers'
+                  : activeTab === 'theory-notes'
+                  ? 'Academic Resources (Biology · Physics · Chemistry · Combined Maths)'
+                  : activeTab === 'theory-videos'
+                  ? 'Theory Video Masterclasses'
                   : activeTab.replace('-', ' ')}
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
                 {activeTab === 'fwc-papers'
                   ? 'Official archive combining FWC Thondaimanaru pilot exams, provincial trial assessments, and school 1st, 2nd & 3rd term tests with step-by-step marking schemes.'
+                  : activeTab === 'theory-notes'
+                  ? 'Curated subject folders for Biology, Physics, Chemistry, and Combined Maths. Unit summaries, formula handbooks, short guides, and Google Drive folders.'
+                  : activeTab === 'theory-videos'
+                  ? 'Distraction-free A/L theory masterclasses. Unlocked with student index and password.'
                   : 'Explore authentic study documents with direct Google Drive view and fast download options.'}
               </p>
             </div>
@@ -525,8 +585,20 @@ export default function App() {
             />
           )}
 
-          {/* Filter Bar (Only for other tabs to keep past-papers ultra clean and simple) */}
-          {activeTab !== 'past-papers' && (
+          {/* Dedicated 4 Folders System for Resources (Biology, Physics, Chemistry, Combined Maths) */}
+          {activeTab === 'theory-notes' && (
+            <ResourcesFoldersView
+              selectedSubject={selectedSubject}
+              onSelectSubject={(subjId) => setSelectedSubject(subjId)}
+              resources={papers.filter((p) => p.category === 'theory-notes')}
+              onPreview={handleOpenPreview}
+              isBookmarked={(id) => Boolean(user?.bookmarks?.includes(id))}
+              onToggleBookmark={handleToggleBookmark}
+            />
+          )}
+
+          {/* Filter Bar (Only for fwc-papers to keep past-papers & resources ultra clean and simple) */}
+          {activeTab !== 'past-papers' && activeTab !== 'theory-notes' && (
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-3">
             <div className="flex flex-wrap items-center gap-3">
               {/* Format Segmented Filter (All vs Question Papers vs Marking Schemes) */}
@@ -654,99 +726,266 @@ export default function App() {
           </div>
           )}
 
-          {/* Results Grid (Only for other tabs; past-papers tab has its own dedicated student view) */}
-          {activeTab !== 'past-papers' && (
+          {/* Results Grid (Only for other tabs; past-papers and theory-notes have their own dedicated views) */}
+          {activeTab !== 'past-papers' && activeTab !== 'theory-notes' && (
             activeTab === 'theory-videos' ? (
-              filteredVideos.length === 0 ? (
-                <div className="bg-white rounded-3xl border border-slate-200/90 p-12 text-center text-slate-500 shadow-xs max-w-md mx-auto my-8">
-                  <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto mb-4 border border-rose-100 shadow-2xs">
-                    <Video className="w-7 h-7" />
+              <div className="space-y-6">
+                {!isVideoUnlocked ? (
+                  /* Dedicated Attractive Cyber Lock Screen - No video cards or thumbnails shown until unlocked */
+                  <div className="relative max-w-md mx-auto my-8 overflow-hidden rounded-3xl bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950 border border-blue-500/35 shadow-[0_0_50px_rgba(0,102,255,0.3)] text-white p-7 animate-in fade-in duration-200">
+                    {/* Futuristic Background Glows */}
+                    <div className="absolute top-0 right-0 w-60 h-60 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 w-60 h-60 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+
+                    <div className="text-center relative z-10 mb-6">
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-sky-300 text-[11px] font-mono font-bold tracking-wider mb-4 shadow-inner">
+                        <Lock className="w-3.5 h-3.5 text-sky-400" />
+                        <span>CYBER-GATE · VERIFIED STUDENT ACCESS</span>
+                      </div>
+
+                      {/* Glowing Holographic Lock */}
+                      <div className="relative w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-400 opacity-30 blur-md animate-pulse" />
+                        <div className="relative w-14 h-14 rounded-2xl bg-slate-900/90 border border-blue-400/40 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.3)]">
+                          <Lock className="w-7 h-7 text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.8)]" />
+                        </div>
+                      </div>
+
+                      <h3 className="text-xl font-black tracking-tight text-white">
+                        Theory Video Masterclasses
+                      </h3>
+                      <p className="text-xs text-sky-200/90 font-semibold mt-1">
+                        பாடக் கோட்பாட்டு காணொளிகளுக்கான பிரத்தியேக அனுமதி
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Physics Hydrodynamics (Units 1–5) & Chemistry IUPAC Lectures
+                      </p>
+                    </div>
+
+                    <div className="relative z-10">
+                      <p className="text-xs text-slate-300 mb-5 leading-relaxed text-center">
+                        This section is password protected. Enter your student <strong>Index</strong> and <strong>Password</strong> to access theory video lessons.
+                      </p>
+
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          if (inlineIndex.trim() === '4428' && inlinePassword.trim() === '1016') {
+                            playRoboticUnlock();
+                            setIsVideoUnlocked(true);
+                            localStorage.setItem('studypro_video_unlocked', 'true');
+                            setInlineIndex('');
+                            setInlinePassword('');
+                            setInlineError('');
+                          } else {
+                            playRoboticError();
+                            setInlineError('Invalid Index or Password. Please try again.');
+                          }
+                        }}
+                        className="space-y-4"
+                      >
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                            <UserCheck className="w-3.5 h-3.5 text-sky-400" />
+                            <span>Index</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            autoFocus
+                            value={inlineIndex}
+                            onChange={(e) => {
+                              setInlineIndex(e.target.value);
+                              setInlineError('');
+                            }}
+                            placeholder="Index"
+                            className="w-full px-4 py-2.5 bg-slate-900/90 border border-slate-700/90 rounded-xl text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition-all font-mono tracking-wider placeholder-slate-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                            <KeyRound className="w-3.5 h-3.5 text-sky-400" />
+                            <span>Password</span>
+                          </label>
+                          <input
+                            type="password"
+                            required
+                            value={inlinePassword}
+                            onChange={(e) => {
+                              setInlinePassword(e.target.value);
+                              setInlineError('');
+                            }}
+                            placeholder="Password"
+                            className="w-full px-4 py-2.5 bg-slate-900/90 border border-slate-700/90 rounded-xl text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition-all font-mono tracking-wider placeholder-slate-500"
+                          />
+                        </div>
+
+                        {inlineError && (
+                          <div className="p-3 bg-rose-950/70 border border-rose-500/50 rounded-xl flex items-center gap-2 text-xs font-bold text-rose-300 animate-in fade-in duration-150">
+                            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                            <span>{inlineError}</span>
+                          </div>
+                        )}
+
+                        <button
+                          type="submit"
+                          className="w-full py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.99] text-white font-extrabold text-sm rounded-xl transition-all shadow-[0_0_20px_rgba(0,102,255,0.4)] flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Unlock className="w-4 h-4" />
+                          <span>Unlock Video Lessons</span>
+                        </button>
+                      </form>
+
+                      <div className="mt-5 pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                        <span>Protected Theory Video Masterclasses</span>
+                        <span className="font-mono font-bold text-sky-400">Security Gate</span>
+                      </div>
+                    </div>
                   </div>
-                  <p className="font-extrabold text-base text-slate-900 mb-1">No Video Lessons in This Category Yet</p>
-                  <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-                    Video lessons, topic walkthroughs, and theory tutorials are curated directly by educators. Check back soon for new additions.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {filteredVideos.map((video) => (
-                    <VideoCard
-                      key={video.id}
-                      video={video}
-                      user={user}
-                      onPlay={handlePlayVideo}
-                      onRequireLogin={() => {
-                        setAuthReason('Sign in to watch unlisted theory videos in our custom player.');
-                        setIsAuthOpen(true);
-                      }}
-                      isWatched={user?.watchedVideoIds?.includes(video.id) || false}
-                    />
-                  ))}
-                </div>
-              )
+                ) : (
+                  <>
+                    {/* Unlocked Access Status Banner */}
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-950 shadow-2xs">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                          <Unlock className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="font-extrabold text-emerald-900 text-sm">Student Access Verified</div>
+                          <div className="text-emerald-700 text-xs">All theory video classes and chapter markers are unlocked for learning.</div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setIsVideoUnlocked(false);
+                          localStorage.removeItem('studypro_video_unlocked');
+                        }}
+                        className="text-xs font-bold text-slate-500 hover:text-rose-600 transition-colors cursor-pointer self-start sm:self-auto"
+                      >
+                        Lock Videos
+                      </button>
+                    </div>
+
+                    {filteredVideos.length === 0 ? (
+                      <div className="bg-white rounded-3xl border border-slate-200/90 p-12 text-center text-slate-500 shadow-xs max-w-md mx-auto my-8">
+                        <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto mb-4 border border-rose-100 shadow-2xs">
+                          <Video className="w-7 h-7" />
+                        </div>
+                        <p className="font-extrabold text-base text-slate-900 mb-1">No Video Lessons in This Category Yet</p>
+                        <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
+                          Video lessons, topic walkthroughs, and theory tutorials are curated directly by educators. Check back soon for new additions.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {filteredVideos.map((video) => (
+                          <VideoCard
+                            key={video.id}
+                            video={video}
+                            user={user}
+                            onPlay={handlePlayVideo}
+                            onRequireLogin={() => {
+                              setTargetUnlockVideo(video);
+                              setIsVideoLockOpen(true);
+                            }}
+                            isWatched={user?.watchedVideoIds?.includes(video.id) || false}
+                            isUnlocked={isVideoUnlocked}
+                            onRequireUnlock={() => {
+                              setTargetUnlockVideo(video);
+                              setIsVideoLockOpen(true);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             ) : (
-              filteredPapers.length === 0 ? (
-                <div className="bg-white rounded-3xl border border-slate-200/90 p-10 text-center text-slate-500 shadow-xs max-w-lg mx-auto my-8">
-                  <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#0066FF] flex items-center justify-center mx-auto mb-4 border border-blue-100 shadow-2xs">
-                    <FileText className="w-7 h-7" />
+              <div id="fwc-papers-results">
+                {filteredPapers.length === 0 ? (
+                  <div className="bg-white rounded-3xl border border-slate-200/90 p-10 text-center text-slate-500 shadow-xs max-w-lg mx-auto my-8">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-50 text-[#0066FF] flex items-center justify-center mx-auto mb-4 border border-blue-100 shadow-2xs">
+                      <FileText className="w-7 h-7" />
+                    </div>
+                    <p className="font-extrabold text-base text-slate-900 mb-1">
+                      {selectedTerm !== 'all'
+                        ? `No Documents in ${selectedTerm} Folder Yet`
+                        : 'No Examination Papers Found'}
+                    </p>
+                    <p className="text-xs text-slate-500 mb-5 leading-relaxed">
+                      {selectedTerm !== 'all'
+                        ? `You are viewing the ${selectedTerm} folder. Switch to the 1st Term folder to access the 2022–2027 Physics papers and marking schemes, or reset filters.`
+                        : 'No examination papers match your current search and filter criteria. Try resetting your search keywords or filter options.'}
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      {(selectedTerm !== 'all' || selectedSubject !== 'all' || selectedYear !== 'all' || searchQuery) && (
+                        <button
+                          onClick={() => {
+                            setSelectedTerm('all');
+                            setSelectedSubject('all');
+                            setSelectedYear('all');
+                            setSearchQuery('');
+                            setSelectedFormat('all');
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                        >
+                          Clear Filters
+                        </button>
+                      )}
+                      {selectedTerm !== '1st Term' && (
+                        <button
+                          onClick={() => {
+                            setSelectedTerm('1st Term');
+                            setSelectedSubject('physics');
+                          }}
+                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-xs"
+                        >
+                          View 1st Term Physics (2022–2027)
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <p className="font-extrabold text-base text-slate-900 mb-1">
-                    {selectedTerm !== 'all'
-                      ? `No Documents in ${selectedTerm} Folder Yet`
-                      : 'No Examination Papers Found'}
-                  </p>
-                  <p className="text-xs text-slate-500 mb-5 leading-relaxed">
-                    {selectedTerm !== 'all'
-                      ? `You are viewing the ${selectedTerm} folder. Switch to the 1st Term folder to access the 2022–2027 Physics papers and marking schemes, or reset filters.`
-                      : 'No examination papers match your current search and filter criteria. Try resetting your search keywords or filter options.'}
-                  </p>
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    {(selectedTerm !== 'all' || selectedSubject !== 'all' || selectedYear !== 'all' || searchQuery) && (
-                      <button
-                        onClick={() => {
-                          setSelectedTerm('all');
-                          setSelectedSubject('all');
-                          setSelectedYear('all');
-                          setSearchQuery('');
-                          setSelectedFormat('all');
-                        }}
-                        className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
-                      >
-                        Clear Filters
-                      </button>
-                    )}
-                    {selectedTerm !== '1st Term' && (
-                      <button
-                        onClick={() => {
-                          setSelectedTerm('1st Term');
-                          setSelectedSubject('physics');
-                        }}
-                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-xs"
-                      >
-                        View 1st Term Physics (2022–2027)
-                      </button>
-                    )}
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {filteredPapers.map((paper) => (
+                      <ResourceCard
+                        key={paper.id}
+                        resource={paper}
+                        onPreview={(res, mode) => handleOpenPreview(res, mode)}
+                        isBookmarked={user?.bookmarks?.includes(paper.id) || false}
+                        onToggleBookmark={handleToggleBookmark}
+                      />
+                    ))}
                   </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {filteredPapers.map((paper) => (
-                    <ResourceCard
-                      key={paper.id}
-                      resource={paper}
-                      onPreview={(res, mode) => handleOpenPreview(res, mode)}
-                      isBookmarked={user?.bookmarks?.includes(paper.id) || false}
-                      onToggleBookmark={handleToggleBookmark}
-                    />
-                  ))}
-                </div>
-              )
+                )}
+              </div>
             )
           )}
         </div>
       )}
 
       {/* 3. Interactive Modals */}
+      {/* Video Index & Password Lock Modal */}
+      <VideoLockModal
+        isOpen={isVideoLockOpen}
+        onClose={() => {
+          setIsVideoLockOpen(false);
+          setTargetUnlockVideo(null);
+        }}
+        onUnlock={() => {
+          setIsVideoUnlocked(true);
+          localStorage.setItem('studypro_video_unlocked', 'true');
+          setIsVideoLockOpen(false);
+          if (targetUnlockVideo) {
+            setActiveVideo(targetUnlockVideo);
+            setTargetUnlockVideo(null);
+          }
+        }}
+        targetVideoTitle={targetUnlockVideo?.titleEn}
+      />
       {/* Focus Timer Modal (Pomodoro) */}
       <StudyTimerModal
         isOpen={isTimerOpen}

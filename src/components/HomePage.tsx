@@ -1,55 +1,49 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Sparkles, Zap, BookOpen, FileText, Award, School, 
-  Video, ArrowRight, ExternalLink, Download, Clock, 
-  CheckCircle2, Compass, ShieldCheck, Flame, Layers,
-  Instagram, MessageSquare
+  FileText, Award, BookOpen, Video, Clock, MessageSquare, 
+  Sparkles, ExternalLink, CheckCircle2, ChevronRight,
+  ShieldCheck, Layers, ArrowRight, Compass, Instagram
 } from 'lucide-react';
-import { StreamId, ResourceCategory } from '../types';
-import { ExamCountdown } from './ExamCountdown';
+import { User, ResourceCategory } from '../types';
 import { StudyProLogo } from './StudyProLogo';
+import { ExamCountdown } from './ExamCountdown';
+import { playRoboticTab, playRoboticClick } from '../utils/audio';
 
 interface HomePageProps {
   onNavigateToTab: (tab: ResourceCategory) => void;
   onOpenTimer: () => void;
   onOpenAuth: () => void;
-  onOpenContactUs: () => void;
-  onOpenAdminLogin: () => void;
-  user: any;
+  onOpenContactUs?: () => void;
+  onOpenAdminLogin?: () => void;
+  user: User | null;
 }
 
-const STREAMS_DATA: Array<{
-  id: StreamId;
-  name: string;
-  badge: string;
-  icon: string;
-  pathway: string;
-  subjects: string[];
-  gradient: string;
-  borderHover: string;
-  bgGlow: string;
-}> = [
+const STREAMS_DATA = [
   {
     id: 'maths',
-    name: 'Physical Science (Maths Stream)',
-    badge: 'Combined Maths',
-    icon: '🧮',
-    pathway: 'Engineering, Physical Sciences, Computing & Architecture',
+    name: 'Physical Science (Combined Maths)',
+    nameTa: 'பௌதிக விஞ்ஞானப் பிரிவு (இணைந்த கணிதம்)',
+    icon: '📐',
+    badge: 'Combined Maths, Physics, Chemistry',
+    desc: 'Pure & Applied Mathematics, Physics principles & Inorganic/Organic Chemistry master resources.',
+    color: 'from-blue-600 to-indigo-700',
+    borderHover: 'hover:border-blue-500',
+    accentText: 'text-[#0066FF]',
     subjects: ['Combined Mathematics', 'Physics', 'Chemistry'],
-    gradient: 'from-blue-600 to-indigo-600',
-    borderHover: 'hover:border-blue-500 hover:shadow-blue-500/10',
-    bgGlow: 'bg-blue-50/50',
+    pathway: 'Engineering, Computing, Architecture & Physical Sciences',
   },
   {
     id: 'bio',
-    name: 'Biological Science (Bio Stream)',
-    badge: 'Biology & Chemistry',
+    name: 'Biological Science (Bio)',
+    nameTa: 'உயிரியல் விஞ்ஞானப் பிரிவு',
     icon: '🧬',
-    pathway: 'Medicine, Surgery, Dentistry, Biomedical & Health Sciences',
+    badge: 'Biology, Physics, Chemistry',
+    desc: 'Cell biology, human physiology, genetics, ecology, physics & chemistry practical guides.',
+    color: 'from-emerald-600 to-teal-700',
+    borderHover: 'hover:border-emerald-500',
+    accentText: 'text-emerald-600',
     subjects: ['Biology', 'Chemistry', 'Physics'],
-    gradient: 'from-emerald-600 to-teal-600',
-    borderHover: 'hover:border-emerald-500 hover:shadow-emerald-500/10',
-    bgGlow: 'bg-emerald-50/50',
+    pathway: 'Medicine, Dentistry, Biomedical, Agriculture & Allied Health',
   },
 ];
 
@@ -85,22 +79,22 @@ const CATEGORY_SHOWCASE: Array<{
   },
   {
     id: 'theory-notes',
-    title: 'Theory & Short Notes',
-    tag: 'High-Yield Summaries',
+    title: 'Resources',
+    tag: 'Biology · Physics · Chemistry · C.Maths',
     badgeColor: 'bg-purple-100 text-purple-800',
-    description: 'Structured revision digests, formula cheat sheets, and unit summaries distilled by expert educators.',
+    description: 'Curated G.C.E. A/L subject folders for Biology, Physics, Chemistry, and Combined Maths with unit guides, formula handbooks, and direct Google Drive folders.',
     icon: BookOpen,
-    features: ['Key formulas & derivations', 'Quick revision cheat sheets', 'Downloadable PDF handouts'],
-    buttonText: 'Read Theory Notes',
+    features: ['4 Dedicated Folders: Biology, Physics, Chemistry & C.Maths', 'Comprehensive unit summaries & master formula sheets', 'Direct Google Drive folders with instant read & download'],
+    buttonText: 'Open Resources Folders',
   },
   {
     id: 'theory-videos',
     title: 'Theory Video Masterclasses',
     tag: 'In-Website Video Player',
     badgeColor: 'bg-rose-100 text-rose-800',
-    description: 'Distraction-free video lectures played directly in our custom player with chapter markers and personal note taking.',
+    description: 'Distraction-free video lectures played directly in our custom player with chapter markers and student passcode protection.',
     icon: Video,
-    features: ['Unlisted YouTube lectures', 'Timestamp chapter markers', 'Integrated note-taking notebook'],
+    features: ['Physics Hydrodynamics Units 1–5 & Chemistry IUPAC', 'Distraction-free in-app lecture theater', 'Protected student index & passcode verification'],
     buttonText: 'Watch Video Lessons',
   },
 ];
@@ -117,9 +111,9 @@ export const HomePage: React.FC<HomePageProps> = ({
   const rotatingWords = [
     'Past Papers & Schemes',
     'FWC Pilot Examinations',
-    'School Term Tests',
-    'Theory & Short Notes',
-    'Video Masterclasses',
+    'School Term Tests (1st to 6th)',
+    'Academic Resources (4 Subjects)',
+    'Theory Video Masterclasses',
   ];
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
 
@@ -130,9 +124,14 @@ export const HomePage: React.FC<HomePageProps> = ({
     return () => clearInterval(timer);
   }, []);
 
+  const handleNav = (tab: ResourceCategory) => {
+    playRoboticTab();
+    onNavigateToTab(tab);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
-      {/* 1. Top Moving Text Ticker with "Study Smart, Work Hard" Quote */}
+      {/* 1. Top Moving Text Ticker with High-Yield Announcements */}
       <div className="bg-slate-950 text-white overflow-hidden py-2.5 border-b border-slate-800 shadow-inner">
         <div className="animate-ticker flex items-center gap-10 whitespace-nowrap text-xs font-semibold">
           {/* Quote Item Prominently */}
@@ -150,9 +149,16 @@ export const HomePage: React.FC<HomePageProps> = ({
 
           <span className="text-slate-500 font-bold">✦</span>
 
+          <span className="flex items-center gap-1.5 text-purple-300 font-bold bg-purple-500/10 px-2.5 py-0.5 rounded-full border border-purple-500/30">
+            <BookOpen className="w-3.5 h-3.5 text-purple-300" />
+            <span>New Resources Section: 4 Folders for Biology, Physics, Chemistry & Combined Maths</span>
+          </span>
+
+          <span className="text-slate-500 font-bold">✦</span>
+
           <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Latest: 2022–2027 G.C.E. A/L Physics 1st Term Papers & Schemes Uploaded</span>
+            <span>Physics Hydrodynamics Unit 2 Theory Video Classes 1 to 5 Now Available!</span>
           </span>
 
           <span className="text-slate-500 font-bold">✦</span>
@@ -164,9 +170,9 @@ export const HomePage: React.FC<HomePageProps> = ({
 
           <span className="text-slate-500 font-bold">✦</span>
 
-          <span className="flex items-center gap-1.5 text-purple-300 font-medium">
-            <Video className="w-3.5 h-3.5" />
-            <span>Distraction-Free Video Player: Watch unlisted lectures in-app</span>
+          <span className="flex items-center gap-1.5 text-amber-300 font-medium">
+            <Award className="w-3.5 h-3.5" />
+            <span>FWC & Term Folders: 1st, 2nd, 3rd, 4th, 5th, 6th Term Tests</span>
           </span>
 
           {/* Repeat for seamless infinite scrolling */}
@@ -209,7 +215,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             <span>Official Sri Lankan G.C.E. Advanced Level Science Stream (Maths & Bio) Academic Archive</span>
           </div>
 
-          {/* 3. Examination Countdown Widget: Positioned right below the logo introduction */}
+          {/* 3. Examination Countdown Widget */}
           <div className="max-w-3xl mx-auto mb-8 text-left">
             <ExamCountdown />
           </div>
@@ -218,7 +224,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight mb-4">
             Study Smart. Reach Your Highest Island Rank In
             <span className="block mt-2.5 min-h-[1.3em]">
-              <span className="inline-block px-5 py-1.5 rounded-2xl bg-gradient-to-r from-blue-600 via-[#0066FF] to-indigo-600 text-white shadow-md transform transition-all duration-300">
+              <span className="inline-block px-5 py-1.5 rounded-2xl bg-gradient-to-r from-blue-600 via-[#0066FF] to-indigo-600 text-white shadow-md transform transition-all duration-300 animate-pulse">
                 {rotatingWords[currentWordIndex]}
               </span>
             </span>
@@ -242,7 +248,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           {/* Quick Action Navigation Buttons */}
           <div className="flex flex-wrap items-center justify-center gap-3">
             <button
-              onClick={() => onNavigateToTab('past-papers')}
+              onClick={() => handleNav('past-papers')}
               className="px-6 py-3 rounded-2xl bg-[#0066FF] hover:bg-blue-600 text-white font-extrabold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer transform hover:-translate-y-0.5"
             >
               <FileText className="w-4 h-4" />
@@ -250,7 +256,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             </button>
 
             <button
-              onClick={() => onNavigateToTab('fwc-papers')}
+              onClick={() => handleNav('fwc-papers')}
               className="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer transform hover:-translate-y-0.5"
             >
               <Award className="w-4 h-4" />
@@ -258,7 +264,15 @@ export const HomePage: React.FC<HomePageProps> = ({
             </button>
 
             <button
-              onClick={() => onNavigateToTab('theory-videos')}
+              onClick={() => handleNav('theory-notes')}
+              className="px-6 py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer transform hover:-translate-y-0.5"
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>Resources (4 Folders)</span>
+            </button>
+
+            <button
+              onClick={() => handleNav('theory-videos')}
               className="px-6 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm shadow-xs transition-all flex items-center gap-2 cursor-pointer"
             >
               <Video className="w-4 h-4 text-sky-400" />
@@ -266,7 +280,10 @@ export const HomePage: React.FC<HomePageProps> = ({
             </button>
 
             <button
-              onClick={onOpenTimer}
+              onClick={() => {
+                playRoboticClick();
+                onOpenTimer();
+              }}
               className="px-5 py-3 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm border border-slate-300 shadow-xs transition-all flex items-center gap-2 cursor-pointer"
             >
               <Clock className="w-4 h-4 text-[#0066FF]" />
@@ -274,7 +291,10 @@ export const HomePage: React.FC<HomePageProps> = ({
             </button>
 
             <button
-              onClick={onOpenContactUs}
+              onClick={() => {
+                playRoboticClick();
+                if (onOpenContactUs) onOpenContactUs();
+              }}
               className="px-5 py-3 rounded-2xl bg-blue-50 hover:bg-blue-100 text-[#0066FF] font-extrabold text-sm border border-blue-200 shadow-xs transition-all flex items-center gap-2 cursor-pointer"
             >
               <MessageSquare className="w-4 h-4 text-[#0066FF]" />
@@ -305,7 +325,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             {STREAMS_DATA.map((st) => (
               <div
                 key={st.id}
-                onClick={() => onNavigateToTab('past-papers')}
+                onClick={() => handleNav('past-papers')}
                 className={`p-6 sm:p-7 rounded-3xl bg-white border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-200 cursor-pointer flex flex-col justify-between group transform hover:-translate-y-1 ${st.borderHover}`}
               >
                 <div>
@@ -348,7 +368,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
         </section>
 
-        {/* 5. The 5 Academic Mission Sections (Attractive Clean Magazine Hub - NO Cluttered Paper Cards) */}
+        {/* 5. The 4 Academic Catalogs */}
         <section className="space-y-6">
           <div className="text-center max-w-2xl mx-auto mb-6">
             <div className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#0066FF] mb-1">
@@ -363,7 +383,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {CATEGORY_SHOWCASE.map((cat) => {
               const IconComponent = cat.icon;
               return (
@@ -376,7 +396,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                       <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#0066FF] flex items-center justify-center group-hover:bg-[#0066FF] group-hover:text-white transition-colors shadow-2xs">
                         <IconComponent className="w-6 h-6" />
                       </div>
-                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${cat.badgeColor}`}>
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${cat.badgeColor}`}>
                         {cat.tag}
                       </span>
                     </div>
@@ -400,7 +420,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   </div>
 
                   <button
-                    onClick={() => onNavigateToTab(cat.id)}
+                    onClick={() => handleNav(cat.id)}
                     className="w-full py-3 px-4 rounded-xl bg-slate-900 hover:bg-[#0066FF] text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs group-hover:shadow-md"
                   >
                     <span>{cat.buttonText}</span>
@@ -429,18 +449,18 @@ export const HomePage: React.FC<HomePageProps> = ({
 
           <div className="relative z-10 shrink-0 flex flex-col sm:flex-row items-center gap-3">
             <button
-              onClick={() => onNavigateToTab('past-papers')}
+              onClick={() => handleNav('fwc-papers')}
               className="px-6 py-3.5 rounded-2xl bg-[#0066FF] hover:bg-blue-600 text-white font-black text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center gap-2"
             >
-              <span>Explore All Materials</span>
+              <span>Explore FWC Folders</span>
               <ArrowRight className="w-4 h-4" />
             </button>
             <button
-              onClick={onOpenTimer}
-              className="px-6 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs sm:text-sm border border-slate-700 transition-all cursor-pointer flex items-center gap-2"
+              onClick={() => handleNav('theory-notes')}
+              className="px-6 py-3.5 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center gap-2"
             >
-              <Clock className="w-4 h-4 text-sky-400" />
-              <span>Start 25m Pomodoro</span>
+              <span>Explore Resources Folders</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </section>
@@ -450,9 +470,11 @@ export const HomePage: React.FC<HomePageProps> = ({
       <footer className="bg-white border-t border-slate-200 mt-14 py-8 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            {/* Secret Admin Panel Trigger */}
             <button
-              onClick={onOpenAdminLogin}
+              onClick={() => {
+                playRoboticClick();
+                if (onOpenAdminLogin) onOpenAdminLogin();
+              }}
               className="p-1 rounded-xl hover:bg-slate-100 transition-all cursor-pointer group focus:outline-none"
               title="Study Pro (Click for Admin System)"
             >
@@ -474,7 +496,10 @@ export const HomePage: React.FC<HomePageProps> = ({
             </a>
 
             <button
-              onClick={onOpenContactUs}
+              onClick={() => {
+                playRoboticClick();
+                if (onOpenContactUs) onOpenContactUs();
+              }}
               className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer"
             >
               <MessageSquare className="w-3.5 h-3.5" />

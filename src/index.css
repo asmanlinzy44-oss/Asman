@@ -57,6 +57,57 @@
   animation: xpGlow 2.5s ease-in-out infinite;
 }
 
+/* Futuristic Cyber Pulse & Rings */
+@keyframes cyberPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.85;
+    box-shadow: 0 0 25px rgba(56, 189, 248, 0.4), inset 0 0 15px rgba(56, 189, 248, 0.3);
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+    box-shadow: 0 0 45px rgba(56, 189, 248, 0.7), inset 0 0 25px rgba(56, 189, 248, 0.5);
+  }
+}
+
+.animate-cyber-pulse {
+  animation: cyberPulse 3s ease-in-out infinite;
+}
+
+/* Animated Shimmer Text */
+@keyframes textShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-text-shimmer {
+  background: linear-gradient(90deg, #38bdf8 0%, #ffffff 50%, #818cf8 100%);
+  background-size: 200% auto;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: textShimmer 4s linear infinite;
+}
+
+/* Futuristic Scanline */
+@keyframes scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(1000%);
+  }
+}
+
+.animate-scanline {
+  animation: scanline 4s linear infinite;
+}
+
 /* Custom neat scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
