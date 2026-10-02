@@ -87,7 +87,7 @@ export const VideoLockModal: React.FC<VideoLockModalProps> = ({
             Theory Video Masterclasses
           </h3>
           <p className="text-xs text-sky-200/90 font-semibold mt-1">
-            பாடக் கோட்பாட்டு காணொளிகளுக்கான பிரத்தியேக அனுமதி
+            Exclusive Access to Theory Video Masterclasses
           </p>
           <p className="text-[11px] text-slate-400 mt-1">
             Physics Hydrodynamics (Units 1–5) & Chemistry IUPAC Lectures

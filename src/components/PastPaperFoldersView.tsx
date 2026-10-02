@@ -46,38 +46,38 @@ const SUBJECT_FOLDERS: SubjectFolderConfig[] = [
   {
     id: 'chemistry',
     nameEn: 'Chemistry Past Papers',
-    nameTa: 'இரசாயனவியல் வினாத்தாள்கள்',
+    nameTa: 'Chemistry',
     icon: '🧪',
     badge: '1980–2026 Master Archive (46+ Years)',
     colorTheme: 'emerald',
-    description: '1980 முதல் 2026 வரையிலான அனைத்து இரசாயனவியல் வினாத்தாள்களும், MCQs விடைகளும், மாதிரி புள்ளியிடல் திட்டங்களும்.',
+    description: 'Comprehensive 1980 to 2026 Chemistry question papers, MCQ answer keys, and official marking schemes.',
   },
   {
     id: 'physics',
     nameEn: 'Physics Past Papers',
-    nameTa: 'பௌதிகவியல் வினாத்தாள்கள்',
+    nameTa: 'Physics',
     icon: '⚛️',
     badge: '1975–2026 Master Archive (51+ Years)',
     colorTheme: 'blue',
-    description: '1975 முதல் 2026 வரையிலான 51+ வருட முழுமையான பௌதிகவியல் வினாத்தாள்களும், Paper 1 MCQs விடைகளும், உத்தியோகபூர்வ புள்ளியிடல் திட்டங்களும்.',
+    description: '51+ years of Physics question papers, Paper 1 MCQ solutions, and official marking schemes (1975–2026).',
   },
   {
     id: 'biology',
     nameEn: 'Biology Past Papers',
-    nameTa: 'உயிரியல் வினாத்தாள்கள்',
+    nameTa: 'Biology',
     icon: '🧬',
     badge: '1994–2026 Master Archive (32+ Years)',
     colorTheme: 'rose',
-    description: '1994 முதல் 2026 வரையிலான அனைத்து உயிரியல் வினாத்தாள்களும், Paper 1 MCQs விடைகளும், Paper 2 புள்ளியிடல் திட்டங்களும்.',
+    description: 'Complete 1994 to 2026 Biology question papers, MCQ answer keys, and Paper 2 marking schemes.',
   },
   {
     id: 'c-maths',
     nameEn: 'Combined Maths Past Papers',
-    nameTa: 'இணைந்த கணிதம் வினாத்தாள்கள்',
+    nameTa: 'Combined Mathematics',
     icon: '📐',
     badge: 'Pure & Applied Maths',
     colorTheme: 'purple',
-    description: 'இணைந்த கணிதம் தூய கணிதம் & பிரயோக கணிதம் வினாத்தாள்களும் முழுமையான படிமுறைத் தீர்வுகளும்.',
+    description: 'Combined Mathematics Pure & Applied Mathematics papers with step-by-step marking schemes.',
   },
 ];
 
@@ -162,10 +162,10 @@ export const PastPaperFoldersView: React.FC<PastPaperFoldersViewProps> = ({
         <div className="relative z-10 space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-sky-300 text-xs font-bold border border-blue-400/20">
             <FolderOpen className="w-3.5 h-3.5" />
-            <span>National Examination Paper Folders (தேசிய கடந்த கால வினாத்தாள் தொகுப்புகள்)</span>
+            <span>National Examination Paper Folders</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-            Choose Subject Folder (பாடத்தைத் தொட்டுத் திறக்கவும்)
+            Choose Subject Folder
           </h2>
           <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
             Click on <b>Physics, Chemistry, Biology, or Combined Maths</b> below. Touch any paper to <b>Download</b> or <b>Preview</b> instantly!
@@ -371,7 +371,7 @@ export const PastPaperFoldersView: React.FC<PastPaperFoldersViewProps> = ({
                 1980–2026 G.C.E. A/L Chemistry Complete Past Papers & Schemes
               </h3>
               <div className="text-xs font-bold text-emerald-300">
-                1980–2026 க.பொ.த (உயர்தரம்) இரசாயனவியல் முழுமையான கடந்தகால வினாத்தாள்கள் & விடைக்குறிப்புகள் [Master Folder]
+                1980–2026 G.C.E. (A/L) Chemistry Complete Past Papers & Schemes [Master Archive Folder]
               </div>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                 All 1980 to 2026 Chemistry past papers with complete MCQs keys, structured essays, and marking schemes are provided separately inside this official Google Drive master folder.
@@ -431,7 +431,7 @@ export const PastPaperFoldersView: React.FC<PastPaperFoldersViewProps> = ({
                 1994–2026 G.C.E. A/L Biology Complete Past Papers & Schemes
               </h3>
               <div className="text-xs font-bold text-rose-300">
-                1994–2026 க.பொ.த (உயர்தரம்) உயிரியல் முழுமையான கடந்தகால வினாத்தாள்கள் & விடைக்குறிப்புகள் [Master Folder]
+                1994–2026 G.C.E. (A/L) Biology Complete Past Papers & Schemes [Master Archive Folder]
               </div>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                 All 1994 to 2026 Biology past papers with complete MCQs keys, structured essays, essay questions, and official marking schemes are provided separately inside this official Google Drive master folder.
@@ -491,7 +491,7 @@ export const PastPaperFoldersView: React.FC<PastPaperFoldersViewProps> = ({
                 1975–2026 G.C.E. A/L Physics Complete Past Papers & Schemes
               </h3>
               <div className="text-xs font-bold text-sky-300">
-                1975–2026 க.பொ.த (உயர்தரம்) பௌதிகவியல் முழுமையான கடந்தகால வினாத்தாள்கள் & விடைக்குறிப்புகள் [Master Folder]
+                1975–2026 G.C.E. (A/L) Physics Complete Past Papers & Schemes [Master Archive Folder]
               </div>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                 All 1975 to 2026 Physics past papers with complete MCQs keys, structured essays, essay questions, and official marking schemes are provided separately inside this official Google Drive master folder.

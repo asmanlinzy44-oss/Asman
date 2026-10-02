@@ -3,10 +3,12 @@ import {
   X, CheckCircle, BookOpen, Play, Pause,
   Maximize2, Minimize2, Zap, ShieldCheck, 
   RotateCw, RotateCcw, ListVideo, Volume2, VolumeX,
-  Gauge, Sparkles, SlidersHorizontal, Tv, Check
+  Gauge, Sparkles, SlidersHorizontal, Tv, Check,
+  Loader2
 } from 'lucide-react';
 import { VideoLesson, User, UserNote } from '../types';
 import { getYoutubeEmbedUrl } from '../utils/drive';
+import { playRoboticClick, playRoboticUnlock } from '../utils/audio';
 
 interface VideoPlayerModalProps {
   video: VideoLesson | null;
@@ -62,6 +64,8 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   isWatched = false,
 }) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isBuffering, setIsBuffering] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>((video?.durationMinutes || 45) * 60);
   const [currentSpeed, setCurrentSpeed] = useState<number>(1);
@@ -78,7 +82,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const [gamingHudFlash, setGamingHudFlash] = useState<string | null>(null);
   const [showMobileSpeedDrawer, setShowMobileSpeedDrawer] = useState<boolean>(false);
   const [showQualityModal, setShowQualityModal] = useState<boolean>(false);
-  
+
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const modalContainerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<any>(null);
@@ -88,7 +92,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
   // Controlled embed URL with optional forced quality and seek start
   const embedUrl = useMemo(() => {
-    if (!video?.youtubeId) return '';
+    if (!video?.youtubeId) return null;
     return getYoutubeEmbedUrl(video.youtubeId, { 
       autoplay: true, 
       controls: 0,
@@ -131,8 +135,12 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           sendYtCommand('setPlaybackQuality', [currentQuality]);
           sendYtCommand('setPlaybackQualityRange', [currentQuality, currentQuality]);
         }
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 2200);
       } catch (e) {
         console.warn('Iframe handshake issue:', e);
+        setIsLoading(false);
       }
     }
   };
@@ -142,6 +150,8 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     setCurrentTime(0);
     setStreamStartTime(0);
     setIsPlaying(false);
+    setIsLoading(true);
+    setIsBuffering(false);
     setCurrentSpeed(1);
     setCurrentQuality('auto');
     setEmbedQuality('auto');
@@ -167,9 +177,24 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           }
           if (typeof data.info.playerState === 'number') {
             if (data.info.playerState === 1) {
+              // Playing
               setIsPlaying(true);
-            } else if (data.info.playerState === 2 || data.info.playerState === 0) {
+              setIsLoading(false);
+              setIsBuffering(false);
+            } else if (data.info.playerState === 2) {
+              // Paused
               setIsPlaying(false);
+              setIsLoading(false);
+              setIsBuffering(false);
+            } else if (data.info.playerState === 0) {
+              // Ended
+              setIsPlaying(false);
+              setIsLoading(false);
+              setIsBuffering(false);
+            } else if (data.info.playerState === 3) {
+              // Buffering / Loading
+              setIsBuffering(true);
+              setIsLoading(true);
             }
           }
           if (typeof data.info.muted === 'boolean') {
@@ -260,6 +285,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       setIsPlaying(false);
       flashGamingHud('⏸ PAUSED');
     } else {
+      setIsLoading(true);
       sendYtCommand('playVideo');
       setIsPlaying(true);
       flashGamingHud('▶ PLAYING');
@@ -282,6 +308,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     setCurrentQuality(qualityId);
     setEmbedQuality(qualityId);
     setStreamStartTime(Math.floor(currentTime));
+    setIsLoading(true);
     
     // Command YouTube API
     sendYtCommand('setPlaybackQuality', [qualityId]);
@@ -297,8 +324,15 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const handleSeek = (newSeconds: number) => {
     const clamped = Math.max(0, Math.min(duration, newSeconds));
     setCurrentTime(clamped);
+
+    setIsLoading(true);
+    setIsBuffering(true);
     sendYtCommand('seekTo', [clamped, true]);
     resetControlsTimeout();
+    setTimeout(() => {
+      setIsBuffering(false);
+      setIsLoading(false);
+    }, 1100);
   };
 
   // Skip relative offset in seconds (e.g. -10s or +10s)
@@ -361,7 +395,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     }
   };
 
-  // Touch & tap handler on video area: Prevents double-firing and fixes fullscreen touches
+  // Touch & tap handler on video area
   const processVideoTap = (clientX: number, rect: DOMRect) => {
     const now = Date.now();
     const clickX = clientX - rect.left;
@@ -483,7 +517,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
             {/* Top Right Actions */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              {/* Fast Fullscreen Button for Mobile (Instant One-Tap Edge-to-Edge) */}
+              {/* Fast Fullscreen Button */}
               <button
                 onClick={toggleFullscreen}
                 className="px-2 py-1 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 text-[10px] font-black font-mono flex items-center gap-1 cursor-pointer transition-all shadow-sm active:scale-95"
@@ -536,15 +570,33 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
               isFullscreen ? 'h-full flex-1' : 'aspect-video max-h-[46vh] sm:max-h-[56vh] lg:max-h-none lg:h-full lg:flex-1'
             }`}>
               
-              {/* YouTube IFrame - Unrestricted and Stable */}
-              <iframe
-                ref={iframeRef}
-                src={embedUrl}
-                title={video.titleEn}
-                onLoad={handleIframeLoad}
-                className="w-full h-full border-0 select-none"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              />
+              {/* TOP STREAM INDETERMINATE LOADING GLOW BAR (Active when loading/buffering) */}
+              {(isLoading || isBuffering) && (
+                <div className="absolute top-0 left-0 right-0 h-1 z-35 bg-slate-900 overflow-hidden">
+                  <div className="w-full h-full bg-gradient-to-r from-transparent via-cyan-400 to-blue-500 animate-pulse shadow-[0_0_12px_rgba(6,182,212,0.8)]" />
+                </div>
+              )}
+
+              {/* Active Player: Clean Online YouTube iframe */}
+              {embedUrl ? (
+                <iframe
+                  ref={iframeRef}
+                  src={embedUrl}
+                  title={video.titleEn}
+                  onLoad={handleIframeLoad}
+                  className="w-full h-full border-0 select-none"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-black text-slate-400 p-6 text-center select-none">
+                  <div className="w-12 h-12 rounded-2xl bg-cyan-950/60 border border-cyan-500/30 flex items-center justify-center mb-3">
+                    <Loader2 className="w-6 h-6 text-cyan-400 animate-spin" />
+                  </div>
+                  <span className="text-xs font-mono font-bold text-slate-300">
+                    Preparing video stream...
+                  </span>
+                </div>
+              )}
 
               {/* INTERACTIVE TAP OVERLAY (Fixed touch gesture support for mobile & fullscreen) */}
               <div 
@@ -566,6 +618,32 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* CENTER COCKPIT LOADING & BUFFERING SPINNER */}
+              {(isLoading || isBuffering) && (
+                <div className="absolute inset-0 z-25 flex flex-col items-center justify-center pointer-events-none bg-black/45 backdrop-blur-[1.5px] transition-all">
+                  <div className="relative flex items-center justify-center">
+                    {/* Outer Neon Cyber Ring */}
+                    <div className="w-18 h-18 sm:w-22 sm:h-22 rounded-full border-4 border-cyan-500/20 border-t-cyan-400 border-r-blue-500 animate-spin shadow-[0_0_30px_rgba(6,182,212,0.7)]" />
+                    {/* Inner Counter-spinning Ring */}
+                    <div 
+                      className="absolute w-12 h-12 sm:w-15 sm:h-15 rounded-full border-3 border-blue-500/20 border-b-cyan-300 border-l-indigo-400 animate-spin" 
+                      style={{ animationDirection: 'reverse', animationDuration: '1.2s' }} 
+                    />
+                    {/* Center Spinning Indicator */}
+                    <div className="absolute flex items-center justify-center">
+                      <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-cyan-300 animate-spin drop-shadow-[0_0_12px_rgba(6,182,212,0.9)]" />
+                    </div>
+                  </div>
+                  {/* High-Tech Hologram Loading Badge */}
+                  <div className="mt-4 px-3.5 py-1 rounded-full bg-slate-950/90 border border-cyan-400/60 shadow-[0_0_20px_rgba(6,182,212,0.5)] flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                    <span className="text-[10px] sm:text-xs font-mono font-black text-cyan-200 uppercase tracking-widest">
+                      {isBuffering ? 'BUFFERING VIDEO STREAM...' : 'LOADING VIDEO STREAM...'}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* HUD FLASH BANNER */}
               {gamingHudFlash && (
@@ -633,7 +711,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   </div>
                 </div>
 
-                {/* Center Play/Pause Indicator */}
+                {/* Center Play/Pause Indicator (Synchronized with loading status) */}
                 <div 
                   className="flex items-center justify-center pointer-events-auto"
                   onTouchStart={(e) => e.stopPropagation()}
@@ -642,9 +720,11 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   <button
                     onClick={handleTogglePlay}
                     className="w-14 h-14 sm:w-18 sm:h-18 rounded-2xl bg-gradient-to-br from-cyan-500/90 to-blue-600/90 hover:from-cyan-400 hover:to-blue-500 text-white flex items-center justify-center shadow-[0_0_35px_rgba(6,182,212,0.7)] backdrop-blur-md transition-all active:scale-90 cursor-pointer border-2 border-cyan-300/60"
-                    title={isPlaying ? 'Pause' : 'Play'}
+                    title={isLoading || isBuffering ? 'Loading...' : isPlaying ? 'Pause' : 'Play'}
                   >
-                    {isPlaying ? (
+                    {isLoading || isBuffering ? (
+                      <Loader2 className="w-7 h-7 sm:w-8 sm:h-8 text-white animate-spin drop-shadow" />
+                    ) : isPlaying ? (
                       <Pause className="w-7 h-7 sm:w-8 sm:h-8 fill-current drop-shadow" />
                     ) : (
                       <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-current ml-1 drop-shadow" />
@@ -674,14 +754,20 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   {/* Main Controls Row */}
                   <div className="flex items-center justify-between gap-1 w-full max-w-full">
                     
-                    {/* Left: Play/Pause, -10s, +10s, Time, Mute */}
+                    {/* Left: Play/Pause/Loading, -10s, +10s, Time, Mute */}
                     <div className="flex items-center gap-1 sm:gap-2 shrink min-w-0">
                       <button
                         onClick={handleTogglePlay}
                         className="p-1.5 sm:p-2 rounded-xl text-white hover:bg-cyan-500/20 transition-colors cursor-pointer border border-transparent hover:border-cyan-500/40 shrink-0 active:scale-95"
-                        title={isPlaying ? 'Pause' : 'Play'}
+                        title={isLoading || isBuffering ? 'Loading Stream' : isPlaying ? 'Pause' : 'Play'}
                       >
-                        {isPlaying ? <Pause className="w-4 h-4 text-cyan-400" /> : <Play className="w-4 h-4 fill-current text-cyan-400" />}
+                        {isLoading || isBuffering ? (
+                          <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
+                        ) : isPlaying ? (
+                          <Pause className="w-4 h-4 text-cyan-400" />
+                        ) : (
+                          <Play className="w-4 h-4 fill-current text-cyan-400" />
+                        )}
                       </button>
 
                       {/* -10s Seek */}
@@ -725,7 +811,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                       </button>
                     </div>
 
-                    {/* Right: Quality, Speed, Fullscreen (Always completely visible!) */}
+                    {/* Right: Quality, Speed, Fullscreen */}
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                       
                       {/* QUALITY BUTTON */}
@@ -849,7 +935,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   </div>
                 </div>
 
-                {/* Speed Row: Thumb Reachable */}
+                {/* Speed Row */}
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 w-full">
                   <span className="text-[9px] font-mono text-cyan-400 font-bold uppercase tracking-wider shrink-0 px-1">
                     SPEED:
@@ -877,7 +963,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   })}
                 </div>
 
-                {/* Quality Row: Thumb Reachable */}
+                {/* Quality Row */}
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 w-full">
                   <span className="text-[9px] font-mono text-emerald-400 font-bold uppercase tracking-wider shrink-0 px-1">
                     QUALITY:
@@ -909,7 +995,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
           </div>
 
-          {/* DECK: Only Notes & Overview (Chapters & Q&A removed) */}
+          {/* DECK: Notes & Overview Tabs */}
           {(!isFullscreen || showDrawerInFs) && (
             <div className={`flex flex-col bg-[#070E22] overflow-hidden w-full max-w-full ${
               isFullscreen 
@@ -933,7 +1019,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                 </div>
               )}
 
-              {/* Clean Tabs Bar: Only Notes & Overview */}
+              {/* Tabs Bar */}
               <div className="flex items-center border-b border-cyan-500/20 bg-[#0A142D] px-2 overflow-x-auto shrink-0 no-scrollbar w-full">
                 <button
                   onClick={() => setActiveTab('notes')}
@@ -960,7 +1046,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   }`}
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Lesson Overview</span>
+                  <span>Lesson Overview & Sponsor</span>
                 </button>
               </div>
 
@@ -1021,7 +1107,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   </div>
                 )}
 
-                {/* Tab: Overview */}
+                {/* Tab: Overview & Details */}
                 {activeTab === 'overview' && (
                   <div className="space-y-3 text-xs leading-relaxed">
                     <div className="p-3 bg-slate-900/80 rounded-xl border border-cyan-500/20">
@@ -1064,7 +1150,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
         </div>
       </div>
 
-      {/* CLEAN VIDEO QUALITY SELECTOR MODAL (No AI text / Clean & Direct) */}
+      {/* VIDEO QUALITY SELECTOR MODAL */}
       {showQualityModal && (
         <div 
           className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150"

@@ -380,7 +380,7 @@ export const TermFoldersView: React.FC<TermFoldersViewProps> = ({
                   FWC Combined Maths Terms 1, 2, 3, 4, 5 & 6 Examination Papers & Step Solutions
                 </h3>
                 <div className="text-xs font-bold text-purple-300">
-                  தொண்டைமானாறு கள நிலையம் (FWC) இணைந்த கணிதம் தவணை 1 முதல் 6 வரையிலான முழுமையான வினாத்தாள்களும் படிமுறைத் தீர்வுகளும்
+                  Thondaimanaru Field Work Centre (FWC) Combined Mathematics Terms 1 to 6 Papers & Step Solutions
                 </div>
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                   All 6 terms of FWC Combined Mathematics (Pure & Applied) are uploaded. Touch any term below to view its papers or directly open its Drive folder:
@@ -490,7 +490,7 @@ export const TermFoldersView: React.FC<TermFoldersViewProps> = ({
                   FWC Physics Terms 1, 2, 3, 4, 5 & 6 Examination Papers & Schemes
                 </h3>
                 <div className="text-xs font-bold text-sky-300">
-                  தொண்டைமானாறு கள நிலையம் (FWC) பௌதிகவியல் தவணை 1 முதல் 6 வரையிலான முழுமையான வினாத்தாள்களும் புள்ளியிடல் திட்டங்களும்
+                  Thondaimanaru Field Work Centre (FWC) Physics Terms 1 to 6 Papers & Marking Schemes
                 </div>
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                   All 6 terms of FWC Physics examination papers are uploaded with official step-by-step marking schemes. Touch any term below to view its papers or directly open its Drive folder:
@@ -600,7 +600,7 @@ export const TermFoldersView: React.FC<TermFoldersViewProps> = ({
                   FWC Chemistry Terms 1, 2, 3, 4, 5 & 6 Examination Papers & Schemes
                 </h3>
                 <div className="text-xs font-bold text-emerald-300">
-                  தொண்டைமானாறு கள நிலையம் (FWC) இரசாயனவியல் தவணை 1 முதல் 6 வரையிலான முழுமையான வினாத்தாள்களும் புள்ளியிடல் திட்டங்களும்
+                  Thondaimanaru Field Work Centre (FWC) Chemistry Terms 1 to 6 Papers & Marking Schemes
                 </div>
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                   All 6 terms of FWC Chemistry examination papers are uploaded with official step-by-step marking schemes. Touch any term below to view its papers or directly open its Drive folder:
@@ -710,7 +710,7 @@ export const TermFoldersView: React.FC<TermFoldersViewProps> = ({
                   FWC Biology Terms 1, 2, 3, 4, 5 & 6 Examination Papers & Schemes
                 </h3>
                 <div className="text-xs font-bold text-rose-300">
-                  தொண்டைமானாறு கள நிலையம் (FWC) உயிரியல் தவணை 1 முதல் 6 வரையிலான முழுமையான வினாத்தாள்களும் புள்ளியிடல் திட்டங்களும்
+                  Thondaimanaru Field Work Centre (FWC) Biology Terms 1 to 6 Papers & Marking Schemes
                 </div>
                 <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                   All 6 terms of FWC Biology examination papers are uploaded with official step-by-step marking schemes. Touch any term below to view its papers or directly open its Drive folder:

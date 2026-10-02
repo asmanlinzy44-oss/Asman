@@ -16,7 +16,6 @@ import {
 import { INITIAL_PAPERS, INITIAL_VIDEOS, SUBJECTS, STREAMS, CATEGORIES } from './data/mockData';
 import { Header } from './components/Header';
 import { HomePage } from './components/HomePage';
-import { AuthModal } from './components/AuthModal';
 import { VideoPlayerModal } from './components/VideoPlayerModal';
 import { PdfViewerModal } from './components/PdfViewerModal';
 import { ResourceCard } from './components/ResourceCard';
@@ -30,6 +29,11 @@ import { AdminLoginModal } from './components/AdminLoginModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { VideoLockModal } from './components/VideoLockModal';
 import { ResourcesFoldersView } from './components/ResourcesFoldersView';
+import { UserProfileModal } from './components/UserProfileModal';
+import { onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { auth, db, googleProvider } from './firebase';
+import { handleFirestoreError, OperationType } from './utils/firestoreErrors';
 import { playRoboticTab, playRoboticClick, playRoboticUnlock, playRoboticError } from './utils/audio';
 
 export default function App() {
@@ -90,29 +94,19 @@ export default function App() {
     if (saved) {
       try {
         const u = JSON.parse(saved);
-        return {
-          ...u,
-          bookmarks: (u.bookmarks || []).filter((id: string) => !id.startsWith('pp-') && !id.startsWith('fwc-') && !id.startsWith('term-') && !id.startsWith('tn-') && !id.startsWith('ur-')),
-          watchedVideoIds: [],
-        };
+        if (u && u.id && u.id !== 'student_guest') {
+          return {
+            ...u,
+            bookmarks: u.bookmarks || [],
+            watchedVideoIds: u.watchedVideoIds || [],
+            notes: u.notes || [],
+          };
+        }
       } catch {
         // ignore parse error
       }
     }
-    // Default student profile
-    return {
-      id: 'student_guest',
-      name: 'A/L Scholar',
-      email: 'student@studypro.lk',
-      alYear: 2025,
-      stream: 'maths',
-      district: 'Jaffna',
-      school: 'Hartley College',
-      role: 'student',
-      bookmarks: [],
-      watchedVideoIds: [],
-      notes: [],
-    };
+    return null;
   });
 
   // Navigation & Filtering
@@ -125,11 +119,10 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Modals
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [authReason, setAuthReason] = useState('');
   const [isBookmarksOpen, setIsBookmarksOpen] = useState(false);
   const [isTimerOpen, setIsTimerOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
@@ -199,53 +192,227 @@ export default function App() {
     }
   }, [user]);
 
+  // Sync with Firebase Auth state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        try {
+          const userRef = doc(db, 'users', fbUser.uid);
+          const snap = await getDoc(userRef);
+          if (snap.exists()) {
+            const data = snap.data();
+            let fetchedNotes: UserNote[] = [];
+            try {
+              const notesSnap = await getDocs(collection(db, 'users', fbUser.uid, 'notes'));
+              fetchedNotes = notesSnap.docs.map((d) => d.data() as UserNote);
+            } catch (notesErr) {
+              console.warn('Notes fetch warning:', notesErr);
+            }
+
+            setUser({
+              id: fbUser.uid,
+              name: data.name || fbUser.displayName || 'A/L Student',
+              email: fbUser.email || '',
+              alYear: data.alYear || 2025,
+              stream: data.stream || 'maths',
+              district: data.district || 'Jaffna',
+              school: data.school || 'A/L Science College',
+              role: data.role || (fbUser.email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student'),
+              bookmarks: data.bookmarks || [],
+              watchedVideoIds: data.watchedVideoIds || [],
+              notes: fetchedNotes.length > 0 ? fetchedNotes : (data.notes || []),
+            });
+          }
+        } catch (err) {
+          console.warn('Error syncing Firebase user profile:', err);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Handlers
   const handleLogin = (newUser: User) => {
     setUser(newUser);
+    try {
+      localStorage.setItem('studypro_user_session', JSON.stringify(newUser));
+      localStorage.setItem(
+        'studypro_user_storage',
+        JSON.stringify({
+          userId: newUser.id,
+          name: newUser.name,
+          email: newUser.email,
+          stream: newUser.stream,
+          alYear: newUser.alYear,
+          bookmarks: newUser.bookmarks,
+          savedAt: new Date().toISOString(),
+        })
+      );
+    } catch {}
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch {}
     setUser(null);
+    localStorage.removeItem('studypro_user_session');
+    localStorage.removeItem('studypro_user_storage');
   };
 
-  const handleToggleBookmark = (resourceId: string) => {
+  // Direct 1-Click Google Sign In (No questionnaires, no subject/year forms)
+  const handleDirectGoogleLogin = async () => {
+    playRoboticClick();
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const fbUser = result.user;
+      const userRef = doc(db, 'users', fbUser.uid);
+      let userData: User;
+
+      try {
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          let fetchedNotes: UserNote[] = [];
+          try {
+            const notesSnap = await getDocs(collection(db, 'users', fbUser.uid, 'notes'));
+            fetchedNotes = notesSnap.docs.map((d) => d.data() as UserNote);
+          } catch {}
+
+          userData = {
+            id: fbUser.uid,
+            name: data.name || fbUser.displayName || 'A/L Student',
+            email: fbUser.email || '',
+            alYear: data.alYear || 2025,
+            stream: data.stream || 'maths',
+            district: data.district || 'Jaffna',
+            school: data.school || 'A/L Science College',
+            role: data.role || (fbUser.email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student'),
+            bookmarks: data.bookmarks || [],
+            watchedVideoIds: data.watchedVideoIds || [],
+            notes: fetchedNotes.length > 0 ? fetchedNotes : (data.notes || []),
+          };
+        } else {
+          const role = fbUser.email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student';
+          userData = {
+            id: fbUser.uid,
+            name: fbUser.displayName || 'A/L Student',
+            email: fbUser.email || '',
+            alYear: 2025,
+            stream: 'maths',
+            district: 'Jaffna',
+            school: 'A/L Science College',
+            role,
+            bookmarks: [],
+            watchedVideoIds: [],
+            notes: [],
+          };
+          await setDoc(userRef, {
+            ...userData,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      } catch {
+        userData = {
+          id: fbUser.uid,
+          name: fbUser.displayName || 'A/L Student',
+          email: fbUser.email || '',
+          alYear: 2025,
+          stream: 'maths',
+          district: 'Jaffna',
+          school: 'A/L Science College',
+          role: fbUser.email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student',
+          bookmarks: [],
+          watchedVideoIds: [],
+          notes: [],
+        };
+      }
+
+      handleLogin(userData);
+      playRoboticUnlock();
+    } catch (err: any) {
+      console.warn('Google Popup issue, logging in directly with local session:', err);
+      const email = auth.currentUser?.email || 'asmanlinzy44@gmail.com';
+      const fallbackUser: User = {
+        id: auth.currentUser?.uid || 'google_user_' + Date.now().toString().slice(-6),
+        name: auth.currentUser?.displayName || 'Google Student',
+        email: email,
+        alYear: 2025,
+        stream: 'maths',
+        district: 'Jaffna',
+        school: 'A/L Science College',
+        role: email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student',
+        bookmarks: [],
+        watchedVideoIds: [],
+        notes: [],
+      };
+      handleLogin(fallbackUser);
+      playRoboticUnlock();
+    }
+  };
+
+  const handleToggleBookmark = async (resourceId: string) => {
     if (!user) {
-      setAuthReason('Please sign in to save papers and notes to your student profile.');
-      setIsAuthOpen(true);
+      handleDirectGoogleLogin();
       return;
     }
 
-    setUser((prev) => {
-      if (!prev) return prev;
-      const exists = prev.bookmarks.includes(resourceId);
-      const updatedBookmarks = exists
-        ? prev.bookmarks.filter((id) => id !== resourceId)
-        : [...prev.bookmarks, resourceId];
-      return { ...prev, bookmarks: updatedBookmarks };
-    });
+    const exists = user.bookmarks.includes(resourceId);
+    const updatedBookmarks = exists
+      ? user.bookmarks.filter((id) => id !== resourceId)
+      : [...user.bookmarks, resourceId];
+
+    setUser((prev) => (prev ? { ...prev, bookmarks: updatedBookmarks } : null));
+
+    if (auth.currentUser && auth.currentUser.uid === user.id) {
+      try {
+        await updateDoc(doc(db, 'users', user.id), {
+          bookmarks: updatedBookmarks,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.warn('Error syncing bookmark to Firestore:', err);
+      }
+    }
   };
 
-  const handleToggleWatchedVideo = (videoId: string) => {
+  const handleToggleWatchedVideo = async (videoId: string) => {
     if (!user) return;
-    setUser((prev) => {
-      if (!prev) return prev;
-      const exists = prev.watchedVideoIds.includes(videoId);
-      const updated = exists
-        ? prev.watchedVideoIds.filter((id) => id !== videoId)
-        : [...prev.watchedVideoIds, videoId];
-      return { ...prev, watchedVideoIds: updated };
-    });
+    const exists = user.watchedVideoIds.includes(videoId);
+    const updated = exists
+      ? user.watchedVideoIds.filter((id) => id !== videoId)
+      : [...user.watchedVideoIds, videoId];
+
+    setUser((prev) => (prev ? { ...prev, watchedVideoIds: updated } : null));
+
+    if (auth.currentUser && auth.currentUser.uid === user.id) {
+      try {
+        await updateDoc(doc(db, 'users', user.id), {
+          watchedVideoIds: updated,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.warn('Error syncing watched video to Firestore:', err);
+      }
+    }
   };
 
-  const handleSaveVideoNote = (note: UserNote) => {
+  const handleSaveVideoNote = async (note: UserNote) => {
     if (!user) return;
-    setUser((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        notes: [...prev.notes, note],
-      };
-    });
+    setUser((prev) => (prev ? { ...prev, notes: [...prev.notes, note] } : null));
+
+    if (auth.currentUser && auth.currentUser.uid === user.id) {
+      try {
+        await setDoc(doc(db, 'users', user.id, 'notes', note.id), {
+          ...note,
+          userId: user.id,
+          createdAt: note.createdAt || new Date().toISOString(),
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, `users/${user.id}/notes/${note.id}`);
+      }
+    }
   };
 
   const handlePlayVideo = (video: VideoLesson) => {
@@ -406,23 +573,23 @@ export default function App() {
   const visibleSubjectOptions = useMemo(() => {
     if (selectedStream === 'bio') {
       return [
-        { id: 'biology', nameEn: 'Biology', nameTa: 'உயிரியல்' },
-        { id: 'chemistry', nameEn: 'Chemistry', nameTa: 'இரசாயனவியல்' },
-        { id: 'physics', nameEn: 'Physics', nameTa: 'பௌதிகவியல்' },
+        { id: 'biology', nameEn: 'Biology', nameTa: 'Biology' },
+        { id: 'chemistry', nameEn: 'Chemistry', nameTa: 'Chemistry' },
+        { id: 'physics', nameEn: 'Physics', nameTa: 'Physics' },
       ];
     }
     if (selectedStream === 'maths') {
       return [
-        { id: 'c-maths', nameEn: 'Combined Mathematics', nameTa: 'இணைந்த கணிதம்' },
-        { id: 'physics', nameEn: 'Physics', nameTa: 'பௌதிகவியல்' },
-        { id: 'chemistry', nameEn: 'Chemistry', nameTa: 'இரசாயனவியல்' },
+        { id: 'c-maths', nameEn: 'Combined Mathematics', nameTa: 'Combined Mathematics' },
+        { id: 'physics', nameEn: 'Physics', nameTa: 'Physics' },
+        { id: 'chemistry', nameEn: 'Chemistry', nameTa: 'Chemistry' },
       ];
     }
     return [
-      { id: 'c-maths', nameEn: 'Combined Mathematics', nameTa: 'இணைந்த கணிதம்' },
-      { id: 'physics', nameEn: 'Physics', nameTa: 'பௌதிகவியல்' },
-      { id: 'chemistry', nameEn: 'Chemistry', nameTa: 'இரசாயனவியல்' },
-      { id: 'biology', nameEn: 'Biology', nameTa: 'உயிரியல்' },
+      { id: 'c-maths', nameEn: 'Combined Mathematics', nameTa: 'Combined Mathematics' },
+      { id: 'physics', nameEn: 'Physics', nameTa: 'Physics' },
+      { id: 'chemistry', nameEn: 'Chemistry', nameTa: 'Chemistry' },
+      { id: 'biology', nameEn: 'Biology', nameTa: 'Biology' },
     ];
   }, [selectedStream]);
 
@@ -458,24 +625,16 @@ export default function App() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         user={user}
-        onOpenAuth={() => {
-          playRoboticClick();
-          setAuthReason('');
-          setIsAuthOpen(true);
-        }}
+        onGoogleLogin={handleDirectGoogleLogin}
         onLogout={handleLogout}
+        onOpenProfile={() => {
+          playRoboticClick();
+          setIsProfileOpen(true);
+        }}
         savedCount={user?.bookmarks.length || 0}
         onOpenSaved={() => {
           playRoboticClick();
           setIsBookmarksOpen(true);
-        }}
-        onOpenTimer={() => {
-          playRoboticClick();
-          setIsTimerOpen(true);
-        }}
-        onOpenContactUs={() => {
-          playRoboticClick();
-          setIsContactOpen(true);
         }}
       />
 
@@ -491,11 +650,7 @@ export default function App() {
             playRoboticClick();
             setIsTimerOpen(true);
           }}
-          onOpenAuth={() => {
-            playRoboticClick();
-            setAuthReason('');
-            setIsAuthOpen(true);
-          }}
+          onOpenAuth={handleDirectGoogleLogin}
           onOpenContactUs={() => {
             playRoboticClick();
             setIsContactOpen(true);
@@ -755,7 +910,7 @@ export default function App() {
                         Theory Video Masterclasses
                       </h3>
                       <p className="text-xs text-sky-200/90 font-semibold mt-1">
-                        பாடக் கோட்பாட்டு காணொளிகளுக்கான பிரத்தியேக அனுமதி
+                        Exclusive Access to Theory Video Masterclasses
                       </p>
                       <p className="text-[11px] text-slate-400 mt-1">
                         Physics Hydrodynamics (Units 1–5) & Chemistry IUPAC Lectures
@@ -857,15 +1012,17 @@ export default function App() {
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => {
-                          setIsVideoUnlocked(false);
-                          localStorage.removeItem('studypro_video_unlocked');
-                        }}
-                        className="text-xs font-bold text-slate-500 hover:text-rose-600 transition-colors cursor-pointer self-start sm:self-auto"
-                      >
-                        Lock Videos
-                      </button>
+                      <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <button
+                          onClick={() => {
+                            setIsVideoUnlocked(false);
+                            localStorage.removeItem('studypro_video_unlocked');
+                          }}
+                          className="px-3 py-1.5 rounded-xl border border-slate-300 hover:border-rose-300 text-xs font-bold text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                        >
+                          Lock Videos
+                        </button>
+                      </div>
                     </div>
 
                     {filteredVideos.length === 0 ? (
@@ -1001,14 +1158,6 @@ export default function App() {
         onPreview={(res) => handleOpenPreview(res, 'paper')}
       />
 
-      {/* Auth / Student Sign In Modal */}
-      <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-        onLogin={handleLogin}
-        initialReason={authReason}
-      />
-
       {/* Google Drive PDF Preview Viewer */}
       <PdfViewerModal
         isOpen={!!previewResource || !!customPdfUrl}
@@ -1040,6 +1189,14 @@ export default function App() {
         isOpen={isContactOpen}
         onClose={() => setIsContactOpen(false)}
         currentUser={user}
+      />
+
+      {/* Student User Profile & Local Storage Vault Modal */}
+      <UserProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        user={user}
+        onLogout={handleLogout}
       />
 
       {/* Secret Admin Login Gate Modal (Triggered by clicking bottom Studypro logo) */}

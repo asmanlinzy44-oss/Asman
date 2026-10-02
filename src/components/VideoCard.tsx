@@ -1,7 +1,6 @@
 import React from 'react';
-import { Play, Lock, Clock, ExternalLink, CheckCircle, FileText } from 'lucide-react';
+import { Play, Lock, Clock, CheckCircle } from 'lucide-react';
 import { VideoLesson, User } from '../types';
-import { getDriveDirectViewUrl } from '../utils/drive';
 
 interface VideoCardProps {
   video: VideoLesson;
@@ -45,15 +44,21 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           {isUnlocked ? (
             <>
               {/* YouTube Thumbnail Image */}
-              <img
-                src={`https://img.youtube.com/vi/${video.youtubeId}/hqdefault.jpg`}
-                alt={video.titleEn}
-                className="w-full h-full object-cover opacity-85 group-hover/thumb:opacity-95 group-hover/thumb:scale-105 transition-all duration-300"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
+              {video.youtubeId ? (
+                <img
+                  src={`https://img.youtube.com/vi/${video.youtubeId}/hqdefault.jpg`}
+                  alt={video.titleEn}
+                  className="w-full h-full object-cover opacity-85 group-hover/thumb:opacity-95 group-hover/thumb:scale-105 transition-all duration-300"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex items-center justify-center">
+                  <Play className="w-10 h-10 text-cyan-400 opacity-60" />
+                </div>
+              )}
 
               {/* Overlay Scrim */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
@@ -80,21 +85,23 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               {video.durationMinutes} min
             </span>
 
-            {isWatched ? (
-              <span className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
-                <CheckCircle className="w-3 h-3" />
-                Completed
-              </span>
-            ) : !isUnlocked ? (
-              <span className="bg-amber-400 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1">
-                <Lock className="w-2.5 h-2.5" />
-                Locked
-              </span>
-            ) : (
-              <span className="bg-blue-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
-                In-Player
-              </span>
-            )}
+            <div className="flex items-center gap-1.5">
+              {isWatched ? (
+                <span className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" />
+                  Completed
+                </span>
+              ) : !isUnlocked ? (
+                <span className="bg-amber-400 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1">
+                  <Lock className="w-2.5 h-2.5" />
+                  Locked
+                </span>
+              ) : (
+                <span className="bg-blue-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md">
+                  In-Player
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

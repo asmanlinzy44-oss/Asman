@@ -22,7 +22,7 @@ const STREAMS_DATA = [
   {
     id: 'maths',
     name: 'Physical Science (Combined Maths)',
-    nameTa: 'பௌதிக விஞ்ஞானப் பிரிவு (இணைந்த கணிதம்)',
+    nameTa: 'Physical Science (Combined Mathematics)',
     icon: '📐',
     badge: 'Combined Maths, Physics, Chemistry',
     desc: 'Pure & Applied Mathematics, Physics principles & Inorganic/Organic Chemistry master resources.',
@@ -35,7 +35,7 @@ const STREAMS_DATA = [
   {
     id: 'bio',
     name: 'Biological Science (Bio)',
-    nameTa: 'உயிரியல் விஞ்ஞானப் பிரிவு',
+    nameTa: 'Biological Science (Biology)',
     icon: '🧬',
     badge: 'Biology, Physics, Chemistry',
     desc: 'Cell biology, human physiology, genetics, ecology, physics & chemistry practical guides.',

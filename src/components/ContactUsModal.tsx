@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { X, Send, MessageSquare, CheckCircle, AlertCircle, HelpCircle, Mail, User } from 'lucide-react';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { handleFirestoreError, OperationType } from '../utils/firestoreErrors';
 import { UserReport } from '../types';
 
 interface ContactUsModalProps {
@@ -24,7 +27,7 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim()) {
       setError('Please enter your name or username.');
@@ -36,8 +39,9 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({
     }
 
     try {
+      const repId = 'rep_' + Date.now();
       const newReport: UserReport = {
-        id: 'rep_' + Date.now(),
+        id: repId,
         username: username.trim(),
         contactInfo: contactInfo.trim() || undefined,
         category,
@@ -45,6 +49,22 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({
         createdAt: Date.now(),
         resolved: false,
       };
+
+      // Save to Firestore inquiries collection
+      try {
+        await setDoc(doc(db, 'inquiries', repId), {
+          id: repId,
+          name: username.trim(),
+          email: contactInfo.trim() || 'student@studypro.lk',
+          subject: category,
+          message: message.trim(),
+          category,
+          createdAt: new Date().toISOString(),
+          status: 'pending',
+        });
+      } catch (firestoreErr) {
+        console.warn('Firestore inquiry sync error:', firestoreErr);
+      }
 
       // Load existing reports & purge anything older than 3 days
       const raw = localStorage.getItem('studypro_user_reports');

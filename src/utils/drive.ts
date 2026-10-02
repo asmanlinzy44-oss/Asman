@@ -49,8 +49,8 @@ export function getDriveDirectViewUrl(urlOrId: string): string {
 /**
  * Get Google Drive in-app embedded preview URL
  */
-export function getDriveEmbedPreviewUrl(urlOrId: string): string {
-  if (!urlOrId) return '';
+export function getDriveEmbedPreviewUrl(urlOrId: string): string | null {
+  if (!urlOrId || !urlOrId.trim()) return null;
   if (urlOrId.includes('/folders/')) {
     const folderMatch = urlOrId.match(/\/folders\/([a-zA-Z0-9_-]+)/);
     if (folderMatch && folderMatch[1]) {
@@ -65,7 +65,7 @@ export function getDriveEmbedPreviewUrl(urlOrId: string): string {
     const extracted = extractDriveFileId(urlOrId);
     if (extracted) return `https://drive.google.com/file/d/${extracted}/preview`;
   }
-  return urlOrId;
+  return urlOrId || null;
 }
 
 /**
@@ -122,8 +122,10 @@ export function extractYoutubeId(urlOrId: string): string {
 export function getYoutubeEmbedUrl(
   youtubeId: string, 
   options: { autoplay?: boolean; startSeconds?: number; controls?: number; quality?: string } = {}
-): string {
+): string | null {
   const cleanId = extractYoutubeId(youtubeId);
+  if (!cleanId) return null;
+
   const autoplay = options.autoplay ? 1 : 0;
   const controls = typeof options.controls === 'number' ? options.controls : 0;
   const start = options.startSeconds ? `&start=${Math.floor(options.startSeconds)}` : '';

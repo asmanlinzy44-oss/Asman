@@ -1,0 +1,205 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with academic details, stream, and learning state",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier matching the Firebase Auth UID",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the student or teacher",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user",
+          "maxLength": 150
+        },
+        "alYear": {
+          "type": "number",
+          "description": "Target G.C.E. A/L examination year"
+        },
+        "stream": {
+          "type": "string",
+          "description": "Academic stream: maths, bio, or all",
+          "enum": ["maths", "bio", "all"]
+        },
+        "district": {
+          "type": "string",
+          "description": "District in Sri Lanka",
+          "maxLength": 50
+        },
+        "school": {
+          "type": "string",
+          "description": "School name",
+          "maxLength": 150
+        },
+        "role": {
+          "type": "string",
+          "description": "User role in the system",
+          "enum": ["student", "teacher", "admin"]
+        },
+        "bookmarks": {
+          "type": "array",
+          "description": "Saved paper resource IDs"
+        },
+        "watchedVideoIds": {
+          "type": "array",
+          "description": "List of completed video IDs"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Account creation ISO timestamp",
+          "maxLength": 50
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update ISO timestamp",
+          "maxLength": 50
+        }
+      },
+      "required": ["id", "name", "email", "stream", "role"]
+    },
+    "UserNote": {
+      "title": "UserNote",
+      "description": "Timestamped study note for video lessons",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the note",
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID of the note owner",
+          "maxLength": 128
+        },
+        "videoId": {
+          "type": "string",
+          "description": "Associated video lesson ID",
+          "maxLength": 100
+        },
+        "timestampSeconds": {
+          "type": "number",
+          "description": "Playback timestamp in seconds"
+        },
+        "timestampFormatted": {
+          "type": "string",
+          "description": "Formatted timestamp (MM:SS)",
+          "maxLength": 10
+        },
+        "text": {
+          "type": "string",
+          "description": "Content of the study note",
+          "maxLength": 2000
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp",
+          "maxLength": 50
+        }
+      },
+      "required": ["id", "userId", "videoId", "timestampSeconds", "text"]
+    },
+    "Inquiry": {
+      "title": "Inquiry",
+      "description": "Student feedback or contact submission",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique inquiry document ID",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the sender",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the sender",
+          "maxLength": 150
+        },
+        "subject": {
+          "type": "string",
+          "description": "Subject of the message",
+          "maxLength": 200
+        },
+        "message": {
+          "type": "string",
+          "description": "Detailed inquiry message",
+          "maxLength": 3000
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of feedback or request",
+          "maxLength": 50
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Submission timestamp",
+          "maxLength": 50
+        },
+        "status": {
+          "type": "string",
+          "description": "Processing status",
+          "enum": ["pending", "reviewed", "resolved"]
+        }
+      },
+      "required": ["id", "name", "email", "message"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Authorized platform administrator record",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Admin UID",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "Admin email address",
+          "maxLength": 150
+        },
+        "role": {
+          "type": "string",
+          "description": "Admin privilege level",
+          "enum": ["admin", "superadmin"]
+        },
+        "addedAt": {
+          "type": "string",
+          "description": "Timestamp when admin privilege was granted",
+          "maxLength": 50
+        }
+      },
+      "required": ["id", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles, preferences, bookmarks, and watch history"
+    },
+    "/users/{userId}/notes/{noteId}": {
+      "schema": "UserNote",
+      "description": "Timestamped study notes taken by the student for video lessons"
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": "Inquiry",
+      "description": "Student feedback, paper requests, and contact inquiries"
+    },
+    "/admins/{userId}": {
+      "schema": "Admin",
+      "description": "Authorized platform administrators with elevated rights"
+    }
+  }
+}

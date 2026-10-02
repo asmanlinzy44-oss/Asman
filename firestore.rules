@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Security Primitives
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'asmanlinzy44@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Blueprint for UserProfile
+    function isValidUserProfile(data, userId) {
+      return data.id == userId &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+        data.email is string && data.email.size() > 0 && data.email.size() <= 150 &&
+        data.stream in ['maths', 'bio', 'all'] &&
+        data.role in ['student', 'teacher', 'admin'];
+    }
+
+    // Validation Blueprint for UserNote
+    function isValidUserNote(data, userId) {
+      return data.userId == userId &&
+        data.videoId is string && data.videoId.size() > 0 && data.videoId.size() <= 100 &&
+        data.timestampSeconds is number && data.timestampSeconds >= 0 &&
+        data.text is string && data.text.size() > 0 && data.text.size() <= 2000;
+    }
+
+    // Validation Blueprint for Inquiry
+    function isValidInquiry(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+        data.email is string && data.email.size() > 0 && data.email.size() <= 150 &&
+        data.message is string && data.message.size() > 0 && data.message.size() <= 3000;
+    }
+
+    // User profiles & student state
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        (incoming().role == 'student' || isAdmin());
+      allow update: if (isOwner(userId) || isAdmin()) &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().id == existing().id &&
+        (incoming().role == existing().role || isAdmin());
+      allow delete: if isAdmin();
+
+      // Timestamped study notes subcollection
+      match /notes/{noteId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(noteId) &&
+          isValidUserNote(incoming(), userId);
+        allow update: if isOwner(userId) &&
+          isValidId(userId) &&
+          isValidId(noteId) &&
+          isValidUserNote(incoming(), userId) &&
+          incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Student inquiries, suggestions & contact messages
+    match /inquiries/{inquiryId} {
+      allow create: if isValidId(inquiryId) && isValidInquiry(incoming());
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Platform administrators
+    match /admins/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}
