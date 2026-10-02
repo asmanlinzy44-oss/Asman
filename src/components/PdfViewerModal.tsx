@@ -220,7 +220,18 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
                 </div>
 
                 <div className="divide-y divide-slate-800/80 text-xs">
-                  {(resource?.id === 'past-bio-master-1994-2026' || resource?.driveLink.includes('1AhgjZ6aYV7WTB0sXi1SIVnfBDehq_e2c')
+                  {(resource?.id === 'res-cmaths-all-in-one'
+                    ? [
+                        { year: 'Past Papers', name: 'Combined Mathematics Past Papers & Marking Schemes (1980–2025)', link: 'https://drive.google.com/drive/folders/1wg8CEnUOVaMUowEIENBCWQw659JguuJ1' },
+                        { year: 'FWC Papers', name: 'FWC Thondaimanaru 1st–6th Term Evaluation Papers & Solutions', link: 'https://drive.google.com/drive/folders/1l63Okm5S_i0meQ6oPu_TVyzs84vCXvPG' },
+                        { year: 'Moratuwa', name: 'University of Moratuwa Pilot & Model Exam Papers & Scoring Schemes', link: 'https://drive.google.com/drive/folders/1mTde-mYzreBYJWKP3aQx6z-dznYw5PvD' },
+                        { year: 'Practice', name: 'Pure & Applied Maths Practice Books, Workbooks & Problem Sets', link: 'https://drive.google.com/drive/folders/1wHxCbxzREyVQR8503yYsvgmBhgW3PBBQ' },
+                        { year: 'Seminars', name: 'Support Seminar Question Papers & Discussion Worksheets', link: 'https://drive.google.com/drive/folders/17bklvz7UZsSybQiaxhOsu6KNvKiKU4B0' },
+                        { year: 'Syllabus', name: 'Official NIE Combined Mathematics Syllabus Guide & Competencies', link: 'https://drive.google.com/drive/folders/1b3_pdjrssbYv8br5req3uljzAlDO5zU8' },
+                        { year: 'Teachers', name: 'Official Teacher’s Instructional Handbook & Canonical Proofs', link: 'https://drive.google.com/drive/folders/118wzikV-oMle7MNaikK5ceUf0EeX4JAG' },
+                        { year: 'Useful Books', name: 'Combined Maths Standard Reference Textbooks & Formula Compendiums', link: 'https://drive.google.com/drive/folders/1-iDPOvk_jSwQ5TumDaVrmJCGGsdAxTgF' },
+                      ]
+                    : resource?.id === 'past-bio-master-1994-2026' || resource?.driveLink.includes('1AhgjZ6aYV7WTB0sXi1SIVnfBDehq_e2c')
                     ? [
                         { year: '2026', name: 'Biology Benchmark / Model Paper & Scheme (2026 Batch)', link: 'https://drive.google.com/drive/folders/1AhgjZ6aYV7WTB0sXi1SIVnfBDehq_e2c' },
                         { year: '2025', name: 'Biology National Examination Paper & Official Marking Scheme', link: 'https://drive.google.com/drive/folders/1AhgjZ6aYV7WTB0sXi1SIVnfBDehq_e2c' },

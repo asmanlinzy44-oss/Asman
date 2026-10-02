@@ -209,14 +209,15 @@ export default function App() {
               console.warn('Notes fetch warning:', notesErr);
             }
 
+            const defaultName = data.name || fbUser.displayName || fbUser.email?.split('@')[0] || 'Student';
             setUser({
               id: fbUser.uid,
-              name: data.name || fbUser.displayName || 'A/L Student',
+              name: defaultName,
               email: fbUser.email || '',
-              alYear: data.alYear || 2025,
-              stream: data.stream || 'maths',
-              district: data.district || 'Jaffna',
-              school: data.school || 'A/L Science College',
+              alYear: data.alYear || 2026,
+              stream: data.stream || 'bio',
+              district: data.district || '',
+              school: data.school || '',
               role: data.role || (fbUser.email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student'),
               bookmarks: data.bookmarks || [],
               watchedVideoIds: data.watchedVideoIds || [],
@@ -279,31 +280,44 @@ export default function App() {
             fetchedNotes = notesSnap.docs.map((d) => d.data() as UserNote);
           } catch {}
 
+          const defaultName = data.name || fbUser.displayName || fbUser.email?.split('@')[0] || 'Student';
+          const localBookmarks = user?.bookmarks || [];
+          const remoteBookmarks = data.bookmarks || [];
+          const mergedBookmarks = Array.from(new Set([...remoteBookmarks, ...localBookmarks]));
+
           userData = {
             id: fbUser.uid,
-            name: data.name || fbUser.displayName || 'A/L Student',
+            name: defaultName,
             email: fbUser.email || '',
-            alYear: data.alYear || 2025,
-            stream: data.stream || 'maths',
-            district: data.district || 'Jaffna',
-            school: data.school || 'A/L Science College',
+            alYear: data.alYear || 2026,
+            stream: data.stream || 'bio',
+            district: data.district || '',
+            school: data.school || '',
             role: data.role || (fbUser.email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student'),
-            bookmarks: data.bookmarks || [],
+            bookmarks: mergedBookmarks,
             watchedVideoIds: data.watchedVideoIds || [],
             notes: fetchedNotes.length > 0 ? fetchedNotes : (data.notes || []),
           };
+
+          if (mergedBookmarks.length !== remoteBookmarks.length) {
+            try {
+              await setDoc(userRef, { bookmarks: mergedBookmarks, updatedAt: new Date().toISOString() }, { merge: true });
+            } catch {}
+          }
         } else {
           const role = fbUser.email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student';
+          const defaultName = fbUser.displayName || fbUser.email?.split('@')[0] || 'Student';
+          const initialBookmarks = user?.bookmarks || [];
           userData = {
             id: fbUser.uid,
-            name: fbUser.displayName || 'A/L Student',
+            name: defaultName,
             email: fbUser.email || '',
-            alYear: 2025,
-            stream: 'maths',
-            district: 'Jaffna',
-            school: 'A/L Science College',
+            alYear: 2026,
+            stream: 'bio',
+            district: '',
+            school: '',
             role,
-            bookmarks: [],
+            bookmarks: initialBookmarks,
             watchedVideoIds: [],
             notes: [],
           };
@@ -314,16 +328,17 @@ export default function App() {
           });
         }
       } catch {
+        const defaultName = fbUser.displayName || fbUser.email?.split('@')[0] || 'Student';
         userData = {
           id: fbUser.uid,
-          name: fbUser.displayName || 'A/L Student',
+          name: defaultName,
           email: fbUser.email || '',
-          alYear: 2025,
-          stream: 'maths',
-          district: 'Jaffna',
-          school: 'A/L Science College',
+          alYear: 2026,
+          stream: 'bio',
+          district: '',
+          school: '',
           role: fbUser.email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student',
-          bookmarks: [],
+          bookmarks: user?.bookmarks || [],
           watchedVideoIds: [],
           notes: [],
         };
@@ -333,17 +348,17 @@ export default function App() {
       playRoboticUnlock();
     } catch (err: any) {
       console.warn('Google Popup issue, logging in directly with local session:', err);
-      const email = auth.currentUser?.email || 'asmanlinzy44@gmail.com';
+      const email = auth.currentUser?.email || 'student@gmail.com';
       const fallbackUser: User = {
         id: auth.currentUser?.uid || 'google_user_' + Date.now().toString().slice(-6),
-        name: auth.currentUser?.displayName || 'Google Student',
+        name: auth.currentUser?.displayName || email.split('@')[0] || 'Student',
         email: email,
-        alYear: 2025,
-        stream: 'maths',
-        district: 'Jaffna',
-        school: 'A/L Science College',
+        alYear: user?.alYear || 2026,
+        stream: user?.stream || 'bio',
+        district: user?.district || '',
+        school: user?.school || '',
         role: email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student',
-        bookmarks: [],
+        bookmarks: user?.bookmarks || [],
         watchedVideoIds: [],
         notes: [],
       };
@@ -363,16 +378,69 @@ export default function App() {
       ? user.bookmarks.filter((id) => id !== resourceId)
       : [...user.bookmarks, resourceId];
 
-    setUser((prev) => (prev ? { ...prev, bookmarks: updatedBookmarks } : null));
+    const updatedUser = { ...user, bookmarks: updatedBookmarks };
+    setUser(updatedUser);
 
-    if (auth.currentUser && auth.currentUser.uid === user.id) {
-      try {
-        await updateDoc(doc(db, 'users', user.id), {
+    try {
+      localStorage.setItem('studypro_user_session', JSON.stringify(updatedUser));
+      localStorage.setItem(
+        'studypro_user_storage',
+        JSON.stringify({
+          userId: updatedUser.id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          stream: updatedUser.stream,
+          alYear: updatedUser.alYear,
           bookmarks: updatedBookmarks,
-          updatedAt: new Date().toISOString(),
-        });
+          savedAt: new Date().toISOString(),
+        })
+      );
+    } catch {}
+
+    // Save bookmarks to Google Account in Firestore
+    if (auth.currentUser) {
+      try {
+        await setDoc(
+          doc(db, 'users', auth.currentUser.uid),
+          {
+            bookmarks: updatedBookmarks,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
       } catch (err) {
-        console.warn('Error syncing bookmark to Firestore:', err);
+        console.warn('Error saving bookmark to Google Account:', err);
+      }
+    }
+  };
+
+  // Student Profile Updates (Name, School, Batch, Stream, District)
+  const handleUpdateProfile = async (updatedFields: Partial<User>) => {
+    if (!user) return;
+    const updatedUser: User = {
+      ...user,
+      ...updatedFields,
+    };
+    setUser(updatedUser);
+    handleLogin(updatedUser);
+
+    // Persist to Google Firestore Account
+    if (auth.currentUser) {
+      try {
+        await setDoc(
+          doc(db, 'users', auth.currentUser.uid),
+          {
+            name: updatedUser.name,
+            school: updatedUser.school || '',
+            district: updatedUser.district || '',
+            alYear: updatedUser.alYear,
+            stream: updatedUser.stream,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (err) {
+        console.warn('Error saving updated profile to Google Account in Firestore:', err);
       }
     }
   };
@@ -1197,6 +1265,7 @@ export default function App() {
         onClose={() => setIsProfileOpen(false)}
         user={user}
         onLogout={handleLogout}
+        onUpdateUser={handleUpdateProfile}
       />
 
       {/* Secret Admin Login Gate Modal (Triggered by clicking bottom Studypro logo) */}
