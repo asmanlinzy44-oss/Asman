@@ -1,7 +1,7 @@
 import React from 'react';
 import { User as UserIcon, LogOut, BookmarkCheck, ShieldCheck } from 'lucide-react';
 import { User, ResourceCategory } from '../types';
-import { StudyProLogo } from './StudyProLogo';
+import { PaperExpressLogo } from './PaperExpressLogo';
 import { playRoboticTab, playRoboticClick } from '../utils/audio';
 
 interface HeaderProps {
@@ -13,6 +13,7 @@ interface HeaderProps {
   savedCount: number;
   onOpenSaved: () => void;
   onOpenProfile?: () => void;
+  onOpenAdminPanel?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -24,6 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
   savedCount,
   onOpenSaved,
   onOpenProfile,
+  onOpenAdminPanel,
 }) => {
   const handleNav = (tab: ResourceCategory | 'home') => {
     playRoboticTab();
@@ -33,13 +35,13 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 text-slate-800 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Logo and Brand: Study Pro */}
+        {/* Logo and Brand: Paper Express */}
         <button
           onClick={() => handleNav('home')}
           className="flex items-center text-left focus-visible:outline-none cursor-pointer group"
-          title="Study Pro - Home"
+          title="Paper Express - Home"
         >
-          <StudyProLogo size="md" variant="light" />
+          <PaperExpressLogo size="md" variant="light" />
         </button>
 
         {/* Primary Desktop Navigation */}
@@ -144,10 +146,24 @@ export const Header: React.FC<HeaderProps> = ({
                   <span className="text-xs font-bold text-slate-900 truncate max-w-[110px]">{user.name}</span>
                   <span className="text-[10px] text-[#0066FF] font-semibold flex items-center gap-0.5">
                     <ShieldCheck className="w-2.5 h-2.5" />
-                    <span>Google Sync</span>
+                    <span>{user.role === 'admin' ? 'Admin' : 'Google Sync'}</span>
                   </span>
                 </div>
               </button>
+
+              {(user.role === 'admin' || user.email === 'asmanlinzy44@gmail.com') && onOpenAdminPanel && (
+                <button
+                  onClick={() => {
+                    playRoboticClick();
+                    onOpenAdminPanel();
+                  }}
+                  className="px-2.5 py-1.5 text-xs font-bold rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Open Admin Dashboard"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Admin Panel</span>
+                </button>
+              )}
 
               <button
                 onClick={() => {

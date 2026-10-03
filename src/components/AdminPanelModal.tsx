@@ -217,7 +217,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-black text-white">Study Pro Admin Dashboard</h3>
+                <h3 className="text-sm sm:text-base font-black text-white">Paper Express Admin Dashboard</h3>
                 <span className="text-[10px] px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 font-mono font-bold border border-cyan-500/30">
                   @asman
                 </span>
@@ -581,7 +581,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all cursor-pointer flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Publish Paper to Study Pro</span>
+                  <span>Publish Paper to Paper Express</span>
                 </button>
               </div>
             </form>
@@ -769,7 +769,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             <div className="space-y-6">
               <div className="p-3 rounded-2xl bg-amber-950/30 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2 font-mono">
                 <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>Overview of all resources active in Study Pro portal.</span>
+                <span>Overview of all resources active in Paper Express portal.</span>
               </div>
 
               {/* Papers List */}

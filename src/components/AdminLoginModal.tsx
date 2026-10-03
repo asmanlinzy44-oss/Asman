@@ -48,7 +48,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-black text-white flex items-center gap-1.5">
-                <span>Study Pro Secret Admin Gate</span>
+                <span>Paper Express Secret Admin Gate</span>
                 <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
               </h3>
               <p className="text-[11px] text-cyan-300/70 font-mono">Restricted Management Console</p>

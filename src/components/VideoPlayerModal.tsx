@@ -915,14 +915,14 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
               </div>
             </div>
 
-            {/* DEDICATED MOBILE PORTRAIT DOCK: Studypro Engine */}
+            {/* DEDICATED MOBILE PORTRAIT DOCK: Paper Express Engine */}
             {!isFullscreen && (
               <div className="bg-[#070D1E] px-3 py-2 border-b border-cyan-500/20 flex flex-col gap-2 shrink-0 w-full max-w-full overflow-hidden">
-                {/* Header: Studypro Engine */}
+                {/* Header: Paper Express Engine */}
                 <div className="flex items-center justify-between text-[10px] text-slate-400">
                   <div className="flex items-center gap-1.5 text-cyan-400 font-mono font-bold">
                     <Sparkles className="w-3 h-3 text-cyan-400" />
-                    <span>Studypro Engine</span>
+                    <span>Paper Express Engine</span>
                   </div>
                   <div className="flex items-center gap-2 font-mono text-[10px]">
                     <span className="text-cyan-300 font-black">
@@ -1139,7 +1139,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-400">Playback Engine:</span>
-                        <span className="font-mono text-cyan-400 font-bold">Studypro Engine v3</span>
+                        <span className="font-mono text-cyan-400 font-bold">Paper Express Engine v3</span>
                       </div>
                     </div>
                   </div>
@@ -1223,7 +1223,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
             <div className="pt-2 border-t border-cyan-500/20 text-center">
               <span className="text-[10px] text-slate-400 font-mono">
-                Studypro Engine · High Speed Streaming
+                Paper Express Engine · High Speed Streaming
               </span>
             </div>
           </div>

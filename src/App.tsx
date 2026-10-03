@@ -30,6 +30,7 @@ import { AdminPanelModal } from './components/AdminPanelModal';
 import { VideoLockModal } from './components/VideoLockModal';
 import { ResourcesFoldersView } from './components/ResourcesFoldersView';
 import { UserProfileModal } from './components/UserProfileModal';
+import { GoogleAuthModal } from './components/GoogleAuthModal';
 import { onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
@@ -39,7 +40,7 @@ import { playRoboticTab, playRoboticClick, playRoboticUnlock, playRoboticError }
 export default function App() {
   // Local storage persisted state - ensure newly uploaded past papers, physics papers, terms and hydro videos are always loaded
   const [papers, setPapers] = useState<PaperResource[]>(() => {
-    const PAPERS_CACHE_KEY = 'studypro_fwc_terms_1_to_6_and_hydro_videos_v18';
+    const PAPERS_CACHE_KEY = 'studypro_all_in_one_v19';
     const isPastPapersLoaded = localStorage.getItem(PAPERS_CACHE_KEY);
     if (!isPastPapersLoaded) {
       localStorage.setItem(PAPERS_CACHE_KEY, 'true');
@@ -123,6 +124,7 @@ export default function App() {
   const [isTimerOpen, setIsTimerOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isGoogleAuthOpen, setIsGoogleAuthOpen] = useState(false);
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
@@ -235,6 +237,10 @@ export default function App() {
   // Handlers
   const handleLogin = (newUser: User) => {
     setUser(newUser);
+    if (newUser.email === 'asmanlinzy44@gmail.com' || newUser.role === 'admin') {
+      setIsAdminLoggedIn(true);
+      localStorage.setItem('studypro_admin_session', 'true');
+    }
     try {
       localStorage.setItem('studypro_user_session', JSON.stringify(newUser));
       localStorage.setItem(
@@ -257,114 +263,16 @@ export default function App() {
       await signOut(auth);
     } catch {}
     setUser(null);
+    setIsAdminLoggedIn(false);
+    localStorage.removeItem('studypro_admin_session');
     localStorage.removeItem('studypro_user_session');
     localStorage.removeItem('studypro_user_storage');
   };
 
-  // Direct 1-Click Google Sign In (No questionnaires, no subject/year forms)
-  const handleDirectGoogleLogin = async () => {
+  // Direct 1-Click Google Sign In (Open official Google Auth Modal)
+  const handleDirectGoogleLogin = () => {
     playRoboticClick();
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const fbUser = result.user;
-      const userRef = doc(db, 'users', fbUser.uid);
-      let userData: User;
-
-      try {
-        const snap = await getDoc(userRef);
-        if (snap.exists()) {
-          const data = snap.data();
-          let fetchedNotes: UserNote[] = [];
-          try {
-            const notesSnap = await getDocs(collection(db, 'users', fbUser.uid, 'notes'));
-            fetchedNotes = notesSnap.docs.map((d) => d.data() as UserNote);
-          } catch {}
-
-          const defaultName = data.name || fbUser.displayName || fbUser.email?.split('@')[0] || 'Student';
-          const localBookmarks = user?.bookmarks || [];
-          const remoteBookmarks = data.bookmarks || [];
-          const mergedBookmarks = Array.from(new Set([...remoteBookmarks, ...localBookmarks]));
-
-          userData = {
-            id: fbUser.uid,
-            name: defaultName,
-            email: fbUser.email || '',
-            alYear: data.alYear || 2026,
-            stream: data.stream || 'bio',
-            district: data.district || '',
-            school: data.school || '',
-            role: data.role || (fbUser.email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student'),
-            bookmarks: mergedBookmarks,
-            watchedVideoIds: data.watchedVideoIds || [],
-            notes: fetchedNotes.length > 0 ? fetchedNotes : (data.notes || []),
-          };
-
-          if (mergedBookmarks.length !== remoteBookmarks.length) {
-            try {
-              await setDoc(userRef, { bookmarks: mergedBookmarks, updatedAt: new Date().toISOString() }, { merge: true });
-            } catch {}
-          }
-        } else {
-          const role = fbUser.email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student';
-          const defaultName = fbUser.displayName || fbUser.email?.split('@')[0] || 'Student';
-          const initialBookmarks = user?.bookmarks || [];
-          userData = {
-            id: fbUser.uid,
-            name: defaultName,
-            email: fbUser.email || '',
-            alYear: 2026,
-            stream: 'bio',
-            district: '',
-            school: '',
-            role,
-            bookmarks: initialBookmarks,
-            watchedVideoIds: [],
-            notes: [],
-          };
-          await setDoc(userRef, {
-            ...userData,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          });
-        }
-      } catch {
-        const defaultName = fbUser.displayName || fbUser.email?.split('@')[0] || 'Student';
-        userData = {
-          id: fbUser.uid,
-          name: defaultName,
-          email: fbUser.email || '',
-          alYear: 2026,
-          stream: 'bio',
-          district: '',
-          school: '',
-          role: fbUser.email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student',
-          bookmarks: user?.bookmarks || [],
-          watchedVideoIds: [],
-          notes: [],
-        };
-      }
-
-      handleLogin(userData);
-      playRoboticUnlock();
-    } catch (err: any) {
-      console.warn('Google Popup issue, logging in directly with local session:', err);
-      const email = auth.currentUser?.email || 'student@gmail.com';
-      const fallbackUser: User = {
-        id: auth.currentUser?.uid || 'google_user_' + Date.now().toString().slice(-6),
-        name: auth.currentUser?.displayName || email.split('@')[0] || 'Student',
-        email: email,
-        alYear: user?.alYear || 2026,
-        stream: user?.stream || 'bio',
-        district: user?.district || '',
-        school: user?.school || '',
-        role: email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student',
-        bookmarks: user?.bookmarks || [],
-        watchedVideoIds: [],
-        notes: [],
-      };
-      handleLogin(fallbackUser);
-      playRoboticUnlock();
-    }
+    setIsGoogleAuthOpen(true);
   };
 
   const handleToggleBookmark = async (resourceId: string) => {
@@ -398,10 +306,11 @@ export default function App() {
     } catch {}
 
     // Save bookmarks to Google Account in Firestore
-    if (auth.currentUser) {
+    const targetUid = auth.currentUser?.uid || user.id;
+    if (targetUid) {
       try {
         await setDoc(
-          doc(db, 'users', auth.currentUser.uid),
+          doc(db, 'users', targetUid),
           {
             bookmarks: updatedBookmarks,
             updatedAt: new Date().toISOString(),
@@ -425,10 +334,11 @@ export default function App() {
     handleLogin(updatedUser);
 
     // Persist to Google Firestore Account
-    if (auth.currentUser) {
+    const targetUid = auth.currentUser?.uid || user.id;
+    if (targetUid) {
       try {
         await setDoc(
-          doc(db, 'users', auth.currentUser.uid),
+          doc(db, 'users', targetUid),
           {
             name: updatedUser.name,
             school: updatedUser.school || '',
@@ -684,7 +594,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col selection:bg-blue-100 selection:text-blue-900">
-      {/* 1. Header with Study Pro Branding and Clean Navigation */}
+      {/* 1. Header with Paper Express Branding and Clean Navigation */}
       <Header
         currentTab={activeTab}
         onTabChange={(tab) => {
@@ -693,11 +603,15 @@ export default function App() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         user={user}
-        onGoogleLogin={handleDirectGoogleLogin}
+        onGoogleLogin={() => setIsGoogleAuthOpen(true)}
         onLogout={handleLogout}
         onOpenProfile={() => {
           playRoboticClick();
           setIsProfileOpen(true);
+        }}
+        onOpenAdminPanel={() => {
+          playRoboticClick();
+          setIsAdminPanelOpen(true);
         }}
         savedCount={user?.bookmarks.length || 0}
         onOpenSaved={() => {
@@ -718,7 +632,7 @@ export default function App() {
             playRoboticClick();
             setIsTimerOpen(true);
           }}
-          onOpenAuth={handleDirectGoogleLogin}
+          onOpenAuth={() => setIsGoogleAuthOpen(true)}
           onOpenContactUs={() => {
             playRoboticClick();
             setIsContactOpen(true);
@@ -1259,6 +1173,16 @@ export default function App() {
         currentUser={user}
       />
 
+      {/* Google Account Authentication Modal */}
+      <GoogleAuthModal
+        isOpen={isGoogleAuthOpen}
+        onClose={() => setIsGoogleAuthOpen(false)}
+        onSuccess={(loggedUser) => {
+          handleLogin(loggedUser);
+        }}
+        currentUser={user}
+      />
+
       {/* Student User Profile & Local Storage Vault Modal */}
       <UserProfileModal
         isOpen={isProfileOpen}
@@ -1268,7 +1192,7 @@ export default function App() {
         onUpdateUser={handleUpdateProfile}
       />
 
-      {/* Secret Admin Login Gate Modal (Triggered by clicking bottom Studypro logo) */}
+      {/* Secret Admin Login Gate Modal (Triggered by clicking bottom Paper Express logo) */}
       <AdminLoginModal
         isOpen={isAdminLoginOpen}
         onClose={() => setIsAdminLoginOpen(false)}

@@ -55,7 +55,7 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({
         await setDoc(doc(db, 'inquiries', repId), {
           id: repId,
           name: username.trim(),
-          email: contactInfo.trim() || 'student@studypro.lk',
+          email: contactInfo.trim() || 'student@paperexpress.lk',
           subject: category,
           message: message.trim(),
           category,
@@ -123,7 +123,7 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({
               </div>
               <h4 className="text-lg font-black text-slate-900">Message Sent to Admin!</h4>
               <p className="text-xs text-slate-600 max-w-sm leading-relaxed">
-                Thank you, <span className="font-bold text-slate-800">{username}</span>. Your message has been safely delivered to the Study Pro administrative desk.
+                Thank you, <span className="font-bold text-slate-800">{username}</span>. Your message has been safely delivered to the Paper Express administrative desk.
               </p>
               <button
                 onClick={handleResetAndClose}

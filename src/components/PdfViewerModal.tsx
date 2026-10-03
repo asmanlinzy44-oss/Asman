@@ -220,7 +220,53 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
                 </div>
 
                 <div className="divide-y divide-slate-800/80 text-xs">
-                  {(resource?.id === 'res-cmaths-all-in-one'
+                  {(resource?.id === 'res-bio-all-in-one'
+                    ? [
+                        { year: 'Past Papers', name: 'Biology National Examination Past Papers & Official Schemes', link: 'https://drive.google.com/drive/folders/1AhgjZ6aYV7WTB0sXi1SIVnfBDehq_e2c' },
+                        { year: 'Theory Books', name: 'Biology Complete Theory Books (Units 01–10 Notes & Diagrams)', link: 'https://drive.google.com/drive/folders/1QrVgGPX6BnXWvXBDeW3XPYfQLrrSEL-u' },
+                        { year: 'Resource Books', name: 'National Institute of Education (NIE) Official Resource Books', link: 'https://drive.google.com/drive/folders/1B_zpnHCnHNhnnJ5RxZjKWJVgHMbRkS8d' },
+                        { year: '2000+ MCQs', name: '2000+ Classified Multiple Choice Questions & Answer Keys', link: 'https://drive.google.com/drive/folders/1FxFQCKAvT00BGqReUSLxb74eNSP3h6kU' },
+                        { year: 'FWC Papers', name: 'FWC Thondaimanaru 1st–6th Term Evaluation Papers & Solutions', link: 'https://drive.google.com/drive/folders/1bGEyarFlma1qykDZ_B801w-GNRdFx33d' },
+                        { year: 'Moratuwa', name: 'University of Moratuwa Pilot & Model Exam Papers & Scoring Schemes', link: 'https://drive.google.com/drive/folders/1qxg_rnsbNwm7XnqeXS2ModZTdEfR3qJn' },
+                        { year: 'Practical Book', name: 'Biology Practical Handbook & Laboratory Experiments Guide', link: 'https://drive.google.com/drive/folders/1dHkJnlsBq8w7xBrajRVE8b4lPLEaMSmx' },
+                        { year: 'Essays', name: 'High-Yield Essay Questions Collection & Model Answer Outlines', link: 'https://drive.google.com/drive/folders/1lytpJBatznvX-yT4tXUuwXfSqU4fzLCU' },
+                        { year: 'Structures', name: 'Structured Essay Question Drills & Experimental Reasoning', link: 'https://drive.google.com/drive/folders/1gTYiXZCoEm5lyZflZaHBnu0GjywF6Kn3' },
+                        { year: 'Elaboration', name: 'Official Marking Elaborations & Examiner Common Mistake Notes', link: 'https://drive.google.com/drive/folders/1MX5k6hl0usT3WoARqWg_16TB1-1N8k6P' },
+                        { year: 'Seminars', name: 'Support Seminar Revision Papers & Discussion Worksheets', link: 'https://drive.google.com/drive/folders/13Y-iTi8c71TC8jNhLrV4Ee0Th0TGsY8j' },
+                        { year: 'Syllabus', name: 'Ministry of Education & NIE Official Biology Syllabus Guide', link: 'https://drive.google.com/drive/folders/1ygCw5mRA_P-uipqLvQ6FLjX-l80GDxqi' },
+                        { year: 'Teachers', name: 'Teacher’s Instructional Guide & Pedagogical Lesson Plans', link: 'https://drive.google.com/drive/folders/1zkV6pk3qMDFQh7yrN_JNiPHNH_JFoW27' },
+                      ]
+                    : resource?.id === 'res-chem-all-in-one'
+                    ? [
+                        { year: 'Past Papers', name: 'Chemistry National Examination Past Papers & Marking Schemes (1980–2025)', link: 'https://drive.google.com/drive/folders/1lgcoq3fEXCD3KvO1SfRdcWvb2dXOvK9Y' },
+                        { year: 'Theory Books', name: 'Chemistry Complete Theory Compendiums (Units 01–14 Notes)', link: 'https://drive.google.com/drive/folders/1D9Ir-8G9soNt1wbdIbRpZVsFvMnPtc42' },
+                        { year: 'Practice', name: 'Chemistry Practice Workbooks, Conversions & Calculation Problem Sets', link: 'https://drive.google.com/drive/folders/1D3rAqvsmgUtFZiTi3M-mpMMD8h9nrLWn' },
+                        { year: '2000+ MCQs', name: '2000+ Classified Chemistry MCQ Master Question Bank & Solutions', link: 'https://drive.google.com/drive/folders/1gAlXk95gLtGuUoaVryDLlNR5sYJiJO2_' },
+                        { year: 'FWC Papers', name: 'FWC Thondaimanaru 1st–6th Term Evaluation Papers & Solutions', link: 'https://drive.google.com/drive/folders/1PjWWeRIX-vGAplAHqNhLOb4VxlhqqOX9' },
+                        { year: 'Moratuwa', name: 'University of Moratuwa Pilot & Model Exam Papers & Scoring Schemes', link: 'https://drive.google.com/drive/folders/1FjU5zVMZ5-l4aqAbs-T4ux2qRX0S6zrU' },
+                        { year: 'Practical Book', name: 'Practical Chemistry Handbook, Titrations & Qualitative Analysis', link: 'https://drive.google.com/drive/folders/1EfkvODWMTQbsouI-Gq1dsjA0-pUL9xtP' },
+                        { year: 'Resource Books', name: 'National Institute of Education (NIE) Chemistry Resource Textbooks', link: 'https://drive.google.com/drive/folders/1vTDPtTqE9DzPlxKMz7wlJ2NCjqtRHPVF' },
+                        { year: 'Elaboration', name: 'Chemistry Elaborations, Marking Criteria & Reaction Roadmaps', link: 'https://drive.google.com/drive/folders/1L72xHpItk5-XbrCmGdJbLayRiJ67wAf2' },
+                        { year: 'Seminars', name: 'National & Provincial Support Seminar Papers & Review Sets', link: 'https://drive.google.com/drive/folders/1ajlaa10g6w_3BzrWgSIdfP7NapBr9d_T' },
+                        { year: 'Syllabus', name: 'Official NIE Chemistry Syllabus Framework & Competencies', link: 'https://drive.google.com/drive/folders/1iNSpsSdWuyoXAHzmC5O_02z6mcWZBwUz' },
+                        { year: 'Teachers', name: 'Official Chemistry Teacher’s Instructional Manual & Guidelines', link: 'https://drive.google.com/drive/folders/1s8OBk_9NhCMK_xCWBha93hyuT7uf_D_V' },
+                      ]
+                    : resource?.id === 'res-phy-all-in-one'
+                    ? [
+                        { year: 'Past Papers', name: 'Physics National Examination Past Papers & Step Schemes (1975–2025)', link: 'https://drive.google.com/drive/folders/1PKl9THSXS4bz1o8iarrXvt_43ezGszSi' },
+                        { year: 'Theory Books', name: 'Physics Complete Theory Books (Units 01–11 Derivations & Notes)', link: 'https://drive.google.com/drive/folders/1-wmQU75e1_olhneID8pgcMZvFLEryMLP' },
+                        { year: 'Practice', name: 'Physics Practice Workbooks, Calculation Drills & Problem Sets', link: 'https://drive.google.com/drive/folders/1YjXqAONOl19SFi3jVXUgHQPPmWDqpymM' },
+                        { year: '2000+ MCQs', name: '2000+ Classified Physics MCQ Master Bank with Mathematical Reasoning', link: 'https://drive.google.com/drive/folders/14odeyJC0l21WzZOFAeLI0s2Q08rP2dy9' },
+                        { year: 'FWC Papers', name: 'FWC Thondaimanaru 1st–6th Term Evaluation Papers & Solutions', link: 'https://drive.google.com/drive/folders/18HMKY9OLfFjxpXes3Gf8EzMg3zgogMD8' },
+                        { year: 'Moratuwa', name: 'University of Moratuwa Pilot & Model Exam Papers & Scoring Schemes', link: 'https://drive.google.com/drive/folders/11WkIA9Xf9ImJj9OXM7duAJWmFfH-PcXW' },
+                        { year: 'Practicals', name: 'Physics 42 Mandatory Practical Experiments Handbook & Error Calculations', link: 'https://drive.google.com/drive/folders/1IWwbEQeb0A5ZQ9Yk1iDR8r7I8bs7D2CM' },
+                        { year: 'Resource Books', name: 'National Institute of Education (NIE) Physics Resource Textbooks', link: 'https://drive.google.com/drive/folders/1mVbBtT1ahnPKJOxAvd0WfzjSPiSk2RVu' },
+                        { year: 'Elaboration', name: 'Physics Marking Criteria Elaborations & Examiner Advice', link: 'https://drive.google.com/drive/folders/1gKXXC1Vr85MjihwYVTwS0ewEJOtNPNG1' },
+                        { year: 'Seminars', name: 'National & Provincial Support Seminar Revision Papers & Sets', link: 'https://drive.google.com/drive/folders/1HReBgEPtLl_cTG9VHr4BXEVeyVW36H5s' },
+                        { year: 'Syllabus', name: 'Official NIE Physics Syllabus Framework & Practical Standards', link: 'https://drive.google.com/drive/folders/13rCJj41EvlVZUYMrFaUSk6UfcpIqUtV5' },
+                        { year: 'Teachers', name: 'Official Physics Teacher’s Instructional Handbook & Guidelines', link: 'https://drive.google.com/drive/folders/1biBDRENibS13kBzkTUNe5hPRzdpH3mgH' },
+                      ]
+                    : resource?.id === 'res-cmaths-all-in-one'
                     ? [
                         { year: 'Past Papers', name: 'Combined Mathematics Past Papers & Marking Schemes (1980–2025)', link: 'https://drive.google.com/drive/folders/1wg8CEnUOVaMUowEIENBCWQw659JguuJ1' },
                         { year: 'FWC Papers', name: 'FWC Thondaimanaru 1st–6th Term Evaluation Papers & Solutions', link: 'https://drive.google.com/drive/folders/1l63Okm5S_i0meQ6oPu_TVyzs84vCXvPG' },
@@ -343,7 +389,7 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
           <span className="truncate">
             Official cloud storage mirror · Safe preview without ads or redirections
           </span>
-          <span className="font-mono text-sky-400 font-bold shrink-0 ml-2">Study Pro Exam Hub</span>
+          <span className="font-mono text-sky-400 font-bold shrink-0 ml-2">Paper Express Exam Hub</span>
         </div>
       </div>
     </div>

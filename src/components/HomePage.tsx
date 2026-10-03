@@ -5,7 +5,7 @@ import {
   ShieldCheck, Layers, ArrowRight, Compass, Instagram
 } from 'lucide-react';
 import { User, ResourceCategory } from '../types';
-import { StudyProLogo } from './StudyProLogo';
+import { PaperExpressLogo } from './PaperExpressLogo';
 import { ExamCountdown } from './ExamCountdown';
 import { playRoboticTab, playRoboticClick } from '../utils/audio';
 
@@ -144,7 +144,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
           <span className="flex items-center gap-1.5 text-sky-400 font-bold">
             <Sparkles className="w-3.5 h-3.5 text-[#38BDF8]" />
-            <span>STUDY PRO: Sri Lanka's Premier A/L Science Portal (Maths & Bio Streams)</span>
+            <span>PAPER EXPRESS: Sri Lanka's Premier A/L Science Portal (Maths & Bio Streams)</span>
           </span>
 
           <span className="text-slate-500 font-bold">✦</span>
@@ -187,7 +187,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
           <span className="flex items-center gap-1.5 text-sky-400 font-bold">
             <Sparkles className="w-3.5 h-3.5 text-[#38BDF8]" />
-            <span>STUDY PRO: Sri Lanka's Premier A/L Science Portal (Maths & Bio Streams)</span>
+            <span>PAPER EXPRESS: Sri Lanka's Premier A/L Science Portal (Maths & Bio Streams)</span>
           </span>
         </div>
       </div>
@@ -206,7 +206,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         <div className="max-w-4xl mx-auto relative z-10">
           {/* Logo Showcase */}
           <div className="flex justify-center mb-4">
-            <StudyProLogo size="xl" variant="light" />
+            <PaperExpressLogo size="xl" variant="light" />
           </div>
 
           {/* Premium Sub-kicker / Logo Introduction */}
@@ -237,7 +237,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               <p className="text-xs sm:text-sm font-extrabold text-slate-900 italic">
                 "Study Smart, Work Hard — Consistency today determines your university entrance tomorrow."
               </p>
-              <span className="text-[11px] text-slate-500 font-medium">— Study Pro Academic Panel</span>
+              <span className="text-[11px] text-slate-500 font-medium">— Paper Express Academic Panel</span>
             </div>
           </div>
 
@@ -476,9 +476,9 @@ export const HomePage: React.FC<HomePageProps> = ({
                 if (onOpenAdminLogin) onOpenAdminLogin();
               }}
               className="p-1 rounded-xl hover:bg-slate-100 transition-all cursor-pointer group focus:outline-none"
-              title="Study Pro (Click for Admin System)"
+              title="Paper Express (Click for Admin System)"
             >
-              <StudyProLogo size="sm" variant="light" />
+              <PaperExpressLogo size="sm" variant="light" />
             </button>
             <span className="text-slate-400">| Sri Lankan G.C.E. A/L Academic Portal</span>
           </div>
@@ -507,7 +507,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             </button>
           </div>
 
-          <p>© {new Date().getFullYear()} Study Pro. Built for Sri Lankan Advanced Level Students.</p>
+          <p>© {new Date().getFullYear()} Paper Express. Built for Sri Lankan Advanced Level Students.</p>
         </div>
       </footer>
     </div>

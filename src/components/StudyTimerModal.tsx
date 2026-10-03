@@ -49,7 +49,7 @@ export const StudyTimerModal: React.FC<StudyTimerModalProps> = ({ isOpen, onClos
 
         <div className="flex items-center justify-center gap-1.5 text-sky-400 text-xs font-bold mb-2">
           <Clock className="w-4 h-4 text-[#38BDF8]" />
-          <span>Study Pro Focus Pomodoro</span>
+          <span>Paper Express Focus Pomodoro</span>
         </div>
 
         {/* Mode Selector */}
