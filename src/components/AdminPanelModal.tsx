@@ -46,6 +46,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [paperSchemeLink, setPaperSchemeLink] = useState('');
   const [paperSource, setPaperSource] = useState('Department of Examinations, Sri Lanka');
   const [paperTerm, setPaperTerm] = useState('All Island');
+  const [paperPilotType, setPaperPilotType] = useState('Moratuwa University');
 
   // Video Form State
   const [videoSubject, setVideoSubject] = useState('Physics');
@@ -128,7 +129,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       subjectNameEn: paperSubject,
       year: Number(paperYear),
       term: paperCategory === 'fwc-papers' ? paperTerm : undefined,
-      schoolOrSource: paperSource.trim() || 'Department of Examinations, Sri Lanka',
+      pilotType: paperCategory === 'pilot-papers' ? (paperPilotType.trim() || 'Moratuwa University') : undefined,
+      schoolOrSource: paperSource.trim() || (paperCategory === 'pilot-papers' ? (paperPilotType.trim() || 'University of Moratuwa') : 'Department of Examinations, Sri Lanka'),
       driveLink: paperDriveLink.trim(),
       markingSchemeDriveLink: paperSchemeLink.trim() || paperDriveLink.trim(),
       fileSize: 'PDF Document',
@@ -488,6 +490,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   >
                     <option value="past-papers">National Past Papers (G.C.E. A/L)</option>
                     <option value="fwc-papers">FWC & School Term Test Papers</option>
+                    <option value="pilot-papers">Other Pilot Papers (Moratuwa, etc.)</option>
                     <option value="theory-notes">Theory Revision & Short Notes</option>
                   </select>
                 </div>
@@ -571,6 +574,21 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       <option value="6th Term">6th Term Examination</option>
                       <option value="All Island">All Island Pilot Exam</option>
                     </select>
+                  </div>
+                )}
+
+                {paperCategory === 'pilot-papers' && (
+                  <div>
+                    <label className="block text-xs font-mono font-bold text-amber-300 mb-1">
+                      Pilot Paper Type / Institution
+                    </label>
+                    <input
+                      type="text"
+                      value={paperPilotType}
+                      onChange={(e) => setPaperPilotType(e.target.value)}
+                      placeholder="e.g. Moratuwa University or Colombo District Pilot"
+                      className="w-full px-3 py-2 bg-[#050A17] border border-amber-500/40 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-400 font-mono"
+                    />
                   </div>
                 )}
               </div>

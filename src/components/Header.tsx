@@ -93,6 +93,19 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </button>
           <button
+            onClick={() => handleNav('pilot-papers')}
+            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+              currentTab === 'pilot-papers'
+                ? 'bg-blue-50 text-[#0066FF] font-bold shadow-xs'
+                : 'hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <span>Other Pilot Papers</span>
+            <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.2 rounded-md font-extrabold">
+              Moratuwa & Pilot
+            </span>
+          </button>
+          <button
             onClick={() => handleNav('theory-videos')}
             className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
               currentTab === 'theory-videos'
@@ -235,6 +248,14 @@ export const Header: React.FC<HeaderProps> = ({
           }`}
         >
           Resources
+        </button>
+        <button
+          onClick={() => handleNav('pilot-papers')}
+          className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors ${
+            currentTab === 'pilot-papers' ? 'bg-[#0066FF] text-white' : 'text-slate-600'
+          }`}
+        >
+          Other Pilot Papers
         </button>
         <button
           onClick={() => handleNav('theory-videos')}

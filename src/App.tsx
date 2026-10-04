@@ -28,6 +28,7 @@ import { ContactUsModal } from './components/ContactUsModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { VideoLockModal } from './components/VideoLockModal';
 import { ResourcesFoldersView } from './components/ResourcesFoldersView';
+import { OtherPilotPapersView } from './components/OtherPilotPapersView';
 import { UserProfileModal } from './components/UserProfileModal';
 import { DomainAuthModal } from './components/DomainAuthModal';
 import { onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
@@ -39,7 +40,7 @@ import { playRoboticTab, playRoboticClick, playRoboticUnlock, playRoboticError }
 export default function App() {
   // Local storage persisted state - ensure newly uploaded past papers, physics papers, terms and hydro videos are always loaded
   const [papers, setPapers] = useState<PaperResource[]>(() => {
-    const PAPERS_CACHE_KEY = 'studypro_all_in_one_v19';
+    const PAPERS_CACHE_KEY = 'studypro_all_in_one_v20';
     const isPastPapersLoaded = localStorage.getItem(PAPERS_CACHE_KEY);
     if (!isPastPapersLoaded) {
       localStorage.setItem(PAPERS_CACHE_KEY, 'true');
@@ -742,6 +743,8 @@ export default function App() {
                   ? 'National G.C.E. A/L Past Papers'
                   : activeTab === 'theory-notes'
                   ? 'Academic Resources (Biology · Physics · Chemistry · Combined Maths)'
+                  : activeTab === 'pilot-papers'
+                  ? 'Other Pilot Papers · University & Model Examinations'
                   : activeTab === 'theory-videos'
                   ? 'Theory Video Masterclasses'
                   : activeTab.replace('-', ' ')}
@@ -751,6 +754,8 @@ export default function App() {
                   ? 'Official archive combining FWC Thondaimanaru pilot exams, provincial trial assessments, and school 1st, 2nd & 3rd term tests with step-by-step marking schemes.'
                   : activeTab === 'theory-notes'
                   ? 'Curated subject folders for Biology, Physics, Chemistry, and Combined Maths. Unit summaries, formula handbooks, short guides, and Google Drive folders.'
+                  : activeTab === 'pilot-papers'
+                  ? 'University of Moratuwa pilot exams, provincial trials, and model examination papers for Combined Mathematics, Physics, Chemistry, and Biology.'
                   : activeTab === 'theory-videos'
                   ? 'Distraction-free A/L theory masterclasses. Unlocked with student index and password.'
                   : 'Explore authentic study documents with direct Google Drive view and fast download options.'}
@@ -806,8 +811,22 @@ export default function App() {
             />
           )}
 
-          {/* Filter Bar (Only for fwc-papers to keep past-papers & resources ultra clean and simple) */}
-          {activeTab !== 'past-papers' && activeTab !== 'theory-notes' && (
+          {/* Dedicated 4 Folders System for Other Pilot Papers (Moratuwa, etc.) */}
+          {activeTab === 'pilot-papers' && (
+            <OtherPilotPapersView
+              selectedSubject={selectedSubject}
+              onSelectSubject={(subjId) => setSelectedSubject(subjId)}
+              papers={papers}
+              onPreview={handleOpenPreview}
+              isBookmarked={(id) => Boolean(user?.bookmarks?.includes(id))}
+              onToggleBookmark={handleToggleBookmark}
+              onOpenAdminUpload={() => setIsAdminPanelOpen(true)}
+              isAdmin={isAdminLoggedIn}
+            />
+          )}
+
+          {/* Filter Bar (Only for fwc-papers to keep past-papers, resources & pilot-papers ultra clean and simple) */}
+          {activeTab !== 'past-papers' && activeTab !== 'theory-notes' && activeTab !== 'pilot-papers' && (
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-3">
             <div className="flex flex-wrap items-center gap-3">
               {/* Format Segmented Filter (All vs Question Papers vs Marking Schemes) */}
@@ -935,8 +954,8 @@ export default function App() {
           </div>
           )}
 
-          {/* Results Grid (Only for other tabs; past-papers and theory-notes have their own dedicated views) */}
-          {activeTab !== 'past-papers' && activeTab !== 'theory-notes' && (
+          {/* Results Grid (Only for other tabs; past-papers, theory-notes and pilot-papers have their own dedicated views) */}
+          {activeTab !== 'past-papers' && activeTab !== 'theory-notes' && activeTab !== 'pilot-papers' && (
             activeTab === 'theory-videos' ? (
               <div className="space-y-6">
                 {!isVideoUnlocked ? (

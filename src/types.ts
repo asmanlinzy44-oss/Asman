@@ -5,6 +5,7 @@ export type ResourceCategory =
   | 'fwc-papers' 
   | 'term-papers' 
   | 'theory-notes' 
+  | 'pilot-papers' 
   | 'useful-resources' 
   | 'theory-videos';
 
@@ -27,6 +28,7 @@ export interface PaperResource {
   subjectNameTa?: string;
   year: number;
   term?: '1st Term' | '2nd Term' | '3rd Term' | '4th Term' | '5th Term' | '6th Term' | 'Trial / Final' | 'All Island' | string;
+  pilotType?: string;
   schoolOrSource: string;
   schoolOrSourceTa?: string;
   districtOrProvince?: string;

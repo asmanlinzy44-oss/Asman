@@ -222,12 +222,9 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
                 <div className="divide-y divide-slate-800/80 text-xs">
                   {(resource?.id === 'res-bio-all-in-one'
                     ? [
-                        { year: 'Past Papers', name: 'Biology National Examination Past Papers & Official Schemes', link: 'https://drive.google.com/drive/folders/1AhgjZ6aYV7WTB0sXi1SIVnfBDehq_e2c' },
                         { year: 'Theory Books', name: 'Biology Complete Theory Books (Units 01–10 Notes & Diagrams)', link: 'https://drive.google.com/drive/folders/1QrVgGPX6BnXWvXBDeW3XPYfQLrrSEL-u' },
                         { year: 'Resource Books', name: 'National Institute of Education (NIE) Official Resource Books', link: 'https://drive.google.com/drive/folders/1B_zpnHCnHNhnnJ5RxZjKWJVgHMbRkS8d' },
                         { year: '2000+ MCQs', name: '2000+ Classified Multiple Choice Questions & Answer Keys', link: 'https://drive.google.com/drive/folders/1FxFQCKAvT00BGqReUSLxb74eNSP3h6kU' },
-                        { year: 'FWC Papers', name: 'FWC Thondaimanaru 1st–6th Term Evaluation Papers & Solutions', link: 'https://drive.google.com/drive/folders/1bGEyarFlma1qykDZ_B801w-GNRdFx33d' },
-                        { year: 'Moratuwa', name: 'University of Moratuwa Pilot & Model Exam Papers & Scoring Schemes', link: 'https://drive.google.com/drive/folders/1qxg_rnsbNwm7XnqeXS2ModZTdEfR3qJn' },
                         { year: 'Practical Book', name: 'Biology Practical Handbook & Laboratory Experiments Guide', link: 'https://drive.google.com/drive/folders/1dHkJnlsBq8w7xBrajRVE8b4lPLEaMSmx' },
                         { year: 'Essays', name: 'High-Yield Essay Questions Collection & Model Answer Outlines', link: 'https://drive.google.com/drive/folders/1lytpJBatznvX-yT4tXUuwXfSqU4fzLCU' },
                         { year: 'Structures', name: 'Structured Essay Question Drills & Experimental Reasoning', link: 'https://drive.google.com/drive/folders/1gTYiXZCoEm5lyZflZaHBnu0GjywF6Kn3' },
@@ -238,12 +235,9 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
                       ]
                     : resource?.id === 'res-chem-all-in-one'
                     ? [
-                        { year: 'Past Papers', name: 'Chemistry National Examination Past Papers & Marking Schemes (1980–2025)', link: 'https://drive.google.com/drive/folders/1lgcoq3fEXCD3KvO1SfRdcWvb2dXOvK9Y' },
                         { year: 'Theory Books', name: 'Chemistry Complete Theory Compendiums (Units 01–14 Notes)', link: 'https://drive.google.com/drive/folders/1D9Ir-8G9soNt1wbdIbRpZVsFvMnPtc42' },
                         { year: 'Practice', name: 'Chemistry Practice Workbooks, Conversions & Calculation Problem Sets', link: 'https://drive.google.com/drive/folders/1D3rAqvsmgUtFZiTi3M-mpMMD8h9nrLWn' },
                         { year: '2000+ MCQs', name: '2000+ Classified Chemistry MCQ Master Question Bank & Solutions', link: 'https://drive.google.com/drive/folders/1gAlXk95gLtGuUoaVryDLlNR5sYJiJO2_' },
-                        { year: 'FWC Papers', name: 'FWC Thondaimanaru 1st–6th Term Evaluation Papers & Solutions', link: 'https://drive.google.com/drive/folders/1PjWWeRIX-vGAplAHqNhLOb4VxlhqqOX9' },
-                        { year: 'Moratuwa', name: 'University of Moratuwa Pilot & Model Exam Papers & Scoring Schemes', link: 'https://drive.google.com/drive/folders/1FjU5zVMZ5-l4aqAbs-T4ux2qRX0S6zrU' },
                         { year: 'Practical Book', name: 'Practical Chemistry Handbook, Titrations & Qualitative Analysis', link: 'https://drive.google.com/drive/folders/1EfkvODWMTQbsouI-Gq1dsjA0-pUL9xtP' },
                         { year: 'Resource Books', name: 'National Institute of Education (NIE) Chemistry Resource Textbooks', link: 'https://drive.google.com/drive/folders/1vTDPtTqE9DzPlxKMz7wlJ2NCjqtRHPVF' },
                         { year: 'Elaboration', name: 'Chemistry Elaborations, Marking Criteria & Reaction Roadmaps', link: 'https://drive.google.com/drive/folders/1L72xHpItk5-XbrCmGdJbLayRiJ67wAf2' },
@@ -253,12 +247,9 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
                       ]
                     : resource?.id === 'res-phy-all-in-one'
                     ? [
-                        { year: 'Past Papers', name: 'Physics National Examination Past Papers & Step Schemes (1975–2025)', link: 'https://drive.google.com/drive/folders/1PKl9THSXS4bz1o8iarrXvt_43ezGszSi' },
                         { year: 'Theory Books', name: 'Physics Complete Theory Books (Units 01–11 Derivations & Notes)', link: 'https://drive.google.com/drive/folders/1-wmQU75e1_olhneID8pgcMZvFLEryMLP' },
                         { year: 'Practice', name: 'Physics Practice Workbooks, Calculation Drills & Problem Sets', link: 'https://drive.google.com/drive/folders/1YjXqAONOl19SFi3jVXUgHQPPmWDqpymM' },
                         { year: '2000+ MCQs', name: '2000+ Classified Physics MCQ Master Bank with Mathematical Reasoning', link: 'https://drive.google.com/drive/folders/14odeyJC0l21WzZOFAeLI0s2Q08rP2dy9' },
-                        { year: 'FWC Papers', name: 'FWC Thondaimanaru 1st–6th Term Evaluation Papers & Solutions', link: 'https://drive.google.com/drive/folders/18HMKY9OLfFjxpXes3Gf8EzMg3zgogMD8' },
-                        { year: 'Moratuwa', name: 'University of Moratuwa Pilot & Model Exam Papers & Scoring Schemes', link: 'https://drive.google.com/drive/folders/11WkIA9Xf9ImJj9OXM7duAJWmFfH-PcXW' },
                         { year: 'Practicals', name: 'Physics 42 Mandatory Practical Experiments Handbook & Error Calculations', link: 'https://drive.google.com/drive/folders/1IWwbEQeb0A5ZQ9Yk1iDR8r7I8bs7D2CM' },
                         { year: 'Resource Books', name: 'National Institute of Education (NIE) Physics Resource Textbooks', link: 'https://drive.google.com/drive/folders/1mVbBtT1ahnPKJOxAvd0WfzjSPiSk2RVu' },
                         { year: 'Elaboration', name: 'Physics Marking Criteria Elaborations & Examiner Advice', link: 'https://drive.google.com/drive/folders/1gKXXC1Vr85MjihwYVTwS0ewEJOtNPNG1' },
@@ -268,14 +259,17 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
                       ]
                     : resource?.id === 'res-cmaths-all-in-one'
                     ? [
-                        { year: 'Past Papers', name: 'Combined Mathematics Past Papers & Marking Schemes (1980–2025)', link: 'https://drive.google.com/drive/folders/1wg8CEnUOVaMUowEIENBCWQw659JguuJ1' },
-                        { year: 'FWC Papers', name: 'FWC Thondaimanaru 1st–6th Term Evaluation Papers & Solutions', link: 'https://drive.google.com/drive/folders/1l63Okm5S_i0meQ6oPu_TVyzs84vCXvPG' },
-                        { year: 'Moratuwa', name: 'University of Moratuwa Pilot & Model Exam Papers & Scoring Schemes', link: 'https://drive.google.com/drive/folders/1mTde-mYzreBYJWKP3aQx6z-dznYw5PvD' },
                         { year: 'Practice', name: 'Pure & Applied Maths Practice Books, Workbooks & Problem Sets', link: 'https://drive.google.com/drive/folders/1wHxCbxzREyVQR8503yYsvgmBhgW3PBBQ' },
                         { year: 'Seminars', name: 'Support Seminar Question Papers & Discussion Worksheets', link: 'https://drive.google.com/drive/folders/17bklvz7UZsSybQiaxhOsu6KNvKiKU4B0' },
                         { year: 'Syllabus', name: 'Official NIE Combined Mathematics Syllabus Guide & Competencies', link: 'https://drive.google.com/drive/folders/1b3_pdjrssbYv8br5req3uljzAlDO5zU8' },
                         { year: 'Teachers', name: 'Official Teacher’s Instructional Handbook & Canonical Proofs', link: 'https://drive.google.com/drive/folders/118wzikV-oMle7MNaikK5ceUf0EeX4JAG' },
                         { year: 'Useful Books', name: 'Combined Maths Standard Reference Textbooks & Formula Compendiums', link: 'https://drive.google.com/drive/folders/1-iDPOvk_jSwQ5TumDaVrmJCGGsdAxTgF' },
+                      ]
+                    : resource?.category === 'pilot-papers' || resource?.id?.startsWith('pilot-moratuwa')
+                    ? [
+                        { year: 'Moratuwa Pilot', name: `${resource?.subjectNameEn || 'Subject'} University of Moratuwa Pilot & Model Papers Master Archive`, link: resource?.driveLink || '' },
+                        { year: 'Paper 1 (MCQ)', name: `${resource?.subjectNameEn || 'Subject'} Moratuwa Pilot Exam Paper 1 & Official Answer Key`, link: resource?.driveLink || '' },
+                        { year: 'Paper 2 (Essay)', name: `${resource?.subjectNameEn || 'Subject'} Moratuwa Pilot Exam Paper 2 & Detailed Step Marking Scheme`, link: resource?.markingSchemeDriveLink || resource?.driveLink || '' },
                       ]
                     : resource?.id === 'past-bio-master-1994-2026' || resource?.driveLink.includes('1AhgjZ6aYV7WTB0sXi1SIVnfBDehq_e2c')
                     ? [

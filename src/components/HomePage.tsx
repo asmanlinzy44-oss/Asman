@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   FileText, Award, BookOpen, Video, Clock, MessageSquare, 
   ExternalLink, CheckCircle2, ChevronRight,
-  ShieldCheck, Layers, ArrowRight, Compass, Instagram
+  ShieldCheck, Layers, ArrowRight, Compass, Instagram, Sparkles
 } from 'lucide-react';
 import { User, ResourceCategory } from '../types';
 import { PaperExpressLogo } from './PaperExpressLogo';
@@ -87,6 +87,16 @@ const CATEGORY_SHOWCASE: Array<{
     buttonText: 'Open Resources Folders',
   },
   {
+    id: 'pilot-papers',
+    title: 'Other Pilot Papers',
+    tag: 'Moratuwa & Model Exams',
+    badgeColor: 'bg-indigo-100 text-indigo-800',
+    description: 'University of Moratuwa pilot examinations, provincial trial assessments, and high-standard model question papers with full step marking schemes.',
+    icon: Sparkles,
+    features: ['University of Moratuwa Pilot Collections for all 4 subjects', 'Standardized Paper 1 & Paper 2 answer schemes', 'Direct Google Drive folder access with in-app preview'],
+    buttonText: 'Open Pilot Papers Folders',
+  },
+  {
     id: 'theory-videos',
     title: 'Theory Video Masterclasses',
     tag: 'In-Website Video Player',
@@ -109,6 +119,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   const rotatingWords = [
     'Past Papers & Schemes',
     'FWC Pilot Examinations',
+    'Other Pilot Papers (Moratuwa)',
     'School Term Tests (1st to 6th)',
     'Academic Resources (4 Subjects)',
     'Theory Video Masterclasses',
