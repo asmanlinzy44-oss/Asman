@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   FileText, Award, BookOpen, Video, Clock, MessageSquare, 
-  Sparkles, ExternalLink, CheckCircle2, ChevronRight,
+  ExternalLink, CheckCircle2, ChevronRight,
   ShieldCheck, Layers, ArrowRight, Compass, Instagram
 } from 'lucide-react';
 import { User, ResourceCategory } from '../types';
@@ -138,35 +138,34 @@ export const HomePage: React.FC<HomePageProps> = ({
             <span>"Study Smart, Work Hard" — Strive for your dream university entrance!</span>
           </span>
 
-          <span className="text-slate-500 font-bold">✦</span>
+          <span className="text-slate-600 font-bold">•</span>
 
           <span className="flex items-center gap-1.5 text-sky-400 font-bold">
-            <Sparkles className="w-3.5 h-3.5 text-[#38BDF8]" />
             <span>PAPER EXPRESS: Sri Lanka's Premier A/L Science Portal (Maths & Bio Streams)</span>
           </span>
 
-          <span className="text-slate-500 font-bold">✦</span>
+          <span className="text-slate-600 font-bold">•</span>
 
           <span className="flex items-center gap-1.5 text-purple-300 font-bold bg-purple-500/10 px-2.5 py-0.5 rounded-full border border-purple-500/30">
             <BookOpen className="w-3.5 h-3.5 text-purple-300" />
             <span>New Resources Section: 4 Folders for Biology, Physics, Chemistry & Combined Maths</span>
           </span>
 
-          <span className="text-slate-500 font-bold">✦</span>
+          <span className="text-slate-600 font-bold">•</span>
 
           <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>Physics Hydrodynamics Unit 2 Theory Video Classes 1 to 5 Now Available!</span>
           </span>
 
-          <span className="text-slate-500 font-bold">✦</span>
+          <span className="text-slate-600 font-bold">•</span>
 
           <span className="flex items-center gap-1.5 text-blue-300 font-medium">
             <ExternalLink className="w-3.5 h-3.5" />
             <span>Direct Google Drive Integration: Instant View & Download</span>
           </span>
 
-          <span className="text-slate-500 font-bold">✦</span>
+          <span className="text-slate-600 font-bold">•</span>
 
           <span className="flex items-center gap-1.5 text-amber-300 font-medium">
             <Award className="w-3.5 h-3.5" />
@@ -174,17 +173,16 @@ export const HomePage: React.FC<HomePageProps> = ({
           </span>
 
           {/* Repeat for seamless infinite scrolling */}
-          <span className="text-slate-500 font-bold">✦</span>
+          <span className="text-slate-600 font-bold">•</span>
 
           <span className="flex items-center gap-2 px-3 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-extrabold border border-amber-400/30">
             <span className="text-sm">💡</span>
             <span>"Study Smart, Work Hard" — Strive for your dream university entrance!</span>
           </span>
 
-          <span className="text-slate-500 font-bold">✦</span>
+          <span className="text-slate-600 font-bold">•</span>
 
           <span className="flex items-center gap-1.5 text-sky-400 font-bold">
-            <Sparkles className="w-3.5 h-3.5 text-[#38BDF8]" />
             <span>PAPER EXPRESS: Sri Lanka's Premier A/L Science Portal (Maths & Bio Streams)</span>
           </span>
         </div>

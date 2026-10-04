@@ -173,10 +173,28 @@ export const DomainAuthModal: React.FC<DomainAuthModalProps> = ({
               </p>
             </div>
 
-            {/* Step A: Change App Name */}
+            {/* Step A: Firebase Public Name */}
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
               <div className="flex items-center justify-between">
-                <h5 className="text-xs font-bold text-slate-900">1. App Name-ஐ "Paper Express" என மாற்ற:</h5>
+                <h5 className="text-xs font-bold text-slate-900">1. Firebase Public Name மாற்ற:</h5>
+                <a
+                  href={`https://console.firebase.google.com/project/${projectId}/settings/general`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 underline"
+                >
+                  Firebase Settings <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Firebase General Settings பக்கத்தில் <strong>Public-facing name</strong> (பொதுப் பெயர்) பக்கத்தில் உள்ள Edit ஐகானை அழுத்தி <strong>Paper Express</strong> என மாற்றி Save செய்யவும்.
+              </p>
+            </div>
+
+            {/* Step B: Google Cloud App Name */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <h5 className="text-xs font-bold text-slate-900">2. Google OAuth App Name மாற்ற:</h5>
                 <a
                   href={consentScreenUrl}
                   target="_blank"
@@ -188,36 +206,6 @@ export const DomainAuthModal: React.FC<DomainAuthModalProps> = ({
               </div>
               <p className="text-[11px] text-slate-600 leading-relaxed">
                 OAuth Consent Screen பக்கத்தில் <strong>App name</strong> என்ற இடத்தில் <strong>Paper Express</strong> என மாற்றி, கீழே உங்கள் மின்னஞ்சலை Support Email ஆகக் கொடுத்து Save செய்யவும்.
-              </p>
-            </div>
-
-            {/* Step B: Add Redirect URI */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-              <div className="flex items-center justify-between">
-                <h5 className="text-xs font-bold text-slate-900">2. Authorized Redirect URI சேர்க்க:</h5>
-                <a
-                  href={credentialsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 underline"
-                >
-                  Credentials <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-              <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-300">
-                <code className="text-[11px] font-mono font-bold text-slate-800 flex-1 truncate">
-                  {redirectUri}
-                </code>
-                <button
-                  onClick={handleCopyRedirectUri}
-                  className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
-                >
-                  {copiedRedirectUri ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedRedirectUri ? 'Copied' : 'Copy'}</span>
-                </button>
-              </div>
-              <p className="text-[11px] text-slate-600 leading-relaxed">
-                Google Cloud Credentials பக்கத்தில் OAuth Client-ல் <strong>Authorized redirect URIs</strong> பகுதியில் மேலே உள்ள URI-ஐ சேர்த்து Save செய்யவும்.
               </p>
             </div>
 
