@@ -29,6 +29,7 @@ import { AdminPanelModal } from './components/AdminPanelModal';
 import { VideoLockModal } from './components/VideoLockModal';
 import { ResourcesFoldersView } from './components/ResourcesFoldersView';
 import { UserProfileModal } from './components/UserProfileModal';
+import { DomainAuthModal } from './components/DomainAuthModal';
 import { onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
@@ -124,6 +125,7 @@ export default function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
+  const [isDomainAuthModalOpen, setIsDomainAuthModalOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('studypro_admin_session') === 'true';
@@ -342,6 +344,9 @@ export default function App() {
         setAuthNotice('Popup blocked by browser. Please allow popups for Google Sign-In.');
       } else if (err.code === 'auth/cancelled-popup-request') {
         // Subsequent popup triggered, safely ignore
+      } else if (err.code === 'auth/unauthorized-domain' || (err.message && err.message.includes('unauthorized-domain'))) {
+        setIsDomainAuthModalOpen(true);
+        setAuthNotice('Vercel domain authorization required. Click to view 1-minute fix.');
       } else {
         setAuthNotice(err.message || 'Google authentication error. Please try again.');
       }
@@ -1262,6 +1267,13 @@ export default function App() {
         onDeleteVideo={handleDeleteVideo}
       />
 
+      {/* Vercel Firebase Domain Authorization Guide Modal */}
+      <DomainAuthModal
+        isOpen={isDomainAuthModalOpen}
+        onClose={() => setIsDomainAuthModalOpen(false)}
+        projectId="inlaid-doodad-65p7n"
+      />
+
       {/* Clean Global Loading / Auth Notice */}
       {isAuthLoading && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-900 text-white shadow-2xl border border-slate-700 animate-in fade-in slide-in-from-bottom-2">
@@ -1274,11 +1286,19 @@ export default function App() {
       )}
 
       {authNotice && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-amber-50 text-amber-900 shadow-2xl border border-amber-300 animate-in fade-in slide-in-from-bottom-2">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-amber-50 text-amber-900 shadow-2xl border border-amber-300 animate-in fade-in slide-in-from-bottom-2 max-w-md">
           <span className="text-xs font-medium">{authNotice}</span>
+          {authNotice.includes('Domain') || authNotice.includes('Vercel') ? (
+            <button
+              onClick={() => setIsDomainAuthModalOpen(true)}
+              className="text-xs font-bold text-blue-700 hover:text-blue-900 underline cursor-pointer shrink-0"
+            >
+              Fix in 1 Min
+            </button>
+          ) : null}
           <button
             onClick={() => setAuthNotice(null)}
-            className="text-xs font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+            className="text-xs font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer shrink-0"
           >
             Dismiss
           </button>
