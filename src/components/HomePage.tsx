@@ -14,7 +14,6 @@ interface HomePageProps {
   onOpenTimer: () => void;
   onOpenAuth: () => void;
   onOpenContactUs?: () => void;
-  onOpenAdminLogin?: () => void;
   user: User | null;
 }
 
@@ -104,7 +103,6 @@ export const HomePage: React.FC<HomePageProps> = ({
   onOpenTimer,
   onOpenAuth,
   onOpenContactUs,
-  onOpenAdminLogin,
   user,
 }) => {
   // Moving word cycler
@@ -470,16 +468,9 @@ export const HomePage: React.FC<HomePageProps> = ({
       <footer className="bg-white border-t border-slate-200 mt-14 py-8 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                playRoboticClick();
-                if (onOpenAdminLogin) onOpenAdminLogin();
-              }}
-              className="p-1 rounded-xl hover:bg-slate-100 transition-all cursor-pointer group focus:outline-none"
-              title="Paper Express (Click for Admin System)"
-            >
+            <div className="p-1">
               <PaperExpressLogo size="sm" variant="light" />
-            </button>
+            </div>
             <span className="text-slate-400">| Sri Lankan G.C.E. A/L Academic Portal</span>
           </div>
 

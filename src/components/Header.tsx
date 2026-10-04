@@ -139,8 +139,12 @@ export const Header: React.FC<HeaderProps> = ({
                 className="flex items-center gap-2 p-1.5 pr-2.5 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all text-left cursor-pointer"
                 title="View Student Profile & Local Storage"
               >
-                <div className="w-7 h-7 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-xs">
-                  {user.name ? user.name.charAt(0).toUpperCase() : 'G'}
+                <div className="w-7 h-7 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-xs overflow-hidden">
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt={user.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span>{user.name ? user.name.charAt(0).toUpperCase() : 'G'}</span>
+                  )}
                 </div>
                 <div className="hidden sm:flex flex-col text-left leading-tight">
                   <span className="text-xs font-bold text-slate-900 truncate max-w-[110px]">{user.name}</span>

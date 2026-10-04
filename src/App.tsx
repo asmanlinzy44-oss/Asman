@@ -25,12 +25,10 @@ import { StudyTimerModal } from './components/StudyTimerModal';
 import { TermFoldersView } from './components/TermFoldersView';
 import { PastPaperFoldersView } from './components/PastPaperFoldersView';
 import { ContactUsModal } from './components/ContactUsModal';
-import { AdminLoginModal } from './components/AdminLoginModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { VideoLockModal } from './components/VideoLockModal';
 import { ResourcesFoldersView } from './components/ResourcesFoldersView';
 import { UserProfileModal } from './components/UserProfileModal';
-import { GoogleAuthModal } from './components/GoogleAuthModal';
 import { onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
@@ -124,8 +122,8 @@ export default function App() {
   const [isTimerOpen, setIsTimerOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isGoogleAuthOpen, setIsGoogleAuthOpen] = useState(false);
-  const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('studypro_admin_session') === 'true';
@@ -140,13 +138,6 @@ export default function App() {
   const [inlineIndex, setInlineIndex] = useState('');
   const [inlinePassword, setInlinePassword] = useState('');
   const [inlineError, setInlineError] = useState('');
-
-  const handleAdminLoginSuccess = () => {
-    setIsAdminLoggedIn(true);
-    setIsAdminLoginOpen(false);
-    setIsAdminPanelOpen(true);
-    localStorage.setItem('studypro_admin_session', 'true');
-  };
 
   const handleAdminLogout = () => {
     setIsAdminLoggedIn(false);
@@ -198,9 +189,12 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
+        const isOwnerAdmin = fbUser.email === 'asmanlinzy44@gmail.com';
         try {
           const userRef = doc(db, 'users', fbUser.uid);
           const snap = await getDoc(userRef);
+
+          let userData: User;
           if (snap.exists()) {
             const data = snap.data();
             let fetchedNotes: UserNote[] = [];
@@ -208,26 +202,86 @@ export default function App() {
               const notesSnap = await getDocs(collection(db, 'users', fbUser.uid, 'notes'));
               fetchedNotes = notesSnap.docs.map((d) => d.data() as UserNote);
             } catch (notesErr) {
-              console.warn('Notes fetch warning:', notesErr);
+              console.warn('Notes fetch notice:', notesErr);
             }
 
-            const defaultName = data.name || fbUser.displayName || fbUser.email?.split('@')[0] || 'Student';
-            setUser({
+            const defaultName = data.name || fbUser.displayName || fbUser.email?.split('@')[0] || 'A/L Student';
+            userData = {
               id: fbUser.uid,
               name: defaultName,
               email: fbUser.email || '',
+              photoURL: fbUser.photoURL || data.photoURL || '',
               alYear: data.alYear || 2026,
               stream: data.stream || 'bio',
               district: data.district || '',
               school: data.school || '',
-              role: data.role || (fbUser.email === 'asmanlinzy44@gmail.com' ? 'admin' : 'student'),
+              role: isOwnerAdmin ? 'admin' : (data.role || 'student'),
               bookmarks: data.bookmarks || [],
               watchedVideoIds: data.watchedVideoIds || [],
               notes: fetchedNotes.length > 0 ? fetchedNotes : (data.notes || []),
-            });
+            };
+
+            // Keep admin role in sync if owner
+            if (isOwnerAdmin && data.role !== 'admin') {
+              try {
+                await updateDoc(userRef, { role: 'admin', updatedAt: new Date().toISOString() });
+              } catch {}
+            }
+          } else {
+            // First time Google user: initialize profile in Firestore
+            const defaultName = fbUser.displayName || fbUser.email?.split('@')[0] || 'A/L Student';
+            userData = {
+              id: fbUser.uid,
+              name: defaultName,
+              email: fbUser.email || '',
+              photoURL: fbUser.photoURL || '',
+              alYear: 2026,
+              stream: 'bio',
+              district: '',
+              school: '',
+              role: isOwnerAdmin ? 'admin' : 'student',
+              bookmarks: [],
+              watchedVideoIds: [],
+              notes: [],
+            };
+            try {
+              await setDoc(userRef, {
+                ...userData,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              });
+            } catch (err) {
+              console.warn('Profile creation notice:', err);
+            }
           }
+
+          setUser(userData);
+          if (isOwnerAdmin || userData.role === 'admin') {
+            setIsAdminLoggedIn(true);
+            localStorage.setItem('studypro_admin_session', 'true');
+          }
+          localStorage.setItem('studypro_user_session', JSON.stringify(userData));
         } catch (err) {
           console.warn('Error syncing Firebase user profile:', err);
+          const fallbackUser: User = {
+            id: fbUser.uid,
+            name: fbUser.displayName || fbUser.email?.split('@')[0] || 'A/L Student',
+            email: fbUser.email || '',
+            photoURL: fbUser.photoURL || '',
+            alYear: 2026,
+            stream: 'bio',
+            district: '',
+            school: '',
+            role: isOwnerAdmin ? 'admin' : 'student',
+            bookmarks: [],
+            watchedVideoIds: [],
+            notes: [],
+          };
+          setUser(fallbackUser);
+          if (isOwnerAdmin) {
+            setIsAdminLoggedIn(true);
+            localStorage.setItem('studypro_admin_session', 'true');
+          }
         }
       }
     });
@@ -269,10 +323,31 @@ export default function App() {
     localStorage.removeItem('studypro_user_storage');
   };
 
-  // Direct 1-Click Google Sign In (Open official Google Auth Modal)
-  const handleDirectGoogleLogin = () => {
+  // Direct Real Google Sign In (Using device Google Accounts via official popup)
+  const handleDirectGoogleLogin = async () => {
     playRoboticClick();
-    setIsGoogleAuthOpen(true);
+    setIsAuthLoading(true);
+    setAuthNotice(null);
+
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result.user) {
+        playRoboticUnlock();
+      }
+    } catch (err: any) {
+      console.warn('Direct Google Sign In popup notice:', err);
+      if (err.code === 'auth/popup-closed-by-user') {
+        // User closed the popup, do not show error
+      } else if (err.code === 'auth/popup-blocked') {
+        setAuthNotice('Popup blocked by browser. Please allow popups for Google Sign-In.');
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        // Subsequent popup triggered, safely ignore
+      } else {
+        setAuthNotice(err.message || 'Google authentication error. Please try again.');
+      }
+    } finally {
+      setIsAuthLoading(false);
+    }
   };
 
   const handleToggleBookmark = async (resourceId: string) => {
@@ -603,7 +678,7 @@ export default function App() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         user={user}
-        onGoogleLogin={() => setIsGoogleAuthOpen(true)}
+        onGoogleLogin={handleDirectGoogleLogin}
         onLogout={handleLogout}
         onOpenProfile={() => {
           playRoboticClick();
@@ -632,18 +707,10 @@ export default function App() {
             playRoboticClick();
             setIsTimerOpen(true);
           }}
-          onOpenAuth={() => setIsGoogleAuthOpen(true)}
+          onOpenAuth={handleDirectGoogleLogin}
           onOpenContactUs={() => {
             playRoboticClick();
             setIsContactOpen(true);
-          }}
-          onOpenAdminLogin={() => {
-            playRoboticClick();
-            if (isAdminLoggedIn) {
-              setIsAdminPanelOpen(true);
-            } else {
-              setIsAdminLoginOpen(true);
-            }
           }}
           user={user}
         />
@@ -1173,16 +1240,6 @@ export default function App() {
         currentUser={user}
       />
 
-      {/* Google Account Authentication Modal */}
-      <GoogleAuthModal
-        isOpen={isGoogleAuthOpen}
-        onClose={() => setIsGoogleAuthOpen(false)}
-        onSuccess={(loggedUser) => {
-          handleLogin(loggedUser);
-        }}
-        currentUser={user}
-      />
-
       {/* Student User Profile & Local Storage Vault Modal */}
       <UserProfileModal
         isOpen={isProfileOpen}
@@ -1190,13 +1247,6 @@ export default function App() {
         user={user}
         onLogout={handleLogout}
         onUpdateUser={handleUpdateProfile}
-      />
-
-      {/* Secret Admin Login Gate Modal (Triggered by clicking bottom Paper Express logo) */}
-      <AdminLoginModal
-        isOpen={isAdminLoginOpen}
-        onClose={() => setIsAdminLoginOpen(false)}
-        onSuccess={handleAdminLoginSuccess}
       />
 
       {/* Administrator Dashboard & Content Management */}
@@ -1211,6 +1261,29 @@ export default function App() {
         onDeletePaper={handleDeletePaper}
         onDeleteVideo={handleDeleteVideo}
       />
+
+      {/* Clean Global Loading / Auth Notice */}
+      {isAuthLoading && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-900 text-white shadow-2xl border border-slate-700 animate-in fade-in slide-in-from-bottom-2">
+          <svg className="w-5 h-5 shrink-0 animate-spin text-blue-400" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+          </svg>
+          <span className="text-xs font-bold">Connecting to Google Account...</span>
+        </div>
+      )}
+
+      {authNotice && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-amber-50 text-amber-900 shadow-2xl border border-amber-300 animate-in fade-in slide-in-from-bottom-2">
+          <span className="text-xs font-medium">{authNotice}</span>
+          <button
+            onClick={() => setAuthNotice(null)}
+            className="text-xs font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
     </div>
   );
 }

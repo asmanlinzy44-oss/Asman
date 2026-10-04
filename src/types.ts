@@ -83,6 +83,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  photoURL?: string;
   alYear: number;
   stream: StreamId;
   district: string;
@@ -95,6 +96,12 @@ export interface User {
   level?: number;
   streakDays?: number;
   completedQuests?: string[];
+}
+
+declare global {
+  interface Window {
+    google?: any;
+  }
 }
 
 export interface QuestQuestion {
