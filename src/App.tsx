@@ -32,8 +32,9 @@ import { OtherPilotPapersView } from './components/OtherPilotPapersView';
 import { UserProfileModal } from './components/UserProfileModal';
 import { DomainAuthModal } from './components/DomainAuthModal';
 import { onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
+import { cleanFirestoreData } from './utils/firestoreClean';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrors';
 import { playRoboticTab, playRoboticClick, playRoboticUnlock, playRoboticError } from './utils/audio';
 
@@ -199,13 +200,27 @@ export default function App() {
 
   const handleAddPaper = async (newPaper: PaperResource) => {
     setPapers((prev) => [newPaper, ...prev]);
+    // Remove from local deleted blacklist if previously deleted
+    const rawDeleted = localStorage.getItem('studypro_deleted_paper_ids');
+    if (rawDeleted) {
+      try {
+        const deletedIds: string[] = JSON.parse(rawDeleted);
+        const filtered = deletedIds.filter((id) => id !== newPaper.id);
+        localStorage.setItem('studypro_deleted_paper_ids', JSON.stringify(filtered));
+      } catch {}
+    }
+
     try {
       const paperRef = doc(db, 'papers', newPaper.id);
-      await setDoc(paperRef, {
+      const cleaned = cleanFirestoreData({
         ...newPaper,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
+      await setDoc(paperRef, cleaned);
+      try {
+        await deleteDoc(doc(db, 'deleted_papers', newPaper.id));
+      } catch {}
     } catch (err) {
       console.warn('Firestore paper add notice:', err);
     }
@@ -215,10 +230,11 @@ export default function App() {
     setPapers((prev) => prev.map((p) => (p.id === updatedPaper.id ? updatedPaper : p)));
     try {
       const paperRef = doc(db, 'papers', updatedPaper.id);
-      await setDoc(paperRef, {
+      const cleaned = cleanFirestoreData({
         ...updatedPaper,
         updatedAt: new Date().toISOString(),
       });
+      await setDoc(paperRef, cleaned);
     } catch (err) {
       console.warn('Firestore paper update notice:', err);
     }
@@ -248,16 +264,66 @@ export default function App() {
     }
   };
 
-  const handleAddVideo = (newVideo: VideoLesson) => {
+  const handleAddVideo = async (newVideo: VideoLesson) => {
     setVideos((prev) => [newVideo, ...prev]);
+    const rawDeleted = localStorage.getItem('studypro_deleted_video_ids');
+    if (rawDeleted) {
+      try {
+        const deletedIds: string[] = JSON.parse(rawDeleted);
+        const filtered = deletedIds.filter((id) => id !== newVideo.id);
+        localStorage.setItem('studypro_deleted_video_ids', JSON.stringify(filtered));
+      } catch {}
+    }
+
+    try {
+      const cleaned = cleanFirestoreData({
+        ...newVideo,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      await setDoc(doc(db, 'videos', newVideo.id), cleaned);
+      try {
+        await deleteDoc(doc(db, 'deleted_videos', newVideo.id));
+      } catch {}
+    } catch (err) {
+      console.warn('Firestore video add notice:', err);
+    }
   };
 
-  const handleUpdateVideo = (updatedVideo: VideoLesson) => {
+  const handleUpdateVideo = async (updatedVideo: VideoLesson) => {
     setVideos((prev) => prev.map((v) => (v.id === updatedVideo.id ? updatedVideo : v)));
+    try {
+      const cleaned = cleanFirestoreData({
+        ...updatedVideo,
+        updatedAt: new Date().toISOString(),
+      });
+      await setDoc(doc(db, 'videos', updatedVideo.id), cleaned);
+    } catch (err) {
+      console.warn('Firestore video update notice:', err);
+    }
   };
 
-  const handleDeleteVideo = (videoId: string) => {
+  const handleDeleteVideo = async (videoId: string) => {
     setVideos((prev) => prev.filter((v) => v.id !== videoId));
+    try {
+      const rawDeleted = localStorage.getItem('studypro_deleted_video_ids');
+      const deletedIds: string[] = rawDeleted ? JSON.parse(rawDeleted) : [];
+      if (!deletedIds.includes(videoId)) {
+        deletedIds.push(videoId);
+        localStorage.setItem('studypro_deleted_video_ids', JSON.stringify(deletedIds));
+      }
+      try {
+        await deleteDoc(doc(db, 'videos', videoId));
+      } catch {}
+      try {
+        await setDoc(doc(db, 'deleted_videos', videoId), {
+          id: videoId,
+          deletedAt: new Date().toISOString(),
+        });
+      } catch {}
+    } catch (err) {
+      console.warn('Firestore video delete notice:', err);
+    }
   };
 
   // Active Viewers
@@ -284,48 +350,134 @@ export default function App() {
     }
   }, [user]);
 
-  // Synchronize Live Papers & Deletion Blacklist from Cloud Firestore
+  // Real-time synchronization of Live Papers & Deletion Blacklist from Cloud Firestore
   useEffect(() => {
-    const syncFirestorePapers = async () => {
+    let firestorePapers = new Map<string, PaperResource>();
+    const deletedPaperIds = new Set<string>();
+
+    const rawLocalDeleted = localStorage.getItem('studypro_deleted_paper_ids');
+    if (rawLocalDeleted) {
       try {
-        // 1. Fetch remote deleted IDs
-        const deletedSnap = await getDocs(collection(db, 'deleted_papers'));
-        const remoteDeletedIds = new Set(deletedSnap.docs.map((d) => d.id));
+        const localIds: string[] = JSON.parse(rawLocalDeleted);
+        localIds.forEach((id) => deletedPaperIds.add(id));
+      } catch {}
+    }
 
-        const rawLocalDeleted = localStorage.getItem('studypro_deleted_paper_ids');
-        const localDeletedIds: string[] = rawLocalDeleted ? JSON.parse(rawLocalDeleted) : [];
-        localDeletedIds.forEach((id) => remoteDeletedIds.add(id));
+    const recomputePapers = () => {
+      setPapers((currentPapers) => {
+        // Base starting set from INITIAL_PAPERS, excluding deleted
+        const base = INITIAL_PAPERS.filter((p) => !deletedPaperIds.has(p.id));
+        // Replace base with any modified paper from Firestore
+        const mergedBase = base.map((p) => (firestorePapers.has(p.id) ? firestorePapers.get(p.id)! : p));
+        const existingIds = new Set(mergedBase.map((p) => p.id));
 
-        // 2. Fetch custom / modified papers from Firestore
-        const papersSnap = await getDocs(collection(db, 'papers'));
-        const firestorePapersMap = new Map<string, PaperResource>();
-        papersSnap.docs.forEach((d) => {
-          const p = d.data() as PaperResource;
-          if (p && p.id && !remoteDeletedIds.has(p.id)) {
-            firestorePapersMap.set(p.id, p);
+        // Add newly uploaded papers from Firestore
+        const newlyAdded: PaperResource[] = [];
+        firestorePapers.forEach((paper, id) => {
+          if (!existingIds.has(id) && !deletedPaperIds.has(id)) {
+            newlyAdded.push(paper);
           }
         });
 
-        if (remoteDeletedIds.size > 0 || firestorePapersMap.size > 0) {
-          setPapers((currentPapers) => {
-            let filtered = currentPapers.filter((p) => !remoteDeletedIds.has(p.id));
-            const existingIds = new Set(filtered.map((p) => p.id));
-            filtered = filtered.map((p) => (firestorePapersMap.has(p.id) ? firestorePapersMap.get(p.id)! : p));
+        // Also keep any active custom papers in local state that haven't been deleted
+        currentPapers.forEach((p) => {
+          if (!existingIds.has(p.id) && !deletedPaperIds.has(p.id) && !firestorePapers.has(p.id)) {
+            newlyAdded.push(p);
+          }
+        });
 
-            firestorePapersMap.forEach((p, id) => {
-              if (!existingIds.has(id)) {
-                filtered = [p, ...filtered];
-              }
-            });
-            return filtered;
-          });
-        }
-      } catch (err) {
-        console.warn('Firestore papers sync notice:', err);
-      }
+        return [...newlyAdded, ...mergedBase];
+      });
     };
 
-    syncFirestorePapers();
+    // 1. Listen in real-time to deleted_papers collection
+    const unsubDeleted = onSnapshot(collection(db, 'deleted_papers'), (snap) => {
+      snap.docs.forEach((d) => deletedPaperIds.add(d.id));
+      recomputePapers();
+    }, (err) => {
+      console.warn('Deleted papers realtime sync notice:', err);
+    });
+
+    // 2. Listen in real-time to papers collection
+    const unsubPapers = onSnapshot(collection(db, 'papers'), (snap) => {
+      firestorePapers = new Map();
+      snap.docs.forEach((d) => {
+        const p = d.data() as PaperResource;
+        if (p && p.id) {
+          firestorePapers.set(p.id, p);
+        }
+      });
+      recomputePapers();
+    }, (err) => {
+      console.warn('Live papers realtime sync notice:', err);
+    });
+
+    return () => {
+      unsubDeleted();
+      unsubPapers();
+    };
+  }, []);
+
+  // Real-time synchronization of Live Videos & Deletion Blacklist from Cloud Firestore
+  useEffect(() => {
+    let firestoreVideos = new Map<string, VideoLesson>();
+    const deletedVideoIds = new Set<string>();
+
+    const rawLocalDeleted = localStorage.getItem('studypro_deleted_video_ids');
+    if (rawLocalDeleted) {
+      try {
+        const localIds: string[] = JSON.parse(rawLocalDeleted);
+        localIds.forEach((id) => deletedVideoIds.add(id));
+      } catch {}
+    }
+
+    const recomputeVideos = () => {
+      setVideos((currentVideos) => {
+        const base = INITIAL_VIDEOS.filter((v) => !deletedVideoIds.has(v.id));
+        const mergedBase = base.map((v) => (firestoreVideos.has(v.id) ? firestoreVideos.get(v.id)! : v));
+        const existingIds = new Set(mergedBase.map((v) => v.id));
+
+        const newlyAdded: VideoLesson[] = [];
+        firestoreVideos.forEach((vid, id) => {
+          if (!existingIds.has(id) && !deletedVideoIds.has(id)) {
+            newlyAdded.push(vid);
+          }
+        });
+
+        currentVideos.forEach((v) => {
+          if (!existingIds.has(v.id) && !deletedVideoIds.has(v.id) && !firestoreVideos.has(v.id)) {
+            newlyAdded.push(v);
+          }
+        });
+
+        return [...newlyAdded, ...mergedBase];
+      });
+    };
+
+    const unsubDeletedVideos = onSnapshot(collection(db, 'deleted_videos'), (snap) => {
+      snap.docs.forEach((d) => deletedVideoIds.add(d.id));
+      recomputeVideos();
+    }, (err) => {
+      console.warn('Deleted videos realtime sync notice:', err);
+    });
+
+    const unsubVideos = onSnapshot(collection(db, 'videos'), (snap) => {
+      firestoreVideos = new Map();
+      snap.docs.forEach((d) => {
+        const v = d.data() as VideoLesson;
+        if (v && v.id) {
+          firestoreVideos.set(v.id, v);
+        }
+      });
+      recomputeVideos();
+    }, (err) => {
+      console.warn('Live videos realtime sync notice:', err);
+    });
+
+    return () => {
+      unsubDeletedVideos();
+      unsubVideos();
+    };
   }, []);
 
   // Sync with Firebase Auth state

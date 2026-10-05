@@ -54,13 +54,15 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({
       try {
         await setDoc(doc(db, 'inquiries', repId), {
           id: repId,
+          username: username.trim(),
           name: username.trim(),
           email: contactInfo.trim() || 'student@paperexpress.lk',
-          subject: category,
-          message: message.trim(),
+          contactInfo: contactInfo.trim() || '',
           category,
-          createdAt: new Date().toISOString(),
-          status: 'pending',
+          message: message.trim(),
+          createdAt: Date.now(),
+          timestamp: new Date().toISOString(),
+          resolved: false,
         });
       } catch (firestoreErr) {
         console.warn('Firestore inquiry sync error:', firestoreErr);

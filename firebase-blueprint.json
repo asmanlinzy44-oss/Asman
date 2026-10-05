@@ -305,6 +305,15 @@
     "/papers/{paperId}": {
       "schema": "PaperResource",
       "description": "Live examination papers and resources managed by admins"
+    },
+    "/deleted_papers/{paperId}": {
+      "description": "Blacklist of deleted paper IDs to ensure consistent deletion across all clients"
+    },
+    "/videos/{videoId}": {
+      "description": "Live custom video lessons added by administrators"
+    },
+    "/deleted_videos/{videoId}": {
+      "description": "Blacklist of deleted video IDs across all clients"
     }
   }
 }

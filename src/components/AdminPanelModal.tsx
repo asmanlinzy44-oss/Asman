@@ -5,8 +5,10 @@ import {
   Clock, AlertTriangle, Upload, LogOut, Check, Edit3, 
   Search, Filter, Lock, KeyRound, Eye, EyeOff, Save,
   RefreshCw, Database, Shield, BookOpen, Layers, ArrowLeft,
-  Copy, Award, CheckCircle2, ChevronRight
+  Copy, Award, CheckCircle2, ChevronRight, MessageCircle, Phone, Send, CheckCheck
 } from 'lucide-react';
+import { collection, onSnapshot, deleteDoc, updateDoc, doc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { PaperResource, VideoLesson, UserReport, StreamId, ResourceCategory, User } from '../types';
 import { extractYoutubeId } from '../utils/drive';
 import { playRoboticClick, playRoboticTab, playRoboticUnlock } from '../utils/audio';
@@ -96,6 +98,42 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   // Copied Link feedback
   const [copiedDirectUrl, setCopiedDirectUrl] = useState(false);
 
+  // Real-time Live WhatsApp-style Inbox Sync from Cloud Firestore
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'inquiries'), (snap) => {
+      const inqList: UserReport[] = snap.docs.map((docSnap) => {
+        const d = docSnap.data();
+        return {
+          id: docSnap.id,
+          username: d.name || d.username || 'Student',
+          contactInfo: d.contactInfo || d.email || undefined,
+          category: d.category || d.subject || 'General Inquiry',
+          message: d.message || '',
+          createdAt: typeof d.createdAt === 'number' ? d.createdAt : (d.timestamp ? new Date(d.timestamp).getTime() : Date.now()),
+          resolved: !!d.resolved,
+        };
+      });
+
+      // Also merge any local reports if offline
+      const raw = localStorage.getItem('studypro_user_reports');
+      const localReports: UserReport[] = raw ? JSON.parse(raw) : [];
+      const remoteIds = new Set(inqList.map((r) => r.id));
+      localReports.forEach((lr) => {
+        if (!remoteIds.has(lr.id)) {
+          inqList.push(lr);
+        }
+      });
+
+      inqList.sort((a, b) => b.createdAt - a.createdAt);
+      setReports(inqList);
+    }, (err) => {
+      console.warn('Inquiries live sync notice:', err);
+      refreshReports();
+    });
+
+    return () => unsub();
+  }, []);
+
   // Load and auto-purge user reports (max 3 days retention)
   const refreshReports = () => {
     try {
@@ -150,17 +188,37 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   };
 
   // Delete / Resolve a report
-  const handleDeleteReport = (id: string) => {
+  const handleDeleteReport = async (id: string) => {
     const updated = reports.filter((r) => r.id !== id);
     setReports(updated);
-    localStorage.setItem('studypro_user_reports', JSON.stringify(updated));
-    showSuccess('Report removed from list.');
+    try {
+      localStorage.setItem('studypro_user_reports', JSON.stringify(updated));
+    } catch {}
+
+    try {
+      await deleteDoc(doc(db, 'inquiries', id));
+      showSuccess('Student message deleted from cloud database.');
+    } catch (err) {
+      console.warn('Inquiry delete error:', err);
+      showSuccess('Message removed from view.');
+    }
   };
 
-  const handleToggleReportResolve = (id: string) => {
-    const updated = reports.map((r) => r.id === id ? { ...r, resolved: !r.resolved } : r);
+  const handleToggleReportResolve = async (id: string) => {
+    const target = reports.find((r) => r.id === id);
+    const newStatus = target ? !target.resolved : true;
+    const updated = reports.map((r) => r.id === id ? { ...r, resolved: newStatus } : r);
     setReports(updated);
-    localStorage.setItem('studypro_user_reports', JSON.stringify(updated));
+    try {
+      localStorage.setItem('studypro_user_reports', JSON.stringify(updated));
+    } catch {}
+
+    try {
+      await updateDoc(doc(db, 'inquiries', id), { resolved: newStatus });
+      showSuccess(newStatus ? 'Message marked as resolved.' : 'Message marked as pending.');
+    } catch (err) {
+      console.warn('Inquiry update error:', err);
+    }
   };
 
   // Handle Paper Form Submit
@@ -198,7 +256,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     };
 
     onAddPaper(newPaper);
-    showSuccess(`Paper "${newPaper.titleEn}" published live successfully!`);
+    showSuccess(`Paper "${newPaper.titleEn}" published live to cloud database for all visitors!`);
 
     // Reset fields
     setPaperTitleEn('');
@@ -222,7 +280,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     if (onUpdatePaper) {
       onUpdatePaper(editingPaper);
     }
-    showSuccess(`Paper "${editingPaper.titleEn}" updated live successfully!`);
+    showSuccess(`Paper "${editingPaper.titleEn}" updated live in cloud database for all visitors!`);
     setEditingPaper(null);
   };
 
@@ -266,7 +324,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     };
 
     onAddVideo(newVideo);
-    showSuccess(`Video lesson "${newVideo.titleEn}" published live successfully!`);
+    showSuccess(`Video lesson "${newVideo.titleEn}" published live to cloud database for all visitors!`);
 
     // Reset fields
     setVideoTitleEn('');
@@ -1295,45 +1353,130 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 </div>
               )}
 
-              {/* TAB 4: HELP DESK & REPORTS */}
+              {/* TAB 4: HELP DESK & REPORTS (Live WhatsApp-style Student Messages) */}
               {activeTab === 'reports' && (
                 <div className="space-y-4">
-                  <div className="p-3.5 rounded-2xl bg-cyan-950/30 border border-cyan-500/20 text-xs text-cyan-300 flex items-center gap-2 font-mono">
-                    <MessageSquare className="w-4 h-4 text-cyan-400" />
-                    <span>Real-time student feedback, error reports, and inquiries. Auto-expires in 3 days.</span>
+                  <div className="p-3.5 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-emerald-300 flex items-center justify-between gap-2 font-mono">
+                    <div className="flex items-center gap-2">
+                      <MessageCircle className="w-4 h-4 text-emerald-400 animate-pulse" />
+                      <span>Live WhatsApp-style Student Inquiries Inbox & Help Desk (Real-time Cloud Sync)</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+                      {reports.filter(r => !r.resolved).length} Pending
+                    </span>
                   </div>
 
                   {reports.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-slate-500 bg-[#091228] rounded-2xl border border-slate-800">
-                      No active reports or inquiries at this time. All clear!
+                    <div className="p-12 text-center text-xs text-slate-500 bg-[#091228] rounded-2xl border border-slate-800 space-y-2">
+                      <MessageCircle className="w-8 h-8 text-slate-600 mx-auto" />
+                      <p className="font-bold text-slate-400">No active student messages at this moment.</p>
+                      <p className="text-[11px] text-slate-600">When any student submits "Contact Us" on your website, it appears here in real-time instantly!</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {reports.map((r) => (
-                        <div key={r.id} className="p-4 rounded-2xl bg-[#091228] border border-slate-800 space-y-2">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-white">{r.username || 'Anonymous Student'} {r.contactInfo ? `(${r.contactInfo})` : ''}</span>
-                            <span className="text-[11px] text-cyan-300 font-mono">{r.category}</span>
+                    <div className="space-y-3">
+                      {reports.map((r) => {
+                        const cleanPhone = (r.contactInfo || '').replace(/[^0-9+]/g, '');
+                        const hasPhone = cleanPhone.length >= 7;
+                        const isEmail = (r.contactInfo || '').includes('@');
+
+                        return (
+                          <div 
+                            key={r.id} 
+                            className={`p-4 rounded-2xl border transition-all space-y-3 ${
+                              r.resolved 
+                                ? 'bg-[#091228]/80 border-slate-800 opacity-75' 
+                                : 'bg-gradient-to-br from-[#091828] via-[#091228] to-[#07151f] border-emerald-500/40 shadow-[0_4px_20px_rgba(16,185,129,0.06)]'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-black text-sm flex items-center justify-center shadow-xs shrink-0">
+                                  {(r.username || 'S').charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-bold text-white text-sm">
+                                      {r.username || 'Anonymous Student'}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 text-[10px] font-mono border border-cyan-800/50">
+                                      {r.category}
+                                    </span>
+                                    {r.resolved ? (
+                                      <span className="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 text-[10px] font-mono border border-emerald-800/50 flex items-center gap-1">
+                                        <CheckCheck className="w-3 h-3" /> Resolved
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 rounded-full bg-amber-950 text-amber-400 text-[10px] font-mono border border-amber-800/50 flex items-center gap-1">
+                                        <Clock className="w-3 h-3" /> New Message
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                    {r.contactInfo ? r.contactInfo : 'No contact provided'} · {new Date(r.createdAt).toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {hasPhone && (
+                                  <a
+                                    href={`https://wa.me/${cleanPhone.replace('+', '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-2.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+                                    title="Reply directly on WhatsApp"
+                                  >
+                                    <MessageCircle className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">WhatsApp</span>
+                                  </a>
+                                )}
+                                {isEmail && (
+                                  <a
+                                    href={`mailto:${r.contactInfo}?subject=Paper Express Reply: ${r.category}`}
+                                    className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+                                    title="Reply via Email"
+                                  >
+                                    <Send className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">Email</span>
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Message Bubble (WhatsApp style) */}
+                            <div className="p-3.5 rounded-xl bg-[#050B17] border border-slate-800/80 text-xs text-slate-200 leading-relaxed font-sans whitespace-pre-wrap">
+                              {r.message}
+                            </div>
+
+                            {/* Card Footer Actions */}
+                            <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-xs">
+                              <button
+                                onClick={() => handleToggleReportResolve(r.id)}
+                                className={`px-3 py-1.5 rounded-xl font-mono text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                                  r.resolved 
+                                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' 
+                                    : 'bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40'
+                                }`}
+                              >
+                                <CheckCheck className="w-3.5 h-3.5" />
+                                <span>{r.resolved ? 'Mark as Unresolved' : 'Mark as Resolved'}</span>
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  if (confirm('Delete this message from cloud database?')) {
+                                    handleDeleteReport(r.id);
+                                  }
+                                }}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 transition-all cursor-pointer"
+                                title="Delete student message"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
-                          <p className="text-xs text-slate-300 leading-relaxed">{r.message}</p>
-                          <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
-                            <button
-                              onClick={() => handleToggleReportResolve(r.id)}
-                              className={`px-3 py-1 rounded-lg font-mono text-[11px] font-bold ${
-                                r.resolved ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/30' : 'bg-amber-950 text-amber-400 border border-amber-500/30'
-                              }`}
-                            >
-                              {r.resolved ? '✓ Resolved' : 'Pending Review'}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteReport(r.id)}
-                              className="text-slate-400 hover:text-rose-400"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

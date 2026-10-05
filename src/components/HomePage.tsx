@@ -505,14 +505,6 @@ export const HomePage: React.FC<HomePageProps> = ({
               <MessageSquare className="w-3.5 h-3.5" />
               <span>Contact Us</span>
             </button>
-
-            <a
-              href="#admin"
-              className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-700 font-mono text-[11px] hover:underline"
-              title="Master Admin Console (/ #admin)"
-            >
-              <span>Admin (/#admin)</span>
-            </a>
           </div>
 
           <p>© {new Date().getFullYear()} Paper Express. Built for Sri Lankan Advanced Level Students.</p>
