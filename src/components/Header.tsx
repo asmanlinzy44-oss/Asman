@@ -14,6 +14,7 @@ interface HeaderProps {
   onOpenSaved: () => void;
   onOpenProfile?: () => void;
   onOpenAdminPanel?: () => void;
+  isAdminLoggedIn?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,6 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSaved,
   onOpenProfile,
   onOpenAdminPanel,
+  isAdminLoggedIn = false,
 }) => {
   const handleNav = (tab: ResourceCategory | 'home') => {
     playRoboticTab();
@@ -140,6 +142,26 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             )}
           </button>
+
+          {/* Admin Panel Button (/#admin) */}
+          {onOpenAdminPanel && (
+            <button
+              onClick={() => {
+                playRoboticClick();
+                onOpenAdminPanel();
+              }}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                isAdminLoggedIn || user?.role === 'admin' || user?.email === 'asmanlinzy44@gmail.com'
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+              }`}
+              title="Open Admin Console (/#admin)"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-cyan-600" />
+              <span>Admin</span>
+              <span className="text-[10px] opacity-75 font-mono hidden sm:inline">/#admin</span>
+            </button>
+          )}
 
           {/* Google Sign In / User Profile */}
           {user && user.id !== 'student_guest' ? (
@@ -265,6 +287,20 @@ export const Header: React.FC<HeaderProps> = ({
         >
           Video Lessons
         </button>
+        {onOpenAdminPanel && (
+          <button
+            onClick={() => {
+              playRoboticClick();
+              onOpenAdminPanel();
+            }}
+            className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors font-bold text-xs flex items-center gap-1 cursor-pointer ${
+              isAdminLoggedIn ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Admin</span>
+          </button>
+        )}
       </div>
     </header>
   );

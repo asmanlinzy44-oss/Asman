@@ -102,7 +102,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       const raw = localStorage.getItem('studypro_user_reports');
       const all: UserReport[] = raw ? JSON.parse(raw) : [];
       const now = Date.now();
-      const valid = all.filter((r) => now - r.createdAt < THREE_DAYS_MS);
+      const valid = all.filter((r) => r && r.createdAt && (now - r.createdAt < THREE_DAYS_MS));
       if (valid.length !== all.length) {
         localStorage.setItem('studypro_user_reports', JSON.stringify(valid));
       }
@@ -276,12 +276,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   // Filtered papers for Manage Tab
   const filteredPapers = useMemo(() => {
+    if (!Array.isArray(papers)) return [];
     return papers.filter((p) => {
+      if (!p) return false;
       // Category filter
       if (filterCategory !== 'all' && p.category !== filterCategory) return false;
       // Subject filter
       if (filterSubject !== 'all') {
-        const pSub = p.subjectNameEn.toLowerCase();
+        const pSub = (p.subjectNameEn || '').toLowerCase();
         if (filterSubject === 'physics' && !pSub.includes('physic')) return false;
         if (filterSubject === 'chemistry' && !pSub.includes('chem')) return false;
         if (filterSubject === 'maths' && !pSub.includes('math') && !pSub.includes('combined')) return false;
@@ -290,14 +292,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        return (
-          p.titleEn.toLowerCase().includes(q) ||
-          (p.titleTa && p.titleTa.toLowerCase().includes(q)) ||
-          p.subjectNameEn.toLowerCase().includes(q) ||
-          p.schoolOrSource.toLowerCase().includes(q) ||
-          (p.pilotType && p.pilotType.toLowerCase().includes(q)) ||
-          String(p.year).includes(q)
-        );
+        const tEn = (p.titleEn || '').toLowerCase();
+        const tTa = (p.titleTa || '').toLowerCase();
+        const sEn = (p.subjectNameEn || '').toLowerCase();
+        const src = (p.schoolOrSource || '').toLowerCase();
+        const pt = (p.pilotType || '').toLowerCase();
+        const yr = String(p.year || '');
+        return tEn.includes(q) || tTa.includes(q) || sEn.includes(q) || src.includes(q) || pt.includes(q) || yr.includes(q);
       }
       return true;
     });

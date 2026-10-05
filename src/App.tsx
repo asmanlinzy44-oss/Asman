@@ -131,7 +131,13 @@ export default function App() {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [isDomainAuthModalOpen, setIsDomainAuthModalOpen] = useState(false);
-  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const hash = (window.location.hash || '').toLowerCase();
+    const path = (window.location.pathname || '').toLowerCase();
+    const search = (window.location.search || '').toLowerCase();
+    return hash.includes('admin') || path.includes('admin') || search.includes('admin');
+  });
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('studypro_admin_session') === 'true';
   });
@@ -149,13 +155,13 @@ export default function App() {
   // Listen for #admin URL route to automatically open the Admin Panel (e.g. paperexpress.vercel.app/#admin)
   useEffect(() => {
     const handleAdminRoute = () => {
-      const hash = window.location.hash.toLowerCase();
-      const path = window.location.pathname.toLowerCase();
+      const hash = (window.location.hash || '').toLowerCase();
+      const path = (window.location.pathname || '').toLowerCase();
+      const search = (window.location.search || '').toLowerCase();
       if (
-        hash === '#admin' || 
-        hash.startsWith('#admin') || 
-        hash === '#/admin' || 
-        path === '/admin'
+        hash.includes('admin') || 
+        path.includes('admin') || 
+        search.includes('admin')
       ) {
         setIsAdminPanelOpen(true);
       }
@@ -163,7 +169,16 @@ export default function App() {
 
     handleAdminRoute();
     window.addEventListener('hashchange', handleAdminRoute);
-    return () => window.removeEventListener('hashchange', handleAdminRoute);
+    window.addEventListener('popstate', handleAdminRoute);
+
+    // Continuous check to capture manual address bar typing on mobile & desktop
+    const interval = setInterval(handleAdminRoute, 400);
+
+    return () => {
+      window.removeEventListener('hashchange', handleAdminRoute);
+      window.removeEventListener('popstate', handleAdminRoute);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleCloseAdminPanel = () => {
@@ -819,6 +834,7 @@ export default function App() {
           playRoboticClick();
           setIsAdminPanelOpen(true);
         }}
+        isAdminLoggedIn={isAdminLoggedIn}
         savedCount={user?.bookmarks.length || 0}
         onOpenSaved={() => {
           playRoboticClick();
