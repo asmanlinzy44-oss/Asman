@@ -1,17 +1,18 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
+ * Hi Im shiman
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Search, Filter, BookOpen, Video, FileText, 
+import {
+  Search, Filter, BookOpen, Video, FileText,
   ArrowLeft, ExternalLink, Download, Lock, CheckCircle, KeyRound, Unlock,
   UserCheck, AlertCircle
 } from 'lucide-react';
-import { 
-  PaperResource, VideoLesson, User, ResourceCategory, 
-  StreamId, UserNote 
+import {
+  PaperResource, VideoLesson, User, ResourceCategory,
+  StreamId, UserNote
 } from './types';
 import { INITIAL_PAPERS, INITIAL_VIDEOS, SUBJECTS, STREAMS, CATEGORIES } from './data/mockData';
 import { Header } from './components/Header';
@@ -159,8 +160,8 @@ export default function App() {
       const path = (window.location.pathname || '').toLowerCase();
       const search = (window.location.search || '').toLowerCase();
       if (
-        hash.includes('admin') || 
-        path.includes('admin') || 
+        hash.includes('admin') ||
+        path.includes('admin') ||
         search.includes('admin')
       ) {
         setIsAdminPanelOpen(true);
@@ -236,13 +237,13 @@ export default function App() {
 
       try {
         await deleteDoc(doc(db, 'papers', paperId));
-      } catch {}
+      } catch { }
       try {
         await setDoc(doc(db, 'deleted_papers', paperId), {
           id: paperId,
           deletedAt: new Date().toISOString(),
         });
-      } catch {}
+      } catch { }
     } catch (err) {
       console.warn('Firestore paper delete notice:', err);
     }
@@ -368,7 +369,7 @@ export default function App() {
             if (isOwnerAdmin && data.role !== 'admin') {
               try {
                 await updateDoc(userRef, { role: 'admin', updatedAt: new Date().toISOString() });
-              } catch {}
+              } catch { }
             }
           } else {
             // First time Google user: initialize profile in Firestore
@@ -452,13 +453,13 @@ export default function App() {
           savedAt: new Date().toISOString(),
         })
       );
-    } catch {}
+    } catch { }
   };
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
-    } catch {}
+    } catch { }
     setUser(null);
     setIsAdminLoggedIn(false);
     localStorage.removeItem('studypro_admin_session');
@@ -524,7 +525,7 @@ export default function App() {
           savedAt: new Date().toISOString(),
         })
       );
-    } catch {}
+    } catch { }
 
     // Save bookmarks to Google Account in Firestore
     const targetUid = auth.currentUser?.uid || user.id;
@@ -718,7 +719,7 @@ export default function App() {
         const matchSource = p.schoolOrSource.toLowerCase().includes(query);
         const matchTopic = p.unitOrTopic?.toLowerCase().includes(query) || false;
         const matchYear = String(p.year).includes(query);
-        
+
         // Match term keywords: "1st term", "1st", "term 1", "first term", "2nd term", etc.
         const pTermLower = (p.term || '').toLowerCase();
         const matchTerm =
@@ -881,25 +882,25 @@ export default function App() {
                 {activeTab === 'fwc-papers'
                   ? 'FWC Pilot & School Term Tests'
                   : activeTab === 'past-papers'
-                  ? 'National G.C.E. A/L Past Papers'
-                  : activeTab === 'theory-notes'
-                  ? 'Academic Resources (Biology · Physics · Chemistry · Combined Maths)'
-                  : activeTab === 'pilot-papers'
-                  ? 'Other Pilot Papers · University & Model Examinations'
-                  : activeTab === 'theory-videos'
-                  ? 'Theory Video Masterclasses'
-                  : activeTab.replace('-', ' ')}
+                    ? 'National G.C.E. A/L Past Papers'
+                    : activeTab === 'theory-notes'
+                      ? 'Academic Resources (Biology · Physics · Chemistry · Combined Maths)'
+                      : activeTab === 'pilot-papers'
+                        ? 'Other Pilot Papers · University & Model Examinations'
+                        : activeTab === 'theory-videos'
+                          ? 'Theory Video Masterclasses'
+                          : activeTab.replace('-', ' ')}
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 mt-1">
                 {activeTab === 'fwc-papers'
                   ? 'Official archive combining FWC Thondaimanaru pilot exams, provincial trial assessments, and school 1st, 2nd & 3rd term tests with step-by-step marking schemes.'
                   : activeTab === 'theory-notes'
-                  ? 'Curated subject folders for Biology, Physics, Chemistry, and Combined Maths. Unit summaries, formula handbooks, short guides, and Google Drive folders.'
-                  : activeTab === 'pilot-papers'
-                  ? 'University of Moratuwa pilot exams, provincial trials, and model examination papers for Combined Mathematics, Physics, Chemistry, and Biology.'
-                  : activeTab === 'theory-videos'
-                  ? 'Distraction-free A/L theory masterclasses. Unlocked with student index and password.'
-                  : 'Explore authentic study documents with direct Google Drive view and fast download options.'}
+                    ? 'Curated subject folders for Biology, Physics, Chemistry, and Combined Maths. Unit summaries, formula handbooks, short guides, and Google Drive folders.'
+                    : activeTab === 'pilot-papers'
+                      ? 'University of Moratuwa pilot exams, provincial trials, and model examination papers for Combined Mathematics, Physics, Chemistry, and Biology.'
+                      : activeTab === 'theory-videos'
+                        ? 'Distraction-free A/L theory masterclasses. Unlocked with student index and password.'
+                        : 'Explore authentic study documents with direct Google Drive view and fast download options.'}
               </p>
             </div>
 
@@ -969,130 +970,127 @@ export default function App() {
           {/* Filter Bar (Only for fwc-papers to keep past-papers, resources & pilot-papers ultra clean and simple) */}
           {activeTab !== 'past-papers' && activeTab !== 'theory-notes' && activeTab !== 'pilot-papers' && (
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-3">
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Format Segmented Filter (All vs Question Papers vs Marking Schemes) */}
-              {activeTab !== 'theory-videos' && (
-                <div className="flex items-center p-1 bg-slate-100 rounded-xl text-xs font-bold border border-slate-200">
-                  <button
-                    onClick={() => setSelectedFormat('all')}
-                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                      selectedFormat === 'all'
-                        ? 'bg-white text-slate-900 shadow-xs font-extrabold'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    All Materials
-                  </button>
-                  <button
-                    onClick={() => setSelectedFormat('papers')}
-                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                      selectedFormat === 'papers'
-                        ? 'bg-[#0066FF] text-white shadow-xs font-extrabold'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    <span>📄 Question Papers</span>
-                  </button>
-                  <button
-                    onClick={() => setSelectedFormat('schemes')}
-                    className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                      selectedFormat === 'schemes'
-                        ? 'bg-emerald-600 text-white shadow-xs font-extrabold'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    <span>📝 Marking Schemes</span>
-                  </button>
-                </div>
-              )}
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Format Segmented Filter (All vs Question Papers vs Marking Schemes) */}
+                {activeTab !== 'theory-videos' && (
+                  <div className="flex items-center p-1 bg-slate-100 rounded-xl text-xs font-bold border border-slate-200">
+                    <button
+                      onClick={() => setSelectedFormat('all')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${selectedFormat === 'all'
+                          ? 'bg-white text-slate-900 shadow-xs font-extrabold'
+                          : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                      All Materials
+                    </button>
+                    <button
+                      onClick={() => setSelectedFormat('papers')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${selectedFormat === 'papers'
+                          ? 'bg-[#0066FF] text-white shadow-xs font-extrabold'
+                          : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                      <span>📄 Question Papers</span>
+                    </button>
+                    <button
+                      onClick={() => setSelectedFormat('schemes')}
+                      className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${selectedFormat === 'schemes'
+                          ? 'bg-emerald-600 text-white shadow-xs font-extrabold'
+                          : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                      <span>📝 Marking Schemes</span>
+                    </button>
+                  </div>
+                )}
 
-              {/* Term Selector for FWC / Term Tests */}
-              {activeTab === 'fwc-papers' && (
+                {/* Term Selector for FWC / Term Tests */}
+                {activeTab === 'fwc-papers' && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-500">Term:</span>
+                    <select
+                      value={selectedTerm}
+                      onChange={(e) => setSelectedTerm(e.target.value)}
+                      className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    >
+                      <option value="all">All Folders (FWC & All Terms)</option>
+                      <option value="FWC Pilot">⭐ FWC Pilot Exams (Thondaimanaru)</option>
+                      <option value="1st Term">📁 1st Term (FWC Terms 1–6)</option>
+                      <option value="2nd Term">📁 2nd Term (FWC Terms 1–6)</option>
+                      <option value="3rd Term">📁 3rd Term (FWC Terms 1–6)</option>
+                      <option value="4th Term">📁 4th Term (FWC Terms 1–6)</option>
+                      <option value="5th Term">📁 5th Term (FWC Terms 1–6)</option>
+                      <option value="6th Term">📁 6th Term / Final Trial (FWC Terms 1–6)</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Stream Selector */}
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-slate-500">Term:</span>
+                  <span className="text-xs font-bold text-slate-500">Stream:</span>
                   <select
-                    value={selectedTerm}
-                    onChange={(e) => setSelectedTerm(e.target.value)}
+                    value={selectedStream}
+                    onChange={(e) => {
+                      setSelectedStream(e.target.value);
+                      setSelectedSubject('all');
+                    }}
                     className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                   >
-                    <option value="all">All Folders (FWC & All Terms)</option>
-                    <option value="FWC Pilot">⭐ FWC Pilot Exams (Thondaimanaru)</option>
-                    <option value="1st Term">📁 1st Term (FWC Terms 1–6)</option>
-                    <option value="2nd Term">📁 2nd Term (FWC Terms 1–6)</option>
-                    <option value="3rd Term">📁 3rd Term (FWC Terms 1–6)</option>
-                    <option value="4th Term">📁 4th Term (FWC Terms 1–6)</option>
-                    <option value="5th Term">📁 5th Term (FWC Terms 1–6)</option>
-                    <option value="6th Term">📁 6th Term / Final Trial (FWC Terms 1–6)</option>
+                    <option value="all">All Science Streams</option>
+                    <option value="maths">Physical Science (Combined Maths)</option>
+                    <option value="bio">Biological Science (Bio)</option>
                   </select>
                 </div>
-              )}
 
-              {/* Stream Selector */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-500">Stream:</span>
-                <select
-                  value={selectedStream}
-                  onChange={(e) => {
-                    setSelectedStream(e.target.value);
-                    setSelectedSubject('all');
-                  }}
-                  className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                >
-                  <option value="all">All Science Streams</option>
-                  <option value="maths">Physical Science (Combined Maths)</option>
-                  <option value="bio">Biological Science (Bio)</option>
-                </select>
-              </div>
-
-              {/* Subject Selector: Bio stream shows Biology, Chemistry, Physics; Maths stream shows Combined Maths, Physics, Chemistry */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-500">Subject:</span>
-                <select
-                  value={selectedSubject}
-                  onChange={(e) => setSelectedSubject(e.target.value)}
-                  className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                >
-                  <option value="all">All Subjects</option>
-                  {visibleSubjectOptions.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nameEn}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Year Selector for Papers */}
-              {activeTab !== 'theory-videos' && (
+                {/* Subject Selector: Bio stream shows Biology, Chemistry, Physics; Maths stream shows Combined Maths, Physics, Chemistry */}
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-slate-500">Year:</span>
+                  <span className="text-xs font-bold text-slate-500">Subject:</span>
                   <select
-                    value={selectedYear}
-                    onChange={(e) => setSelectedYear(e.target.value)}
+                    value={selectedSubject}
+                    onChange={(e) => setSelectedSubject(e.target.value)}
                     className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                   >
-                    <option value="all">All Years</option>
-                    {availableYears.map((yr) => (
-                      <option key={yr} value={String(yr)}>
-                        {yr}
+                    <option value="all">All Subjects</option>
+                    {visibleSubjectOptions.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nameEn}
                       </option>
                     ))}
                   </select>
                 </div>
-              )}
 
-              {/* Search Box */}
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by subject (e.g. Physics), term (e.g. 1st term), year, topic..."
-                  className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-slate-50"
-                />
+                {/* Year Selector for Papers */}
+                {activeTab !== 'theory-videos' && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-500">Year:</span>
+                    <select
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(e.target.value)}
+                      className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    >
+                      <option value="all">All Years</option>
+                      {availableYears.map((yr) => (
+                        <option key={yr} value={String(yr)}>
+                          {yr}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Search Box */}
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by subject (e.g. Physics), term (e.g. 1st term), year, topic..."
+                    className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-slate-50"
+                  />
+                </div>
               </div>
             </div>
-          </div>
           )}
 
           {/* Results Grid (Only for other tabs; past-papers, theory-notes and pilot-papers have their own dedicated views) */}
