@@ -101,5 +101,17 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
+
+    // Examination papers & academic resources (Managed by Admins)
+    match /papers/{paperId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Deleted papers blacklist (Ensures deleted papers stay removed everywhere)
+    match /deleted_papers/{paperId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }

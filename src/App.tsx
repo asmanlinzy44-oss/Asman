@@ -32,7 +32,7 @@ import { OtherPilotPapersView } from './components/OtherPilotPapersView';
 import { UserProfileModal } from './components/UserProfileModal';
 import { DomainAuthModal } from './components/DomainAuthModal';
 import { onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrors';
 import { playRoboticTab, playRoboticClick, playRoboticUnlock, playRoboticError } from './utils/audio';
@@ -40,28 +40,32 @@ import { playRoboticTab, playRoboticClick, playRoboticUnlock, playRoboticError }
 export default function App() {
   // Local storage persisted state - ensure newly uploaded past papers, physics papers, terms and hydro videos are always loaded
   const [papers, setPapers] = useState<PaperResource[]>(() => {
-    const PAPERS_CACHE_KEY = 'studypro_all_in_one_v20';
+    const PAPERS_CACHE_KEY = 'studypro_all_in_one_v22';
+    const rawDeleted = localStorage.getItem('studypro_deleted_paper_ids');
+    const deletedIds = new Set<string>(rawDeleted ? JSON.parse(rawDeleted) : []);
+
     const isPastPapersLoaded = localStorage.getItem(PAPERS_CACHE_KEY);
     if (!isPastPapersLoaded) {
       localStorage.setItem(PAPERS_CACHE_KEY, 'true');
-      localStorage.setItem('studypro_papers_data', JSON.stringify(INITIAL_PAPERS));
-      return INITIAL_PAPERS;
+      const initial = INITIAL_PAPERS.filter((p) => !deletedIds.has(p.id));
+      localStorage.setItem('studypro_papers_data', JSON.stringify(initial));
+      return initial;
     }
     const saved = localStorage.getItem('studypro_papers_data');
-    if (!saved) return INITIAL_PAPERS;
+    if (!saved) return INITIAL_PAPERS.filter((p) => !deletedIds.has(p.id));
     try {
       const parsed: PaperResource[] = JSON.parse(saved);
-      // Ensure all INITIAL_PAPERS exist in case new papers were added
-      const existingIds = new Set(parsed.map((p) => p.id));
-      const missingPapers = INITIAL_PAPERS.filter((p) => !existingIds.has(p.id));
+      const activeSaved = parsed.filter((p) => !deletedIds.has(p.id));
+      const existingIds = new Set(activeSaved.map((p) => p.id));
+      const missingPapers = INITIAL_PAPERS.filter((p) => !existingIds.has(p.id) && !deletedIds.has(p.id));
       if (missingPapers.length > 0) {
-        const merged = [...INITIAL_PAPERS];
+        const merged = [...missingPapers, ...activeSaved];
         localStorage.setItem('studypro_papers_data', JSON.stringify(merged));
         return merged;
       }
-      return parsed;
+      return activeSaved;
     } catch {
-      return INITIAL_PAPERS;
+      return INITIAL_PAPERS.filter((p) => !deletedIds.has(p.id));
     }
   });
 
@@ -142,22 +146,99 @@ export default function App() {
   const [inlinePassword, setInlinePassword] = useState('');
   const [inlineError, setInlineError] = useState('');
 
+  // Listen for #admin URL route to automatically open the Admin Panel (e.g. paperexpress.vercel.app/#admin)
+  useEffect(() => {
+    const handleAdminRoute = () => {
+      const hash = window.location.hash.toLowerCase();
+      const path = window.location.pathname.toLowerCase();
+      if (
+        hash === '#admin' || 
+        hash.startsWith('#admin') || 
+        hash === '#/admin' || 
+        path === '/admin'
+      ) {
+        setIsAdminPanelOpen(true);
+      }
+    };
+
+    handleAdminRoute();
+    window.addEventListener('hashchange', handleAdminRoute);
+    return () => window.removeEventListener('hashchange', handleAdminRoute);
+  }, []);
+
+  const handleCloseAdminPanel = () => {
+    setIsAdminPanelOpen(false);
+    if (window.location.hash.toLowerCase().includes('admin')) {
+      history.replaceState(null, '', window.location.pathname);
+    }
+  };
+
   const handleAdminLogout = () => {
     setIsAdminLoggedIn(false);
     setIsAdminPanelOpen(false);
     localStorage.removeItem('studypro_admin_session');
+    if (window.location.hash.toLowerCase().includes('admin')) {
+      history.replaceState(null, '', window.location.pathname);
+    }
   };
 
-  const handleAddPaper = (newPaper: PaperResource) => {
+  const handleAddPaper = async (newPaper: PaperResource) => {
     setPapers((prev) => [newPaper, ...prev]);
+    try {
+      const paperRef = doc(db, 'papers', newPaper.id);
+      await setDoc(paperRef, {
+        ...newPaper,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn('Firestore paper add notice:', err);
+    }
+  };
+
+  const handleUpdatePaper = async (updatedPaper: PaperResource) => {
+    setPapers((prev) => prev.map((p) => (p.id === updatedPaper.id ? updatedPaper : p)));
+    try {
+      const paperRef = doc(db, 'papers', updatedPaper.id);
+      await setDoc(paperRef, {
+        ...updatedPaper,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn('Firestore paper update notice:', err);
+    }
+  };
+
+  const handleDeletePaper = async (paperId: string) => {
+    setPapers((prev) => prev.filter((p) => p.id !== paperId));
+    try {
+      const rawDeleted = localStorage.getItem('studypro_deleted_paper_ids');
+      const deletedIds: string[] = rawDeleted ? JSON.parse(rawDeleted) : [];
+      if (!deletedIds.includes(paperId)) {
+        deletedIds.push(paperId);
+        localStorage.setItem('studypro_deleted_paper_ids', JSON.stringify(deletedIds));
+      }
+
+      try {
+        await deleteDoc(doc(db, 'papers', paperId));
+      } catch {}
+      try {
+        await setDoc(doc(db, 'deleted_papers', paperId), {
+          id: paperId,
+          deletedAt: new Date().toISOString(),
+        });
+      } catch {}
+    } catch (err) {
+      console.warn('Firestore paper delete notice:', err);
+    }
   };
 
   const handleAddVideo = (newVideo: VideoLesson) => {
     setVideos((prev) => [newVideo, ...prev]);
   };
 
-  const handleDeletePaper = (paperId: string) => {
-    setPapers((prev) => prev.filter((p) => p.id !== paperId));
+  const handleUpdateVideo = (updatedVideo: VideoLesson) => {
+    setVideos((prev) => prev.map((v) => (v.id === updatedVideo.id ? updatedVideo : v)));
   };
 
   const handleDeleteVideo = (videoId: string) => {
@@ -187,6 +268,50 @@ export default function App() {
       localStorage.removeItem('studypro_user_session');
     }
   }, [user]);
+
+  // Synchronize Live Papers & Deletion Blacklist from Cloud Firestore
+  useEffect(() => {
+    const syncFirestorePapers = async () => {
+      try {
+        // 1. Fetch remote deleted IDs
+        const deletedSnap = await getDocs(collection(db, 'deleted_papers'));
+        const remoteDeletedIds = new Set(deletedSnap.docs.map((d) => d.id));
+
+        const rawLocalDeleted = localStorage.getItem('studypro_deleted_paper_ids');
+        const localDeletedIds: string[] = rawLocalDeleted ? JSON.parse(rawLocalDeleted) : [];
+        localDeletedIds.forEach((id) => remoteDeletedIds.add(id));
+
+        // 2. Fetch custom / modified papers from Firestore
+        const papersSnap = await getDocs(collection(db, 'papers'));
+        const firestorePapersMap = new Map<string, PaperResource>();
+        papersSnap.docs.forEach((d) => {
+          const p = d.data() as PaperResource;
+          if (p && p.id && !remoteDeletedIds.has(p.id)) {
+            firestorePapersMap.set(p.id, p);
+          }
+        });
+
+        if (remoteDeletedIds.size > 0 || firestorePapersMap.size > 0) {
+          setPapers((currentPapers) => {
+            let filtered = currentPapers.filter((p) => !remoteDeletedIds.has(p.id));
+            const existingIds = new Set(filtered.map((p) => p.id));
+            filtered = filtered.map((p) => (firestorePapersMap.has(p.id) ? firestorePapersMap.get(p.id)! : p));
+
+            firestorePapersMap.forEach((p, id) => {
+              if (!existingIds.has(id)) {
+                filtered = [p, ...filtered];
+              }
+            });
+            return filtered;
+          });
+        }
+      } catch (err) {
+        console.warn('Firestore papers sync notice:', err);
+      }
+    };
+
+    syncFirestorePapers();
+  }, []);
 
   // Sync with Firebase Auth state
   useEffect(() => {
@@ -1276,14 +1401,23 @@ export default function App() {
       {/* Administrator Dashboard & Content Management */}
       <AdminPanelModal
         isOpen={isAdminPanelOpen}
-        onClose={() => setIsAdminPanelOpen(false)}
+        onClose={handleCloseAdminPanel}
         onLogout={handleAdminLogout}
         onAddPaper={handleAddPaper}
+        onUpdatePaper={handleUpdatePaper}
+        onDeletePaper={handleDeletePaper}
         onAddVideo={handleAddVideo}
+        onUpdateVideo={handleUpdateVideo}
+        onDeleteVideo={handleDeleteVideo}
         papers={papers}
         videos={videos}
-        onDeletePaper={handleDeletePaper}
-        onDeleteVideo={handleDeleteVideo}
+        isAdminLoggedIn={isAdminLoggedIn}
+        onAdminLoginSuccess={() => {
+          setIsAdminLoggedIn(true);
+          localStorage.setItem('studypro_admin_session', 'true');
+        }}
+        currentUser={user}
+        onGoogleLogin={handleDirectGoogleLogin}
       />
 
       {/* Vercel Firebase Domain Authorization Guide Modal */}

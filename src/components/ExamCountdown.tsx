@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Sparkles, Trophy } from 'lucide-react';
+import { Calendar, Trophy } from 'lucide-react';
 
 export const ExamCountdown: React.FC = () => {
   // Target Exam Date: August 10, 2027, 08:30 AM
@@ -46,7 +46,6 @@ export const ExamCountdown: React.FC = () => {
         </div>
         <div>
           <div className="flex items-center justify-center md:justify-start gap-2 text-xs text-sky-400 font-bold mb-0.5">
-            <Sparkles className="w-3.5 h-3.5" />
             <span>G.C.E. A/L 2027 Countdown • Exam Date: August 10, 2027</span>
           </div>
           <p className="text-xs text-slate-300">

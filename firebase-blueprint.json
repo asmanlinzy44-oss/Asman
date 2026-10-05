@@ -182,6 +182,107 @@
         }
       },
       "required": ["id", "email", "role"]
+    },
+    "PaperResource": {
+      "title": "PaperResource",
+      "description": "Examination paper or study resource document",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique paper resource ID",
+          "maxLength": 128
+        },
+        "titleEn": {
+          "type": "string",
+          "description": "Paper title in English",
+          "maxLength": 300
+        },
+        "titleTa": {
+          "type": "string",
+          "description": "Paper title in Tamil",
+          "maxLength": 300
+        },
+        "category": {
+          "type": "string",
+          "description": "Resource category",
+          "enum": ["past-papers", "fwc-papers", "term-papers", "theory-notes", "pilot-papers", "useful-resources", "theory-videos"]
+        },
+        "stream": {
+          "type": "string",
+          "description": "Stream: maths, bio, or all",
+          "enum": ["maths", "bio", "all"]
+        },
+        "subjectId": {
+          "type": "string",
+          "description": "Subject identifier",
+          "maxLength": 100
+        },
+        "subjectNameEn": {
+          "type": "string",
+          "description": "Subject name in English",
+          "maxLength": 100
+        },
+        "subjectNameTa": {
+          "type": "string",
+          "description": "Subject name in Tamil",
+          "maxLength": 100
+        },
+        "year": {
+          "type": "number",
+          "description": "Examination year"
+        },
+        "term": {
+          "type": "string",
+          "description": "Term or exam session",
+          "maxLength": 100
+        },
+        "pilotType": {
+          "type": "string",
+          "description": "Pilot examination provider",
+          "maxLength": 150
+        },
+        "schoolOrSource": {
+          "type": "string",
+          "description": "Publishing school or institution",
+          "maxLength": 200
+        },
+        "schoolOrSourceTa": {
+          "type": "string",
+          "description": "Publishing school in Tamil",
+          "maxLength": 200
+        },
+        "driveLink": {
+          "type": "string",
+          "description": "Google Drive or direct PDF link",
+          "maxLength": 1000
+        },
+        "markingSchemeDriveLink": {
+          "type": "string",
+          "description": "Marking scheme Google Drive link",
+          "maxLength": 1000
+        },
+        "fileSize": {
+          "type": "string",
+          "description": "File size label",
+          "maxLength": 50
+        },
+        "downloadsCount": {
+          "type": "number",
+          "description": "Download or view count"
+        },
+        "unitOrTopic": {
+          "type": "string",
+          "description": "Associated unit or topic",
+          "maxLength": 500
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Last update ISO timestamp",
+          "maxLength": 50
+        }
+      },
+      "required": ["id", "titleEn", "category", "stream", "subjectId", "subjectNameEn", "year", "driveLink"]
     }
   },
   "firestore": {
@@ -200,6 +301,10 @@
     "/admins/{userId}": {
       "schema": "Admin",
       "description": "Authorized platform administrators with elevated rights"
+    },
+    "/papers/{paperId}": {
+      "schema": "PaperResource",
+      "description": "Live examination papers and resources managed by admins"
     }
   }
 }

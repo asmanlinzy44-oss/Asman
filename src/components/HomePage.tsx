@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   FileText, Award, BookOpen, Video, Clock, MessageSquare, 
   ExternalLink, CheckCircle2, ChevronRight,
-  ShieldCheck, Layers, ArrowRight, Compass, Instagram, Sparkles
+  ShieldCheck, Layers, ArrowRight, Compass, Instagram, FolderOpen
 } from 'lucide-react';
 import { User, ResourceCategory } from '../types';
 import { PaperExpressLogo } from './PaperExpressLogo';
@@ -92,7 +92,7 @@ const CATEGORY_SHOWCASE: Array<{
     tag: 'Moratuwa & Model Exams',
     badgeColor: 'bg-indigo-100 text-indigo-800',
     description: 'University of Moratuwa pilot examinations, provincial trial assessments, and high-standard model question papers with full step marking schemes.',
-    icon: Sparkles,
+    icon: FolderOpen,
     features: ['University of Moratuwa Pilot Collections for all 4 subjects', 'Standardized Paper 1 & Paper 2 answer schemes', 'Direct Google Drive folder access with in-app preview'],
     buttonText: 'Open Pilot Papers Folders',
   },
@@ -505,6 +505,14 @@ export const HomePage: React.FC<HomePageProps> = ({
               <MessageSquare className="w-3.5 h-3.5" />
               <span>Contact Us</span>
             </button>
+
+            <a
+              href="#admin"
+              className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-700 font-mono text-[11px] hover:underline"
+              title="Master Admin Console (/ #admin)"
+            >
+              <span>Admin (/#admin)</span>
+            </a>
           </div>
 
           <p>© {new Date().getFullYear()} Paper Express. Built for Sri Lankan Advanced Level Students.</p>
