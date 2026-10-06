@@ -319,10 +319,10 @@ export const EducationalGuides: React.FC = () => {
       </div>
 
       {/* Frequently Asked Questions (FAQ) Section */}
-      <div className="bg-slate-50/80 rounded-3xl border border-slate-200 p-6 sm:p-8 space-y-4">
+      <div className="bg-slate-50/80 dark:bg-slate-900/60 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 space-y-4">
         <div className="flex items-center gap-2 mb-2">
-          <HelpCircle className="w-5 h-5 text-blue-600" />
-          <h3 className="text-base sm:text-lg font-black text-slate-900">
+          <HelpCircle className="w-5 h-5 text-blue-600 dark:text-sky-400" />
+          <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
             Frequently Asked Questions for G.C.E. A/L Candidates
           </h3>
         </div>
@@ -347,11 +347,11 @@ export const EducationalGuides: React.FC = () => {
         ].map((item, idx) => (
           <div 
             key={idx}
-            className="border border-slate-200 rounded-2xl bg-white overflow-hidden transition-all"
+            className="border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 overflow-hidden transition-all"
           >
             <button
               onClick={() => toggleFaq(idx)}
-              className="w-full flex items-center justify-between p-4 text-left font-bold text-xs sm:text-sm text-slate-800 hover:text-blue-600 transition-colors cursor-pointer"
+              className="w-full flex items-center justify-between p-4 text-left font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-sky-400 transition-colors cursor-pointer"
             >
               <span>{item.q}</span>
               {openFaq === idx ? (
@@ -361,7 +361,7 @@ export const EducationalGuides: React.FC = () => {
               )}
             </button>
             {openFaq === idx && (
-              <div className="px-4 pb-4 pt-1 text-xs text-slate-600 leading-relaxed border-t border-slate-100">
+              <div className="px-4 pb-4 pt-1 text-xs text-slate-600 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-800">
                 {item.a}
               </div>
             )}

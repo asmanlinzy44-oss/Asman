@@ -7,7 +7,8 @@ export type ResourceCategory =
   | 'theory-notes' 
   | 'pilot-papers' 
   | 'useful-resources' 
-  | 'theory-videos';
+  | 'theory-videos'
+  | 'ai-search';
 
 export interface SubjectItem {
   id: string;

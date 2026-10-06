@@ -32,6 +32,7 @@ import { OtherPilotPapersView } from './components/OtherPilotPapersView';
 import { UserProfileModal } from './components/UserProfileModal';
 import { DomainAuthModal } from './components/DomainAuthModal';
 import { LegalModal, LegalModalType } from './components/LegalModal';
+import { AiSearchView } from './components/AiSearchView';
 import { onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
@@ -174,6 +175,29 @@ export default function App() {
     }
   });
 
+  // Dark Mode Theme (Persisted in localStorage)
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const saved = localStorage.getItem('studypro_theme');
+    if (saved) return saved === 'dark';
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('studypro_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('studypro_theme', 'light');
+    }
+  }, [isDarkMode]);
+
+  const toggleDarkMode = () => {
+    playRoboticClick();
+    setIsDarkMode((prev) => !prev);
+  };
+
   // Legal & Compliance Modals (Privacy Policy, Terms, About, Disclaimer - Required by Google AdSense)
   const [legalModalType, setLegalModalType] = useState<LegalModalType>(() => {
     if (typeof window === 'undefined') return null;
@@ -185,7 +209,7 @@ export default function App() {
     return null;
   });
 
-  // Listen for #admin and legal URL routes to automatically open corresponding modal
+  // Listen for #admin, #ai-search and legal URL routes to automatically open corresponding modal
   useEffect(() => {
     const handleAdminRoute = () => {
       const hash = (window.location.hash || '').toLowerCase();
@@ -198,7 +222,9 @@ export default function App() {
       ) {
         setIsAdminPanelOpen(true);
       }
-      if (hash.includes('privacy')) {
+      if (hash.includes('ai-search') || hash.includes('aisearch')) {
+        setActiveTab('ai-search');
+      } else if (hash.includes('privacy')) {
         setLegalModalType('privacy');
       } else if (hash.includes('term')) {
         setLegalModalType('terms');
@@ -900,18 +926,19 @@ export default function App() {
       }
 
       // Format Filter (All vs Question Papers vs Marking Schemes)
+      const pTitle = (p.titleEn || '').toLowerCase();
       if (selectedFormat === 'schemes') {
         const hasScheme =
           Boolean(p.markingSchemeDriveLink) ||
-          p.titleEn.toLowerCase().includes('marking scheme') ||
-          p.titleEn.toLowerCase().includes('answers') ||
-          p.titleEn.toLowerCase().includes('scheme');
+          pTitle.includes('marking scheme') ||
+          pTitle.includes('answers') ||
+          pTitle.includes('scheme');
         if (!hasScheme) return false;
       } else if (selectedFormat === 'papers') {
         const isSolelyScheme =
-          (p.titleEn.toLowerCase().includes('marking scheme') ||
-            p.titleEn.toLowerCase().includes('answers') ||
-            p.titleEn.toLowerCase().includes('scheme')) &&
+          (pTitle.includes('marking scheme') ||
+            pTitle.includes('answers') ||
+            pTitle.includes('scheme')) &&
           !p.markingSchemeDriveLink;
         if (isSolelyScheme) return false;
       }
@@ -961,14 +988,22 @@ export default function App() {
       }
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
-        const matchTitle = p.titleEn.toLowerCase().includes(query) || (p.titleTa && p.titleTa.toLowerCase().includes(query));
+        const pTitleLower = (p.titleEn || '').toLowerCase();
+        const pTitleTaLower = (p.titleTa || '').toLowerCase();
+        const pSubjEnLower = (p.subjectNameEn || '').toLowerCase();
+        const pSubjTaLower = (p.subjectNameTa || '').toLowerCase();
+        const pSubjIdLower = (p.subjectId || '').toLowerCase();
+        const pSourceLower = (p.schoolOrSource || '').toLowerCase();
+        const pTopicLower = (p.unitOrTopic || '').toLowerCase();
+
+        const matchTitle = pTitleLower.includes(query) || pTitleTaLower.includes(query);
         const matchSubject =
-          p.subjectNameEn.toLowerCase().includes(query) ||
-          (p.subjectNameTa && p.subjectNameTa.toLowerCase().includes(query)) ||
-          p.subjectId.toLowerCase().includes(query);
-        const matchSource = p.schoolOrSource.toLowerCase().includes(query);
-        const matchTopic = p.unitOrTopic?.toLowerCase().includes(query) || false;
-        const matchYear = String(p.year).includes(query);
+          pSubjEnLower.includes(query) ||
+          pSubjTaLower.includes(query) ||
+          pSubjIdLower.includes(query);
+        const matchSource = pSourceLower.includes(query);
+        const matchTopic = pTopicLower.includes(query);
+        const matchYear = String(p.year || '').includes(query);
         
         // Match term keywords: "1st term", "1st", "term 1", "first term", "2nd term", etc.
         const pTermLower = (p.term || '').toLowerCase();
@@ -1006,10 +1041,10 @@ export default function App() {
       }
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
-        const matchTitle = v.titleEn.toLowerCase().includes(query);
-        const matchSubject = v.subjectNameEn.toLowerCase().includes(query);
-        const matchTeacher = v.teacherName.toLowerCase().includes(query);
-        const matchUnit = v.unitNameEn.toLowerCase().includes(query);
+        const matchTitle = (v.titleEn || '').toLowerCase().includes(query);
+        const matchSubject = (v.subjectNameEn || '').toLowerCase().includes(query);
+        const matchTeacher = (v.teacherName || '').toLowerCase().includes(query);
+        const matchUnit = (v.unitNameEn || '').toLowerCase().includes(query);
         return matchTitle || matchSubject || matchTeacher || matchUnit;
       }
       return true;
@@ -1065,7 +1100,7 @@ export default function App() {
   }, [papers, activeTab]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#080D1A] text-slate-900 dark:text-slate-100 flex flex-col selection:bg-blue-100 selection:text-blue-900 transition-colors duration-200">
       {/* 0. Live Site Broadcast Announcement Bar (Controlled from Admin Panel) */}
       {siteAnnouncement.active && siteAnnouncement.text.trim() && (
         <div className={`px-4 py-2.5 text-xs font-bold text-center flex items-center justify-center gap-2 relative z-40 transition-all ${
@@ -1112,6 +1147,8 @@ export default function App() {
           playRoboticClick();
           setIsBookmarksOpen(true);
         }}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={toggleDarkMode}
       />
 
       {/* 2. Router: Home Page (Attractive Hub) or Dedicated Category Archive */}
@@ -1150,7 +1187,7 @@ export default function App() {
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Back to Home</span>
               </button>
-              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight capitalize">
+              <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight capitalize">
                 {activeTab === 'fwc-papers'
                   ? 'FWC Pilot & School Term Tests'
                   : activeTab === 'past-papers'
@@ -1161,9 +1198,11 @@ export default function App() {
                   ? 'Other Pilot Papers · University & Model Examinations'
                   : activeTab === 'theory-videos'
                   ? 'Theory Video Masterclasses'
+                  : activeTab === 'ai-search'
+                  ? 'Paper Express Advance Search'
                   : activeTab.replace('-', ' ')}
               </h1>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
                 {activeTab === 'fwc-papers'
                   ? 'Official archive combining FWC Thondaimanaru pilot exams, provincial trial assessments, and school 1st, 2nd & 3rd term tests with step-by-step marking schemes.'
                   : activeTab === 'theory-notes'
@@ -1172,6 +1211,8 @@ export default function App() {
                   ? 'University of Moratuwa pilot exams, provincial trials, and model examination papers for Combined Mathematics, Physics, Chemistry, and Biology.'
                   : activeTab === 'theory-videos'
                   ? 'Distraction-free A/L theory masterclasses. Unlocked with student index and password.'
+                  : activeTab === 'ai-search'
+                  ? 'Paper Express Advance Search. Search with natural language queries in English or Tamil, find past papers, video lessons, and discover exact resources and study folders instantly.'
                   : 'Explore authentic study documents with direct Google Drive view and fast download options.'}
               </p>
             </div>
@@ -1179,12 +1220,31 @@ export default function App() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setIsTimerOpen(true)}
-                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
                 <span>⏱️ Study Timer</span>
               </button>
             </div>
           </div>
+
+          {/* Dedicated Advance Search View (Paper Express) */}
+          {activeTab === 'ai-search' && (
+            <AiSearchView
+              papers={papers}
+              videos={videos}
+              onNavigateToTab={(tab) => {
+                playRoboticTab();
+                setActiveTab(tab);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              onPreviewPaper={(paper, mode) => handleOpenPreview(paper, mode)}
+              onPlayVideo={(video) => handlePlayVideo(video)}
+              isBookmarked={(id) => Boolean(user?.bookmarks?.includes(id))}
+              onToggleBookmark={handleToggleBookmark}
+              isVideoUnlocked={isVideoUnlocked}
+              onRequireUnlockVideo={() => setIsVideoLockOpen(true)}
+            />
+          )}
 
           {/* Interactive Term Folders System for FWC Papers & Term Tests */}
           {activeTab === 'fwc-papers' && (
@@ -1240,8 +1300,8 @@ export default function App() {
             />
           )}
 
-          {/* Filter Bar (Only for fwc-papers to keep past-papers, resources & pilot-papers ultra clean and simple) */}
-          {activeTab !== 'past-papers' && activeTab !== 'theory-notes' && activeTab !== 'pilot-papers' && (
+          {/* Filter Bar (Only for fwc-papers to keep past-papers, resources, pilot-papers & ai-search ultra clean) */}
+          {activeTab !== 'past-papers' && activeTab !== 'theory-notes' && activeTab !== 'pilot-papers' && activeTab !== 'ai-search' && (
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-3">
             <div className="flex flex-wrap items-center gap-3">
               {/* Format Segmented Filter (All vs Question Papers vs Marking Schemes) */}
@@ -1369,8 +1429,8 @@ export default function App() {
           </div>
           )}
 
-          {/* Results Grid (Only for other tabs; past-papers, theory-notes and pilot-papers have their own dedicated views) */}
-          {activeTab !== 'past-papers' && activeTab !== 'theory-notes' && activeTab !== 'pilot-papers' && (
+          {/* Results Grid (Only for other tabs; past-papers, theory-notes, pilot-papers and ai-search have their own dedicated views) */}
+          {activeTab !== 'past-papers' && activeTab !== 'theory-notes' && activeTab !== 'pilot-papers' && activeTab !== 'ai-search' && (
             activeTab === 'theory-videos' ? (
               <div className="space-y-6">
                 {!isVideoUnlocked ? (

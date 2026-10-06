@@ -1028,10 +1028,10 @@ export const ResourcesFoldersView: React.FC<ResourcesFoldersViewProps> = ({
                 if (!searchQuery.trim()) return true;
                 const q = searchQuery.toLowerCase();
                 return (
-                  sec.nameEn.toLowerCase().includes(q) ||
-                  sec.nameTa.toLowerCase().includes(q) ||
-                  sec.description.toLowerCase().includes(q) ||
-                  sec.fileHighlights.some((h) => h.toLowerCase().includes(q))
+                  (sec.nameEn || '').toLowerCase().includes(q) ||
+                  (sec.nameTa || '').toLowerCase().includes(q) ||
+                  (sec.description || '').toLowerCase().includes(q) ||
+                  (sec.fileHighlights || []).some((h) => (h || '').toLowerCase().includes(q))
                 );
               }).map((sec) => {
                 return (
@@ -1105,9 +1105,12 @@ export const ResourcesFoldersView: React.FC<ResourcesFoldersViewProps> = ({
 
             {/* Custom Uploaded Academic Notes & Booklets for this Subject */}
             {(() => {
+              const activeSubjName = (activeSubject.name || '').toLowerCase();
               const customForSubj = resources.filter((r) => 
-                r.subjectId === activeSubject.id || 
-                (r.subjectNameEn && r.subjectNameEn.toLowerCase().includes(activeSubject.name.toLowerCase()))
+                r && (
+                  r.subjectId === activeSubject.id || 
+                  (r.subjectNameEn && r.subjectNameEn.toLowerCase().includes(activeSubjName))
+                )
               );
               if (customForSubj.length === 0) return null;
 

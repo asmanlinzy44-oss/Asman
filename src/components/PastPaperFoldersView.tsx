@@ -131,10 +131,10 @@ export const PastPaperFoldersView: React.FC<PastPaperFoldersViewProps> = ({
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchTitle = p.titleEn.toLowerCase().includes(q) || (p.titleTa && p.titleTa.toLowerCase().includes(q));
-        const matchSubject = p.subjectNameEn.toLowerCase().includes(q) || (p.subjectNameTa && p.subjectNameTa.toLowerCase().includes(q));
-        const matchYear = String(p.year).includes(q);
-        const matchUnit = p.unitOrTopic && p.unitOrTopic.toLowerCase().includes(q);
+        const matchTitle = (p.titleEn || '').toLowerCase().includes(q) || (p.titleTa && p.titleTa.toLowerCase().includes(q));
+        const matchSubject = (p.subjectNameEn || '').toLowerCase().includes(q) || (p.subjectNameTa && p.subjectNameTa.toLowerCase().includes(q));
+        const matchYear = String(p.year || '').includes(q);
+        const matchUnit = p.unitOrTopic && (p.unitOrTopic || '').toLowerCase().includes(q);
         return matchTitle || matchSubject || matchYear || matchUnit;
       }
       return true;

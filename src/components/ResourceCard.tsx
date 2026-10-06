@@ -16,15 +16,16 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
   isBookmarked,
   onToggleBookmark,
 }) => {
+  const resourceTitleLower = (resource?.titleEn || '').toLowerCase();
   const isSchemeStandalone =
-    resource.titleEn.toLowerCase().includes('marking scheme') ||
-    resource.titleEn.toLowerCase().includes('answers');
+    resourceTitleLower.includes('marking scheme') ||
+    resourceTitleLower.includes('answers');
 
-  const hasDualPaperAndScheme = Boolean(resource.markingSchemeDriveLink);
-  const isFolder = resource.driveLink.includes('/folders/');
+  const hasDualPaperAndScheme = Boolean(resource?.markingSchemeDriveLink);
+  const isFolder = (resource?.driveLink || '').includes('/folders/');
 
-  const directDriveUrl = getDriveDirectViewUrl(resource.driveLink);
-  const directDownloadUrl = getDriveDirectDownloadUrl(resource.driveLink);
+  const directDriveUrl = getDriveDirectViewUrl(resource?.driveLink || '');
+  const directDownloadUrl = getDriveDirectDownloadUrl(resource?.driveLink || '');
 
   const schemeDriveUrl = resource.markingSchemeDriveLink
     ? getDriveDirectViewUrl(resource.markingSchemeDriveLink)

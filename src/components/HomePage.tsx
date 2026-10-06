@@ -242,17 +242,17 @@ export const HomePage: React.FC<HomePageProps> = ({
           </h1>
 
           {/* Highlight Quote Box */}
-          <div className="max-w-xl mx-auto my-6 p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-center gap-3 text-slate-700">
+          <div className="max-w-xl mx-auto my-6 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center justify-center gap-3 text-slate-700 dark:text-slate-300">
             <span className="text-2xl">📖</span>
             <div className="text-left">
-              <p className="text-xs sm:text-sm font-extrabold text-slate-900 italic">
+              <p className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white italic">
                 "Study Smart, Work Hard — Consistency today determines your university entrance tomorrow."
               </p>
-              <span className="text-[11px] text-slate-500 font-medium">— Paper Express Academic Panel</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">— Paper Express Academic Panel</span>
             </div>
           </div>
 
-          <p className="text-xs sm:text-sm text-slate-600 max-w-2xl mx-auto mb-8 font-medium leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-2xl mx-auto mb-8 font-medium leading-relaxed">
             Choose what you want to explore from the sections below. Fast PDF previews, direct Google Drive storage access, and in-website theory video lessons.
           </p>
 
@@ -295,7 +295,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 playRoboticClick();
                 onOpenTimer();
               }}
-              className="px-5 py-3 rounded-2xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm border border-slate-300 shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+              className="px-5 py-3 rounded-2xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-sm border border-slate-300 dark:border-slate-700 shadow-xs transition-all flex items-center gap-2 cursor-pointer"
             >
               <Clock className="w-4 h-4 text-[#0066FF]" />
               <span>Focus Timer (25m)</span>
@@ -306,7 +306,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 playRoboticClick();
                 if (onOpenContactUs) onOpenContactUs();
               }}
-              className="px-5 py-3 rounded-2xl bg-blue-50 hover:bg-blue-100 text-[#0066FF] font-extrabold text-sm border border-blue-200 shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+              className="px-5 py-3 rounded-2xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-[#0066FF] dark:text-sky-400 font-extrabold text-sm border border-blue-200 dark:border-blue-900 shadow-xs transition-all flex items-center gap-2 cursor-pointer"
             >
               <MessageSquare className="w-4 h-4 text-[#0066FF]" />
               <span>Contact Us</span>
@@ -324,10 +324,10 @@ export const HomePage: React.FC<HomePageProps> = ({
               <Layers className="w-4 h-4" />
               <span>A/L Science Curriculum</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
               Select Your Science Stream
             </h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
               Specially dedicated to Physical Science (Combined Maths) and Biological Science (Biology) students.
             </p>
           </div>
@@ -337,32 +337,32 @@ export const HomePage: React.FC<HomePageProps> = ({
               <div
                 key={st.id}
                 onClick={() => handleNav('past-papers')}
-                className={`p-6 sm:p-7 rounded-3xl bg-white border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-200 cursor-pointer flex flex-col justify-between group transform hover:-translate-y-1 ${st.borderHover}`}
+                className={`p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-xl transition-all duration-200 cursor-pointer flex flex-col justify-between group transform hover:-translate-y-1 ${st.borderHover}`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-4xl p-2.5 rounded-2xl bg-slate-50 border border-slate-100 shadow-2xs">
+                    <span className="text-4xl p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-2xs">
                       {st.icon}
                     </span>
-                    <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-blue-50 text-[#0066FF] border border-blue-200/60">
+                    <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#0066FF] dark:text-sky-400 border border-blue-200/60 dark:border-blue-900">
                       {st.badge}
                     </span>
                   </div>
 
-                  <h3 className="font-black text-xl text-slate-900 leading-snug group-hover:text-[#0066FF] transition-colors mb-1.5">
+                  <h3 className="font-black text-xl text-slate-900 dark:text-white leading-snug group-hover:text-[#0066FF] dark:group-hover:text-sky-400 transition-colors mb-1.5">
                     {st.name}
                   </h3>
-                  <p className="text-xs text-slate-500 font-medium mb-4 leading-relaxed">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-4 leading-relaxed">
                     {st.pathway}
                   </p>
 
-                  <div className="space-y-2 mb-4 pt-3 border-t border-slate-100">
+                  <div className="space-y-2 mb-4 pt-3 border-t border-slate-100 dark:border-slate-800">
                     <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                       Core Subjects:
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {st.subjects.map((sub, i) => (
-                        <span key={i} className="text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
+                        <span key={i} className="text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
                           {sub}
                         </span>
                       ))}
@@ -394,17 +394,17 @@ export const HomePage: React.FC<HomePageProps> = ({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {CATEGORY_SHOWCASE.map((cat) => {
               const IconComponent = cat.icon;
               return (
                 <div
                   key={cat.id}
-                  className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group hover:border-blue-400"
+                  className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group hover:border-blue-400 dark:hover:border-blue-500"
                 >
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-3">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#0066FF] flex items-center justify-center group-hover:bg-[#0066FF] group-hover:text-white transition-colors shadow-2xs">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-[#0066FF] dark:text-sky-400 flex items-center justify-center group-hover:bg-[#0066FF] group-hover:text-white transition-colors shadow-2xs">
                         <IconComponent className="w-6 h-6" />
                       </div>
                       <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${cat.badgeColor}`}>
@@ -412,18 +412,18 @@ export const HomePage: React.FC<HomePageProps> = ({
                       </span>
                     </div>
 
-                    <h3 className="text-lg font-black text-slate-900 group-hover:text-[#0066FF] transition-colors mb-2">
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white group-hover:text-[#0066FF] dark:group-hover:text-sky-400 transition-colors mb-2">
                       {cat.title}
                     </h3>
 
-                    <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
                       {cat.description}
                     </p>
 
-                    <div className="space-y-1.5 mb-6 pt-2 border-t border-slate-100">
+                    <div className="space-y-1.5 mb-6 pt-2 border-t border-slate-100 dark:border-slate-800">
                       {cat.features.map((feat, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-[11px] text-slate-700 font-medium">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-[#0066FF] shrink-0" />
+                        <div key={idx} className="flex items-center gap-2 text-[11px] text-slate-700 dark:text-slate-300 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[#0066FF] dark:text-sky-400 shrink-0" />
                           <span>{feat}</span>
                         </div>
                       ))}
@@ -432,7 +432,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
                   <button
                     onClick={() => handleNav(cat.id)}
-                    className="w-full py-3 px-4 rounded-xl bg-slate-900 hover:bg-[#0066FF] text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs group-hover:shadow-md"
+                    className="w-full py-3 px-4 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-[#0066FF] dark:hover:bg-[#0066FF] text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs group-hover:shadow-md"
                   >
                     <span>{cat.buttonText}</span>
                     <ArrowRight className="w-3.5 h-3.5" />

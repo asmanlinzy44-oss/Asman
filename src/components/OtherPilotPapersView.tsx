@@ -411,10 +411,10 @@ export const OtherPilotPapersView: React.FC<OtherPilotPapersViewProps> = ({
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
-          f.nameEn.toLowerCase().includes(q) ||
-          f.nameTa.toLowerCase().includes(q) ||
-          f.badge.toLowerCase().includes(q) ||
-          f.descriptionEn.toLowerCase().includes(q)
+          (f.nameEn || '').toLowerCase().includes(q) ||
+          (f.nameTa || '').toLowerCase().includes(q) ||
+          (f.badge || '').toLowerCase().includes(q) ||
+          (f.descriptionEn || '').toLowerCase().includes(q)
         );
       }
       return true;
@@ -424,7 +424,7 @@ export const OtherPilotPapersView: React.FC<OtherPilotPapersViewProps> = ({
   // Filter individual pilot papers from state
   const subjectPilotPapers = useMemo(() => {
     return papers.filter((p) => {
-      if (p.category !== 'pilot-papers') return false;
+      if (!p || p.category !== 'pilot-papers') return false;
       if (activeSubjectId) {
         const matchesSubject =
           p.subjectId === activeSubjectId ||
@@ -437,10 +437,10 @@ export const OtherPilotPapersView: React.FC<OtherPilotPapersViewProps> = ({
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
-          p.titleEn.toLowerCase().includes(q) ||
+          (p.titleEn || '').toLowerCase().includes(q) ||
           (p.titleTa && p.titleTa.toLowerCase().includes(q)) ||
-          p.subjectNameEn.toLowerCase().includes(q) ||
-          p.schoolOrSource.toLowerCase().includes(q) ||
+          (p.subjectNameEn || '').toLowerCase().includes(q) ||
+          (p.schoolOrSource || '').toLowerCase().includes(q) ||
           (p.pilotType && p.pilotType.toLowerCase().includes(q))
         );
       }
