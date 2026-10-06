@@ -31,6 +31,7 @@ import { ResourcesFoldersView } from './components/ResourcesFoldersView';
 import { OtherPilotPapersView } from './components/OtherPilotPapersView';
 import { UserProfileModal } from './components/UserProfileModal';
 import { DomainAuthModal } from './components/DomainAuthModal';
+import { LegalModal, LegalModalType } from './components/LegalModal';
 import { onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
@@ -173,7 +174,18 @@ export default function App() {
     }
   });
 
-  // Listen for #admin URL route to automatically open the Admin Panel (e.g. paperexpress.vercel.app/#admin)
+  // Legal & Compliance Modals (Privacy Policy, Terms, About, Disclaimer - Required by Google AdSense)
+  const [legalModalType, setLegalModalType] = useState<LegalModalType>(() => {
+    if (typeof window === 'undefined') return null;
+    const hash = (window.location.hash || '').toLowerCase();
+    if (hash.includes('privacy')) return 'privacy';
+    if (hash.includes('term')) return 'terms';
+    if (hash.includes('about')) return 'about';
+    if (hash.includes('disclaimer')) return 'disclaimer';
+    return null;
+  });
+
+  // Listen for #admin and legal URL routes to automatically open corresponding modal
   useEffect(() => {
     const handleAdminRoute = () => {
       const hash = (window.location.hash || '').toLowerCase();
@@ -185,6 +197,15 @@ export default function App() {
         search.includes('admin')
       ) {
         setIsAdminPanelOpen(true);
+      }
+      if (hash.includes('privacy')) {
+        setLegalModalType('privacy');
+      } else if (hash.includes('term')) {
+        setLegalModalType('terms');
+      } else if (hash.includes('about')) {
+        setLegalModalType('about');
+      } else if (hash.includes('disclaimer')) {
+        setLegalModalType('disclaimer');
       }
     };
 
@@ -1110,6 +1131,7 @@ export default function App() {
             playRoboticClick();
             setIsContactOpen(true);
           }}
+          onOpenLegal={(type) => setLegalModalType(type)}
           user={user}
         />
       ) : (
@@ -1587,6 +1609,49 @@ export default function App() {
               </div>
             )
           )}
+
+          {/* Category View Compliance Footer */}
+          <footer className="mt-16 pt-8 border-t border-slate-200 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-700">Paper Express</span>
+              <span>· Sri Lankan G.C.E. A/L Academic Portal</span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 text-xs">
+              <button 
+                onClick={() => setLegalModalType('privacy')} 
+                className="hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                Privacy Policy & Cookies
+              </button>
+              <button 
+                onClick={() => setLegalModalType('terms')} 
+                className="hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                Terms of Service
+              </button>
+              <button 
+                onClick={() => setLegalModalType('about')} 
+                className="hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                About Us
+              </button>
+              <button 
+                onClick={() => setLegalModalType('disclaimer')} 
+                className="hover:text-blue-600 transition-colors cursor-pointer"
+              >
+                Disclaimer
+              </button>
+              <button 
+                onClick={() => setIsContactOpen(true)} 
+                className="text-blue-600 font-bold hover:underline cursor-pointer"
+              >
+                Contact Support
+              </button>
+            </div>
+
+            <div>© {new Date().getFullYear()} Paper Express</div>
+          </footer>
         </div>
       )}
 
@@ -1699,9 +1764,15 @@ export default function App() {
         projectId="inlaid-doodad-65p7n"
       />
 
+      {/* Legal & AdSense Compliance Modal (Privacy Policy, Terms, About, Disclaimer) */}
+      <LegalModal
+        type={legalModalType}
+        onClose={() => setLegalModalType(null)}
+      />
+
       {/* Clean Global Loading / Auth Notice */}
       {isAuthLoading && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-900 text-white shadow-2xl border border-slate-700 animate-in fade-in slide-in-from-bottom-2">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-900 text-white shadow-2xl border border-slate-700 animate-in fade-in slide-in-from-bottom-2 google-anno-skip">
           <svg className="w-5 h-5 shrink-0 animate-spin text-blue-400" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
@@ -1711,7 +1782,7 @@ export default function App() {
       )}
 
       {authNotice && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-amber-50 text-amber-900 shadow-2xl border border-amber-300 animate-in fade-in slide-in-from-bottom-2 max-w-md">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-amber-50 text-amber-900 shadow-2xl border border-amber-300 animate-in fade-in slide-in-from-bottom-2 max-w-md google-anno-skip">
           <span className="text-xs font-medium">{authNotice}</span>
           {authNotice.includes('Domain') || authNotice.includes('Vercel') ? (
             <button

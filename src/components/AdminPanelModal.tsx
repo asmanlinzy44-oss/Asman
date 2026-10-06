@@ -399,9 +399,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200 google-anno-skip">
       <div 
-        className="w-full max-w-5xl bg-[#070D1E] rounded-3xl border border-cyan-500/30 shadow-[0_0_50px_rgba(6,182,212,0.15)] flex flex-col h-[94vh] sm:h-[88vh] overflow-hidden animate-in zoom-in-95 duration-200"
+        className="w-full max-w-5xl bg-[#070D1E] rounded-3xl border border-cyan-500/30 shadow-[0_0_50px_rgba(6,182,212,0.15)] flex flex-col h-[94vh] sm:h-[88vh] overflow-hidden animate-in zoom-in-95 duration-200 google-anno-skip"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header */}

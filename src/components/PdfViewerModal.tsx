@@ -53,8 +53,8 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
   const directDownloadUrl = getDriveDirectDownloadUrl(currentDriveLink);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/85 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative w-full max-w-5xl h-[94vh] max-h-[950px] bg-slate-900 rounded-3xl shadow-2xl border border-slate-700 flex flex-col overflow-hidden text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/85 backdrop-blur-xs animate-in fade-in duration-200 google-anno-skip">
+      <div className="relative w-full max-w-5xl h-[94vh] max-h-[950px] bg-slate-900 rounded-3xl shadow-2xl border border-slate-700 flex flex-col overflow-hidden text-white google-anno-skip">
         {/* Top Header */}
         <div className="px-4 sm:px-6 py-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3 min-w-0">

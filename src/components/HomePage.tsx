@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { 
   FileText, Award, BookOpen, Video, Clock, MessageSquare, 
   ExternalLink, CheckCircle2, ChevronRight,
-  ShieldCheck, Layers, ArrowRight, Compass, Instagram, FolderOpen
+  ShieldCheck, Layers, ArrowRight, Compass, Instagram, FolderOpen,
+  Info, AlertCircle
 } from 'lucide-react';
 import { User, ResourceCategory } from '../types';
 import { PaperExpressLogo } from './PaperExpressLogo';
 import { ExamCountdown } from './ExamCountdown';
+import { EducationalGuides } from './EducationalGuides';
 import { playRoboticTab, playRoboticClick } from '../utils/audio';
 
 interface HomePageProps {
@@ -14,6 +16,7 @@ interface HomePageProps {
   onOpenTimer: () => void;
   onOpenAuth: () => void;
   onOpenContactUs?: () => void;
+  onOpenLegal?: (type: 'privacy' | 'terms' | 'about' | 'disclaimer') => void;
   user: User | null;
 }
 
@@ -113,6 +116,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   onOpenTimer,
   onOpenAuth,
   onOpenContactUs,
+  onOpenLegal,
   user,
 }) => {
   // Moving word cycler
@@ -471,43 +475,154 @@ export const HomePage: React.FC<HomePageProps> = ({
             </button>
           </div>
         </section>
+
+        {/* Comprehensive Official A/L Academic Guide & Syllabus Insights */}
+        <EducationalGuides />
       </div>
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 mt-14 py-8 text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="p-1">
-              <PaperExpressLogo size="sm" variant="light" />
+      {/* Comprehensive Professional Publisher & AdSense Compliant Footer */}
+      <footer className="bg-slate-900 text-slate-300 border-t border-slate-800 mt-16 pt-12 pb-8 text-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            {/* Col 1: Brand & Publisher Mission */}
+            <div className="space-y-3 md:col-span-1">
+              <div className="flex items-center gap-2">
+                <PaperExpressLogo size="sm" variant="dark" />
+              </div>
+              <p className="text-slate-400 text-xs leading-relaxed">
+                Paper Express is an independent non-profit academic portal providing verified G.C.E. Advanced Level past papers, marking schemes, and revision guides for Physical Science and Biological Science streams across Sri Lanka.
+              </p>
+              <div className="pt-2">
+                <a
+                  href="https://www.instagram.com/asman_linzy/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-amber-500/10 border border-pink-500/30 text-pink-300 font-bold text-xs hover:border-pink-400 hover:text-pink-200 transition-all group"
+                >
+                  <Instagram className="w-3.5 h-3.5 text-pink-400 group-hover:scale-110 transition-transform" />
+                  <span>@asman_linzy</span>
+                </a>
+              </div>
             </div>
-            <span className="text-slate-400">| Sri Lankan G.C.E. A/L Academic Portal</span>
+
+            {/* Col 2: Academic Sections */}
+            <div className="space-y-3">
+              <h4 className="text-white font-bold text-xs uppercase tracking-wider">Academic Portals</h4>
+              <ul className="space-y-2 text-slate-400">
+                <li>
+                  <button onClick={() => handleNav('past-papers')} className="hover:text-white transition-colors cursor-pointer text-left">
+                    📄 National Past Papers (1981–2024)
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => handleNav('fwc-papers')} className="hover:text-white transition-colors cursor-pointer text-left">
+                    ⭐ FWC Pilot & 1st–6th Term Tests
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => handleNav('theory-notes')} className="hover:text-white transition-colors cursor-pointer text-left">
+                    📁 Subject Resources (4 Folders)
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => handleNav('pilot-papers')} className="hover:text-white transition-colors cursor-pointer text-left">
+                    🏛️ University of Moratuwa Pilot Exams
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Col 3: Publisher & Transparency Policies (Required by Google AdSense) */}
+            <div className="space-y-3">
+              <h4 className="text-white font-bold text-xs uppercase tracking-wider">Policy & Legal Transparency</h4>
+              <ul className="space-y-2 text-slate-400">
+                <li>
+                  <button 
+                    onClick={() => {
+                      playRoboticClick();
+                      if (onOpenLegal) onOpenLegal('privacy');
+                    }} 
+                    className="hover:text-white transition-colors cursor-pointer text-left flex items-center gap-1.5"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Privacy Policy & Cookies</span>
+                  </button>
+                </li>
+                <li>
+                  <button 
+                    onClick={() => {
+                      playRoboticClick();
+                      if (onOpenLegal) onOpenLegal('terms');
+                    }} 
+                    className="hover:text-white transition-colors cursor-pointer text-left flex items-center gap-1.5"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Terms of Service</span>
+                  </button>
+                </li>
+                <li>
+                  <button 
+                    onClick={() => {
+                      playRoboticClick();
+                      if (onOpenLegal) onOpenLegal('about');
+                    }} 
+                    className="hover:text-white transition-colors cursor-pointer text-left flex items-center gap-1.5"
+                  >
+                    <Info className="w-3.5 h-3.5 text-slate-400" />
+                    <span>About Paper Express</span>
+                  </button>
+                </li>
+                <li>
+                  <button 
+                    onClick={() => {
+                      playRoboticClick();
+                      if (onOpenLegal) onOpenLegal('disclaimer');
+                    }} 
+                    className="hover:text-white transition-colors cursor-pointer text-left flex items-center gap-1.5"
+                  >
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Academic Fair Use Disclaimer</span>
+                  </button>
+                </li>
+                <li>
+                  <button 
+                    onClick={() => {
+                      playRoboticClick();
+                      if (onOpenContactUs) onOpenContactUs();
+                    }} 
+                    className="hover:text-white transition-colors cursor-pointer text-left flex items-center gap-1.5"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Contact Support & Help Desk</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Col 4: AdSense Disclosure & Publisher Rights */}
+            <div className="space-y-3">
+              <h4 className="text-white font-bold text-xs uppercase tracking-wider">AdSense & Cookie Disclosure</h4>
+              <p className="text-slate-400 text-xs leading-relaxed">
+                Third-party vendors, including Google, use cookies to serve ads based on prior visits. You can opt out of personalized ads at{' '}
+                <a 
+                  href="https://adssettings.google.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-sky-400 hover:underline font-bold inline-flex items-center gap-0.5"
+                >
+                  Ads Settings <ExternalLink className="w-3 h-3 inline" />
+                </a>.
+              </p>
+              <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 text-[11px] text-slate-300">
+                Official past examination materials belong to the Department of Examinations, Sri Lanka. Hosted under educational fair use.
+              </div>
+            </div>
           </div>
 
-          {/* Center Links: Instagram & Contact Us */}
-          <div className="flex items-center gap-4">
-            <a
-              href="https://www.instagram.com/asman_linzy/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-amber-500/10 border border-pink-200 text-pink-700 font-bold text-xs hover:border-pink-400 hover:text-pink-800 transition-all group shadow-2xs"
-            >
-              <Instagram className="w-3.5 h-3.5 text-pink-600 group-hover:scale-110 transition-transform" />
-              <span>@asman_linzy</span>
-            </a>
-
-            <button
-              onClick={() => {
-                playRoboticClick();
-                if (onOpenContactUs) onOpenContactUs();
-              }}
-              className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>Contact Us</span>
-            </button>
+          <div className="border-t border-slate-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-slate-500 text-[11px]">
+            <p>© {new Date().getFullYear()} Paper Express (paperexpress.vercel.app). All rights reserved.</p>
+            <p>Designed for Sri Lankan G.C.E. Advanced Level Science Students (Maths & Bio Stream).</p>
           </div>
-
-          <p>© {new Date().getFullYear()} Paper Express. Built for Sri Lankan Advanced Level Students.</p>
         </div>
       </footer>
     </div>

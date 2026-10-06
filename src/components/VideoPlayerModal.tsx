@@ -477,11 +477,11 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const currentQualityConfig = QUALITY_OPTIONS.find((q) => q.id === currentQuality) || QUALITY_OPTIONS[4];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-2 md:p-4 bg-slate-950/95 backdrop-blur-md animate-in fade-in duration-200 overflow-hidden w-screen h-screen select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-2 md:p-4 bg-slate-950/95 backdrop-blur-md animate-in fade-in duration-200 overflow-hidden w-screen h-screen select-none google-anno-skip">
       {/* Cockpit Container - 100% Fullscreen on Mobile, Rounded modal on Desktop */}
       <div 
         ref={modalContainerRef}
-        className={`relative w-full bg-[#050A17] flex flex-col overflow-hidden text-slate-100 ${
+        className={`relative w-full bg-[#050A17] flex flex-col overflow-hidden text-slate-100 google-anno-skip ${
           isFullscreen 
             ? 'fixed inset-0 z-[99999] w-screen h-screen max-w-none max-h-none rounded-none border-0' 
             : 'w-full h-[100dvh] sm:h-[92vh] sm:max-h-[880px] sm:max-w-6xl rounded-none sm:rounded-2xl shadow-[0_0_60px_rgba(0,102,255,0.35)] border-0 sm:border border-cyan-500/30'

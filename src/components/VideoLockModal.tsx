@@ -46,8 +46,8 @@ export const VideoLockModal: React.FC<VideoLockModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950 rounded-3xl shadow-[0_0_50px_rgba(0,102,255,0.35)] border border-blue-500/30 overflow-hidden text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200 google-anno-skip">
+      <div className="relative w-full max-w-md bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950 rounded-3xl shadow-[0_0_50px_rgba(0,102,255,0.35)] border border-blue-500/30 overflow-hidden text-white google-anno-skip">
         {/* Futuristic Background Glows */}
         <div className="absolute top-0 right-0 w-60 h-60 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-60 h-60 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
