@@ -253,20 +253,6 @@ export const Header: React.FC<HeaderProps> = ({
         >
           Video Lessons
         </button>
-        {onOpenAdminPanel && (
-          <button
-            onClick={() => {
-              playRoboticClick();
-              onOpenAdminPanel();
-            }}
-            className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors font-bold text-xs flex items-center gap-1 cursor-pointer ${
-              isAdminLoggedIn ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Admin</span>
-          </button>
-        )}
       </div>
     </header>
   );

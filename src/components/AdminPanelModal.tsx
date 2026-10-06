@@ -5,12 +5,14 @@ import {
   Clock, AlertTriangle, Upload, LogOut, Check, Edit3, 
   Search, Filter, Lock, KeyRound, Eye, EyeOff, Save,
   RefreshCw, Database, Shield, BookOpen, Layers, ArrowLeft,
-  Copy, Award, CheckCircle2, ChevronRight, MessageCircle, Phone, Send, CheckCheck
+  Copy, Award, CheckCircle2, ChevronRight, MessageCircle, 
+  Send, CheckCheck, Megaphone, FolderGit2, Sparkles, Folder
 } from 'lucide-react';
 import { collection, onSnapshot, deleteDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PaperResource, VideoLesson, UserReport, StreamId, ResourceCategory, User } from '../types';
 import { extractYoutubeId } from '../utils/drive';
+import { cleanFirestoreData } from '../utils/firestoreClean';
 import { playRoboticClick, playRoboticTab, playRoboticUnlock } from '../utils/audio';
 
 interface AdminPanelModalProps {
@@ -29,6 +31,10 @@ interface AdminPanelModalProps {
   onAdminLoginSuccess: () => void;
   currentUser?: User | null;
   onGoogleLogin?: () => void;
+  siteAnnouncement?: { active: boolean; text: string; type: 'info' | 'alert' | 'success' };
+  onUpdateSiteAnnouncement?: (announcement: { active: boolean; text: string; type: 'info' | 'alert' | 'success' }) => void;
+  vaultDriveLinks?: Record<string, string>;
+  onUpdateVaultDriveLinks?: (links: Record<string, string>) => void;
 }
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
@@ -50,9 +56,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   onAdminLoginSuccess,
   currentUser,
   onGoogleLogin,
+  siteAnnouncement = { active: false, text: '', type: 'info' },
+  onUpdateSiteAnnouncement,
+  vaultDriveLinks = {},
+  onUpdateVaultDriveLinks,
 }) => {
-  // Navigation & View state
-  const [activeTab, setActiveTab] = useState<'manage' | 'upload-paper' | 'videos' | 'reports' | 'security'>('manage');
+  // Navigation tabs
+  const [activeTab, setActiveTab] = useState<'papers' | 'resources' | 'videos' | 'reports' | 'announcement' | 'publish' | 'security'>('papers');
   const [reports, setReports] = useState<UserReport[]>([]);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
@@ -62,7 +72,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [showPasscode, setShowPasscode] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  // Manage Tab: Search & Filters
+  // Papers Tab: Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterSubject, setFilterSubject] = useState<string>('all');
@@ -70,35 +80,59 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   // Currently Editing Paper
   const [editingPaper, setEditingPaper] = useState<PaperResource | null>(null);
 
-  // Add Paper Form State
-  const [paperSubject, setPaperSubject] = useState('Physics');
-  const [paperStream, setPaperStream] = useState<StreamId>('maths');
-  const [paperCategory, setPaperCategory] = useState<ResourceCategory>('past-papers');
-  const [paperYear, setPaperYear] = useState<number>(2026);
-  const [paperTitleEn, setPaperTitleEn] = useState('');
-  const [paperTitleTa, setPaperTitleTa] = useState('');
-  const [paperDriveLink, setPaperDriveLink] = useState('');
-  const [paperSchemeLink, setPaperSchemeLink] = useState('');
-  const [paperSource, setPaperSource] = useState('Department of Examinations, Sri Lanka');
-  const [paperTerm, setPaperTerm] = useState('All Island');
-  const [paperPilotType, setPaperPilotType] = useState('Moratuwa University');
-  const [paperUnitOrTopic, setPaperUnitOrTopic] = useState('');
+  // Publish Form Type: Paper, Resource Note, Pilot Paper, or Video
+  const [publishType, setPublishType] = useState<'paper' | 'resource' | 'pilot' | 'video'>('paper');
 
-  // Video Form State
-  const [videoSubject, setVideoSubject] = useState('Physics');
-  const [videoStream, setVideoStream] = useState<StreamId>('maths');
+  // Unified Publish Form State
+  const [itemSubject, setItemSubject] = useState('Physics');
+  const [itemStream, setItemStream] = useState<StreamId>('maths');
+  const [itemYear, setItemYear] = useState<number>(2026);
+  const [itemTitleEn, setItemTitleEn] = useState('');
+  const [itemTitleTa, setItemTitleTa] = useState('');
+  const [itemDriveLink, setItemDriveLink] = useState('');
+  const [itemSchemeLink, setItemSchemeLink] = useState('');
+  const [itemSource, setItemSource] = useState('Department of Examinations, Sri Lanka');
+  const [itemTerm, setItemTerm] = useState('All Island');
+  const [itemPilotType, setItemPilotType] = useState('Moratuwa University');
+  const [itemUnitOrTopic, setItemUnitOrTopic] = useState('');
+
+  // Video Specific Form State
   const [videoUnitNumber, setVideoUnitNumber] = useState<number>(1);
   const [videoUnitName, setVideoUnitName] = useState('Unit 01 - Measurement');
-  const [videoTitleEn, setVideoTitleEn] = useState('');
-  const [videoYoutubeInput, setVideoYoutubeInput] = useState('');
   const [videoTeacher, setVideoTeacher] = useState('Asman Linzy');
   const [videoDuration, setVideoDuration] = useState<number>(45);
-  const [videoDescription, setVideoDescription] = useState('Full syllabus masterclass with past paper derivations and exam questions.');
+  const [videoYoutubeInput, setVideoYoutubeInput] = useState('');
 
-  // Copied Link feedback
+  // Resource Vault Drive Links Form State
+  const [vaultPhysics, setVaultPhysics] = useState(vaultDriveLinks['physics'] || '');
+  const [vaultChemistry, setVaultChemistry] = useState(vaultDriveLinks['chemistry'] || '');
+  const [vaultMaths, setVaultMaths] = useState(vaultDriveLinks['c-maths'] || '');
+  const [vaultBiology, setVaultBiology] = useState(vaultDriveLinks['biology'] || '');
+
+  // Announcement Form State
+  const [announceActive, setAnnounceActive] = useState(siteAnnouncement.active);
+  const [announceText, setAnnounceText] = useState(siteAnnouncement.text);
+  const [announceType, setAnnounceType] = useState<'info' | 'alert' | 'success'>(siteAnnouncement.type);
+
+  // Direct URL copy feedback
   const [copiedDirectUrl, setCopiedDirectUrl] = useState(false);
 
-  // Real-time Live WhatsApp-style Inbox Sync from Cloud Firestore
+  // Sync vault links local state when props change
+  useEffect(() => {
+    setVaultPhysics(vaultDriveLinks['physics'] || '');
+    setVaultChemistry(vaultDriveLinks['chemistry'] || '');
+    setVaultMaths(vaultDriveLinks['c-maths'] || '');
+    setVaultBiology(vaultDriveLinks['biology'] || '');
+  }, [vaultDriveLinks]);
+
+  // Sync announcement local state when props change
+  useEffect(() => {
+    setAnnounceActive(siteAnnouncement.active);
+    setAnnounceText(siteAnnouncement.text);
+    setAnnounceType(siteAnnouncement.type);
+  }, [siteAnnouncement]);
+
+  // Real-time WhatsApp-style Inquiries listener from Cloud Firestore
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'inquiries'), (snap) => {
       const inqList: UserReport[] = snap.docs.map((docSnap) => {
@@ -114,52 +148,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         };
       });
 
-      // Also merge any local reports if offline
-      const raw = localStorage.getItem('studypro_user_reports');
-      const localReports: UserReport[] = raw ? JSON.parse(raw) : [];
-      const remoteIds = new Set(inqList.map((r) => r.id));
-      localReports.forEach((lr) => {
-        if (!remoteIds.has(lr.id)) {
-          inqList.push(lr);
-        }
-      });
-
       inqList.sort((a, b) => b.createdAt - a.createdAt);
       setReports(inqList);
     }, (err) => {
       console.warn('Inquiries live sync notice:', err);
-      refreshReports();
     });
 
     return () => unsub();
   }, []);
-
-  // Load and auto-purge user reports (max 3 days retention)
-  const refreshReports = () => {
-    try {
-      const raw = localStorage.getItem('studypro_user_reports');
-      const all: UserReport[] = raw ? JSON.parse(raw) : [];
-      const now = Date.now();
-      const valid = all.filter((r) => r && r.createdAt && (now - r.createdAt < THREE_DAYS_MS));
-      if (valid.length !== all.length) {
-        localStorage.setItem('studypro_user_reports', JSON.stringify(valid));
-      }
-      setReports(valid);
-    } catch {
-      setReports([]);
-    }
-  };
-
-  useEffect(() => {
-    if (isOpen) {
-      refreshReports();
-      setSuccessBanner(null);
-      setPasscodeError('');
-      setPasscodeInput('');
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
 
   const showSuccess = (msg: string) => {
     setSuccessBanner(msg);
@@ -187,47 +183,61 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }
   };
 
-  // Delete / Resolve a report
+  // Delete Inquiry
   const handleDeleteReport = async (id: string) => {
-    const updated = reports.filter((r) => r.id !== id);
-    setReports(updated);
-    try {
-      localStorage.setItem('studypro_user_reports', JSON.stringify(updated));
-    } catch {}
-
+    setReports((prev) => prev.filter((r) => r.id !== id));
     try {
       await deleteDoc(doc(db, 'inquiries', id));
       showSuccess('Student message deleted from cloud database.');
     } catch (err) {
       console.warn('Inquiry delete error:', err);
-      showSuccess('Message removed from view.');
     }
   };
 
+  // Toggle Inquiry status
   const handleToggleReportResolve = async (id: string) => {
     const target = reports.find((r) => r.id === id);
     const newStatus = target ? !target.resolved : true;
-    const updated = reports.map((r) => r.id === id ? { ...r, resolved: newStatus } : r);
-    setReports(updated);
-    try {
-      localStorage.setItem('studypro_user_reports', JSON.stringify(updated));
-    } catch {}
+    setReports((prev) => prev.map((r) => r.id === id ? { ...r, resolved: newStatus } : r));
 
     try {
       await updateDoc(doc(db, 'inquiries', id), { resolved: newStatus });
-      showSuccess(newStatus ? 'Message marked as resolved.' : 'Message marked as pending.');
+      showSuccess(newStatus ? 'Message marked as resolved.' : 'Message marked as pending review.');
     } catch (err) {
       console.warn('Inquiry update error:', err);
     }
   };
 
-  // Handle Paper Form Submit
-  const handlePaperSubmit = (e: React.FormEvent) => {
+  // Save Subject Master Vault Links
+  const handleSaveVaultLinks = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!paperDriveLink.trim()) {
-      alert('Please enter a valid Google Drive link for the paper.');
-      return;
+    if (onUpdateVaultDriveLinks) {
+      onUpdateVaultDriveLinks({
+        physics: vaultPhysics.trim(),
+        chemistry: vaultChemistry.trim(),
+        'c-maths': vaultMaths.trim(),
+        biology: vaultBiology.trim(),
+      });
+      showSuccess('Master Subject Vault Drive Links updated live across all 4 subjects!');
     }
+  };
+
+  // Save Site Announcement Banner
+  const handleSaveAnnouncement = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (onUpdateSiteAnnouncement) {
+      onUpdateSiteAnnouncement({
+        active: announceActive,
+        text: announceText.trim(),
+        type: announceType,
+      });
+      showSuccess('Live Announcement Banner broadcasted across the website!');
+    }
+  };
+
+  // Handle Publish Submit
+  const handlePublishSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
 
     const subjectIdMap: Record<string, string> = {
       'Physics': 'sub-physics',
@@ -236,35 +246,92 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       'Biology': 'sub-biology',
     };
 
+    if (publishType === 'video') {
+      const cleanId = extractYoutubeId(videoYoutubeInput.trim());
+      if (!cleanId || cleanId.length < 5) {
+        alert('Please enter a valid YouTube Video URL or 11-character Video ID.');
+        return;
+      }
+
+      const newVideo: VideoLesson = {
+        id: 'custom_vid_' + Date.now(),
+        titleEn: itemTitleEn.trim() || `${itemSubject} Unit ${videoUnitNumber} Masterclass`,
+        stream: itemStream,
+        subjectId: subjectIdMap[itemSubject] || 'sub-physics',
+        subjectNameEn: itemSubject,
+        unitNumber: Number(videoUnitNumber),
+        unitNameEn: videoUnitName.trim() || `Unit ${videoUnitNumber}`,
+        youtubeUrl: `https://www.youtube.com/watch?v=${cleanId}`,
+        youtubeId: cleanId,
+        durationMinutes: Number(videoDuration) || 45,
+        teacherName: videoTeacher.trim() || 'Asman Linzy',
+        descriptionEn: 'Full syllabus masterclass with derivations and exam questions.',
+        isUnlisted: false,
+        chapters: [
+          { time: '00:00', seconds: 0, title: 'Introduction & Core Concepts' },
+          { time: '15:00', seconds: 900, title: 'Formulas & Derivations' },
+          { time: '30:00', seconds: 1800, title: 'Past Paper Questions' },
+        ],
+        viewsCount: 1,
+        uploadedAt: 'Today',
+      };
+
+      onAddVideo(newVideo);
+      showSuccess(`Video lesson "${newVideo.titleEn}" published live to cloud database!`);
+      setItemTitleEn('');
+      setVideoYoutubeInput('');
+      setActiveTab('videos');
+      return;
+    }
+
+    // Otherwise paper / resource / pilot
+    if (!itemDriveLink.trim()) {
+      alert('Please enter a valid Google Drive link for the material.');
+      return;
+    }
+
+    let assignedCategory: ResourceCategory = 'past-papers';
+    if (publishType === 'resource') {
+      assignedCategory = 'theory-notes';
+    } else if (publishType === 'pilot') {
+      assignedCategory = 'pilot-papers';
+    } else {
+      assignedCategory = itemTerm !== 'All Island' ? 'fwc-papers' : 'past-papers';
+    }
+
     const newPaper: PaperResource = {
-      id: 'custom_paper_' + Date.now(),
-      titleEn: paperTitleEn.trim() || `G.C.E. A/L ${paperYear} ${paperSubject} Examination Paper`,
-      titleTa: paperTitleTa.trim() || undefined,
-      category: paperCategory,
-      stream: paperStream,
-      subjectId: subjectIdMap[paperSubject] || 'sub-physics',
-      subjectNameEn: paperSubject,
-      year: Number(paperYear),
-      term: paperCategory === 'fwc-papers' ? paperTerm : undefined,
-      pilotType: paperCategory === 'pilot-papers' ? (paperPilotType.trim() || 'Moratuwa University') : undefined,
-      schoolOrSource: paperSource.trim() || (paperCategory === 'pilot-papers' ? (paperPilotType.trim() || 'University of Moratuwa') : 'Department of Examinations, Sri Lanka'),
-      driveLink: paperDriveLink.trim(),
-      markingSchemeDriveLink: paperSchemeLink.trim() || paperDriveLink.trim(),
+      id: 'custom_res_' + Date.now(),
+      titleEn: itemTitleEn.trim() || `G.C.E. A/L ${itemYear} ${itemSubject} ${assignedCategory === 'theory-notes' ? 'Resource Notes' : 'Examination Paper'}`,
+      titleTa: itemTitleTa.trim() || undefined,
+      category: assignedCategory,
+      stream: itemStream,
+      subjectId: subjectIdMap[itemSubject] || 'sub-physics',
+      subjectNameEn: itemSubject,
+      year: Number(itemYear),
+      term: assignedCategory === 'fwc-papers' ? itemTerm : undefined,
+      pilotType: assignedCategory === 'pilot-papers' ? (itemPilotType.trim() || 'Moratuwa University') : undefined,
+      schoolOrSource: itemSource.trim() || (assignedCategory === 'pilot-papers' ? (itemPilotType.trim() || 'University of Moratuwa') : 'Department of Examinations, Sri Lanka'),
+      driveLink: itemDriveLink.trim(),
+      markingSchemeDriveLink: itemSchemeLink.trim() || itemDriveLink.trim(),
       fileSize: 'PDF Document',
       downloadsCount: 1,
-      unitOrTopic: paperUnitOrTopic.trim() || undefined,
+      unitOrTopic: itemUnitOrTopic.trim() || undefined,
     };
 
     onAddPaper(newPaper);
-    showSuccess(`Paper "${newPaper.titleEn}" published live to cloud database for all visitors!`);
+    showSuccess(`Published "${newPaper.titleEn}" live to cloud database for all visitors!`);
 
     // Reset fields
-    setPaperTitleEn('');
-    setPaperTitleTa('');
-    setPaperDriveLink('');
-    setPaperSchemeLink('');
-    setPaperUnitOrTopic('');
-    setActiveTab('manage');
+    setItemTitleEn('');
+    setItemTitleTa('');
+    setItemDriveLink('');
+    setItemSchemeLink('');
+    setItemUnitOrTopic('');
+    if (publishType === 'resource') {
+      setActiveTab('resources');
+    } else {
+      setActiveTab('papers');
+    }
   };
 
   // Handle Save Edited Paper
@@ -280,63 +347,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     if (onUpdatePaper) {
       onUpdatePaper(editingPaper);
     }
-    showSuccess(`Paper "${editingPaper.titleEn}" updated live in cloud database for all visitors!`);
+    showSuccess(`Updated "${editingPaper.titleEn}" live in cloud database for all visitors!`);
     setEditingPaper(null);
   };
 
-  // Handle Video Form Submit
-  const handleVideoSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanId = extractYoutubeId(videoYoutubeInput.trim());
-    if (!cleanId || cleanId.length < 5) {
-      alert('Please enter a valid YouTube Video URL or 11-character Video ID.');
-      return;
-    }
-
-    const subjectIdMap: Record<string, string> = {
-      'Physics': 'sub-physics',
-      'Chemistry': 'sub-chemistry',
-      'Combined Mathematics': 'sub-combined-maths',
-      'Biology': 'sub-biology',
-    };
-
-    const newVideo: VideoLesson = {
-      id: 'custom_vid_' + Date.now(),
-      titleEn: videoTitleEn.trim() || `${videoSubject} Unit ${videoUnitNumber} Masterclass`,
-      stream: videoStream,
-      subjectId: subjectIdMap[videoSubject] || 'sub-physics',
-      subjectNameEn: videoSubject,
-      unitNumber: Number(videoUnitNumber),
-      unitNameEn: videoUnitName.trim() || `Unit ${videoUnitNumber}`,
-      youtubeUrl: `https://www.youtube.com/watch?v=${cleanId}`,
-      youtubeId: cleanId,
-      durationMinutes: Number(videoDuration) || 45,
-      teacherName: videoTeacher.trim() || 'Asman Linzy',
-      descriptionEn: videoDescription.trim(),
-      isUnlisted: false,
-      chapters: [
-        { time: '00:00', seconds: 0, title: 'Introduction & Core Concepts' },
-        { time: '15:00', seconds: 900, title: 'Formulas & Derivations' },
-        { time: '30:00', seconds: 1800, title: 'Past Paper Exam Questions' },
-      ],
-      viewsCount: 1,
-      uploadedAt: 'Today',
-    };
-
-    onAddVideo(newVideo);
-    showSuccess(`Video lesson "${newVideo.titleEn}" published live to cloud database for all visitors!`);
-
-    // Reset fields
-    setVideoTitleEn('');
-    setVideoYoutubeInput('');
-    setActiveTab('videos');
-  };
-
-  // Filtered papers for Manage Tab
-  const filteredPapers = useMemo(() => {
+  // Filtered Exam Papers (Excludes pure theory-notes/useful-resources to avoid clutter)
+  const examPapers = useMemo(() => {
     if (!Array.isArray(papers)) return [];
-    return papers.filter((p) => {
-      if (!p) return false;
+    return papers.filter((p) => p && p.category !== 'theory-notes' && p.category !== 'useful-resources');
+  }, [papers]);
+
+  // Filtered Academic Resources (Theory Notes, Booklets)
+  const academicResources = useMemo(() => {
+    if (!Array.isArray(papers)) return [];
+    return papers.filter((p) => p && (p.category === 'theory-notes' || p.category === 'useful-resources'));
+  }, [papers]);
+
+  // Filtered papers for Papers Tab
+  const filteredPapers = useMemo(() => {
+    return examPapers.filter((p) => {
       // Category filter
       if (filterCategory !== 'all' && p.category !== filterCategory) return false;
       // Subject filter
@@ -351,52 +380,50 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const tEn = (p.titleEn || '').toLowerCase();
-        const tTa = (p.titleTa || '').toLowerCase();
         const sEn = (p.subjectNameEn || '').toLowerCase();
         const src = (p.schoolOrSource || '').toLowerCase();
-        const pt = (p.pilotType || '').toLowerCase();
         const yr = String(p.year || '');
-        return tEn.includes(q) || tTa.includes(q) || sEn.includes(q) || src.includes(q) || pt.includes(q) || yr.includes(q);
+        return tEn.includes(q) || sEn.includes(q) || src.includes(q) || yr.includes(q);
       }
       return true;
     });
-  }, [papers, filterCategory, filterSubject, searchQuery]);
+  }, [examPapers, filterCategory, filterSubject, searchQuery]);
 
   const copyDirectAdminUrl = () => {
-    playRoboticClick();
     const url = 'https://paperexpress.vercel.app/#admin';
     navigator.clipboard.writeText(url);
     setCopiedDirectUrl(true);
     setTimeout(() => setCopiedDirectUrl(false), 2500);
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-150 select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
       <div 
-        className="w-full max-w-5xl h-[94vh] max-h-[880px] bg-[#070D1E] border-2 border-cyan-500/40 rounded-3xl shadow-[0_0_80px_rgba(6,182,212,0.35)] text-slate-100 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+        className="w-full max-w-5xl bg-[#070D1E] rounded-3xl border border-cyan-500/30 shadow-[0_0_50px_rgba(6,182,212,0.15)] flex flex-col h-[94vh] sm:h-[88vh] overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* TOP BAR */}
-        <div className="px-4 sm:px-6 py-3.5 bg-[#091228] border-b border-cyan-500/20 flex items-center justify-between gap-3 shrink-0">
+        {/* Top Header */}
+        <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-[#0B1528] via-[#091A38] to-[#0B1528] border-b border-cyan-500/20 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-400/30 flex items-center justify-center text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.3)]">
-              <ShieldCheck className="w-5 h-5 text-cyan-400" />
+            <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
+              <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-black text-white">Paper Express Admin Console</h3>
-                <span className="text-[10px] px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 font-mono font-bold border border-cyan-500/30">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-1.5 font-mono">
+                  <span>Paper Express Master Control</span>
+                </h3>
+                <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 text-[10px] font-mono font-bold">
                   /#admin
                 </span>
-                {isAdminLoggedIn && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono font-bold border border-emerald-500/30 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                    Authorized
-                  </span>
-                )}
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-bold flex items-center gap-1">
+                  <Database className="w-2.5 h-2.5" /> Live Cloud
+                </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-mono">
-                paperexpress.vercel.app/#admin · Real-time Content & Cloud Database Console
+              <p className="text-[11px] text-slate-400">
+                Full site control: Exam Papers, Subject Vaults, Resources, Video Lessons, Announcements & Student Chat
               </p>
             </div>
           </div>
@@ -408,8 +435,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   playRoboticClick();
                   onLogout();
                 }}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/60 hover:text-rose-300 hover:border-rose-500/40 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                title="Logout from Admin"
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/60 hover:text-rose-400 text-slate-300 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Log Out Admin Session"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Logout</span>
@@ -420,144 +447,116 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 playRoboticClick();
                 onClose();
               }}
-              className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-cyan-950/60 transition-colors cursor-pointer"
-              title="Close Admin Panel"
+              className="p-2 rounded-xl bg-slate-800/80 hover:bg-cyan-950 text-slate-400 hover:text-cyan-300 transition-colors cursor-pointer border border-slate-700"
+              title="Close Console"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* NOT AUTHENTICATED: MASTER PASSCODE & GOOGLE GATE */}
+        {/* AUTHENTICATION GATE (When not logged in) */}
         {!isAdminLoggedIn ? (
-          <div className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
-            <div className="max-w-md w-full space-y-6">
-              <div className="text-center space-y-2">
-                <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border-2 border-cyan-500/30 flex items-center justify-center mx-auto text-cyan-400 shadow-[0_0_30px_rgba(6,182,212,0.3)]">
-                  <Lock className="w-8 h-8 text-cyan-400" />
-                </div>
-                <h3 className="text-xl font-black text-white tracking-tight">
-                  Master Administrator Access
-                </h3>
-                <p className="text-xs text-slate-400 font-mono">
-                  Direct URL: <span className="text-cyan-300 font-bold">paperexpress.vercel.app/#admin</span>
+          <div className="flex-1 overflow-y-auto p-6 sm:p-10 flex items-center justify-center">
+            <div className="max-w-md w-full bg-[#091228] p-6 sm:p-8 rounded-3xl border border-cyan-500/30 shadow-2xl text-center space-y-6">
+              <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(6,182,212,0.25)]">
+                <Lock className="w-8 h-8" />
+              </div>
+
+              <div>
+                <h4 className="text-xl font-black text-white tracking-tight">Administrator Verification</h4>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  Enter your master passcode or sign in with your verified administrator Google account.
                 </p>
               </div>
 
-              {/* Method 1: Google One-Click Login */}
-              {onGoogleLogin && (
-                <div className="p-4 rounded-2xl bg-[#091228] border border-cyan-500/30 space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
-                    <Shield className="w-4 h-4 text-cyan-400" />
-                    <span>Method 1: Direct Google Authentication</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Sign in with authorized administrator account (<strong className="text-cyan-300">asmanlinzy44@gmail.com</strong>).
-                  </p>
-                  <button
-                    onClick={() => {
-                      playRoboticClick();
-                      onGoogleLogin();
-                    }}
-                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                    </svg>
-                    <span>Sign in with Google (Admin)</span>
-                  </button>
+              {passcodeError && (
+                <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-500/30 text-rose-300 text-xs font-mono">
+                  {passcodeError}
                 </div>
               )}
 
-              {/* Method 2: Passcode Entry */}
-              <form onSubmit={handlePasscodeUnlock} className="p-4 rounded-2xl bg-[#091228] border border-cyan-500/30 space-y-3">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
-                  <KeyRound className="w-4 h-4 text-cyan-400" />
-                  <span>Method 2: Admin Security Passcode</span>
-                </div>
+              <form onSubmit={handlePasscodeUnlock} className="space-y-4">
                 <div className="relative">
+                  <KeyRound className="w-4 h-4 text-cyan-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type={showPasscode ? 'text' : 'password'}
+                    required
                     value={passcodeInput}
-                    onChange={(e) => {
-                      setPasscodeInput(e.target.value);
-                      setPasscodeError('');
-                    }}
+                    onChange={(e) => setPasscodeInput(e.target.value)}
                     placeholder="Enter admin passcode (e.g. admin2026 / asman44)..."
-                    className="w-full px-3.5 py-2.5 bg-[#050A17] border border-cyan-500/40 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400 font-mono"
-                    autoFocus
+                    className="w-full pl-10 pr-10 py-3 bg-[#050A17] border border-cyan-500/40 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400 font-mono tracking-wider"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPasscode(!showPasscode)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-300"
                   >
                     {showPasscode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
 
-                {passcodeError && (
-                  <p className="text-xs text-rose-400 font-mono">{passcodeError}</p>
-                )}
-
                 <button
                   type="submit"
-                  disabled={isVerifying || !passcodeInput.trim()}
-                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs uppercase tracking-wider shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all cursor-pointer disabled:opacity-50"
+                  disabled={isVerifying}
+                  className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
-                  {isVerifying ? 'Verifying...' : 'Unlock Admin Dashboard'}
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>{isVerifying ? 'Verifying...' : 'Unlock Admin Console'}</span>
                 </button>
               </form>
 
-              <div className="text-center">
-                <button
-                  onClick={onClose}
-                  className="text-xs text-slate-400 hover:text-slate-200 underline cursor-pointer"
-                >
-                  Return to Paper Express Homepage
-                </button>
-              </div>
+              {onGoogleLogin && (
+                <div className="pt-2 border-t border-slate-800">
+                  <button
+                    onClick={() => {
+                      playRoboticClick();
+                      onGoogleLogin();
+                    }}
+                    className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>Sign in with Admin Google Account</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ) : (
-          /* AUTHENTICATED: FULL ADMIN DASHBOARD */
-          <>
-            {/* TABS HEADER */}
-            <div className="px-4 sm:px-6 bg-[#050A17] border-b border-cyan-500/20 flex items-center justify-between overflow-x-auto shrink-0">
+          /* AUTHENTICATED ADMIN DASHBOARD */
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Navigation Tabs Bar */}
+            <div className="bg-[#050B17] px-4 sm:px-6 border-b border-cyan-500/20 flex items-center justify-between shrink-0 overflow-x-auto no-scrollbar">
               <div className="flex items-center gap-1 sm:gap-2">
                 <button
                   onClick={() => {
                     playRoboticTab();
-                    setActiveTab('manage');
+                    setActiveTab('papers');
                     setEditingPaper(null);
                   }}
                   className={`px-3 sm:px-4 py-3 text-xs font-mono font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                    activeTab === 'manage'
+                    activeTab === 'papers'
                       ? 'border-cyan-400 text-cyan-300 bg-cyan-950/20'
                       : 'border-transparent text-slate-400 hover:text-slate-200'
                   }`}
                 >
                   <FileText className="w-4 h-4" />
-                  <span>Manage & Edit Papers ({papers.length})</span>
+                  <span>Exam Papers ({examPapers.length})</span>
                 </button>
 
                 <button
                   onClick={() => {
                     playRoboticTab();
-                    setActiveTab('upload-paper');
+                    setActiveTab('resources');
                     setEditingPaper(null);
                   }}
                   className={`px-3 sm:px-4 py-3 text-xs font-mono font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                    activeTab === 'upload-paper'
+                    activeTab === 'resources'
                       ? 'border-cyan-400 text-cyan-300 bg-cyan-950/20'
                       : 'border-transparent text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Add New Paper</span>
+                  <BookOpen className="w-4 h-4" />
+                  <span>Resources & Vaults ({academicResources.length})</span>
                 </button>
 
                 <button
@@ -584,12 +583,47 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   }}
                   className={`px-3 sm:px-4 py-3 text-xs font-mono font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                     activeTab === 'reports'
-                      ? 'border-cyan-400 text-cyan-300 bg-cyan-950/20'
+                      ? 'border-emerald-400 text-emerald-300 bg-emerald-950/20'
                       : 'border-transparent text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  <MessageSquare className="w-4 h-4" />
-                  <span>Help Desk ({reports.length})</span>
+                  <MessageCircle className="w-4 h-4 text-emerald-400" />
+                  <span>Student Chat ({reports.length})</span>
+                  {reports.filter(r => !r.resolved).length > 0 && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  )}
+                </button>
+
+                <button
+                  onClick={() => {
+                    playRoboticTab();
+                    setActiveTab('announcement');
+                    setEditingPaper(null);
+                  }}
+                  className={`px-3 sm:px-4 py-3 text-xs font-mono font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'announcement'
+                      ? 'border-amber-400 text-amber-300 bg-amber-950/20'
+                      : 'border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Megaphone className="w-4 h-4" />
+                  <span>Live Notice</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    playRoboticTab();
+                    setActiveTab('publish');
+                    setEditingPaper(null);
+                  }}
+                  className={`px-3.5 sm:px-4 py-3 text-xs font-mono font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'publish'
+                      ? 'border-cyan-400 text-cyan-300 bg-cyan-950/20'
+                      : 'border-transparent text-cyan-400 hover:text-cyan-200'
+                  }`}
+                >
+                  <Plus className="w-4 h-4 text-cyan-300" />
+                  <span>Publish Content</span>
                 </button>
 
                 <button
@@ -608,16 +642,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   <span>Security & URLs</span>
                 </button>
               </div>
-
-              <div className="hidden md:flex items-center gap-2 text-xs font-mono text-cyan-400">
-                <Database className="w-3.5 h-3.5" />
-                <span>Cloud Firestore Live</span>
-              </div>
             </div>
 
             {/* SUCCESS BANNER */}
             {successBanner && (
-              <div className="mx-6 mt-4 p-3 rounded-xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 text-xs font-mono flex items-center justify-between animate-in slide-in-from-top-2">
+              <div className="mx-6 mt-4 p-3 rounded-xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 text-xs font-mono flex items-center justify-between animate-in slide-in-from-top-2 shrink-0">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-emerald-400" />
                   <span>{successBanner}</span>
@@ -632,19 +661,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
             )}
 
             {/* TAB CONTENTS */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
               
-              {/* TAB 1: MANAGE & EDIT PAPERS */}
-              {activeTab === 'manage' && (
+              {/* TAB 1: ALL EXAM PAPERS (Past Papers, FWC, Pilot Papers) */}
+              {activeTab === 'papers' && (
                 <div className="space-y-4">
-                  {/* EDIT SUB-VIEW (When a paper is selected for editing) */}
-                  {editingPaper ? (
+                  {/* EDIT PAPER MODAL VIEW */}
+                  {editingPaper && (
                     <div className="bg-[#091228] border-2 border-cyan-500/50 rounded-2xl p-5 space-y-4">
                       <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => setEditingPaper(null)}
-                            className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
+                            className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
                           >
                             <ArrowLeft className="w-4 h-4" />
                           </button>
@@ -658,159 +687,60 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             </p>
                           </div>
                         </div>
-
-                        <button
-                          onClick={() => setEditingPaper(null)}
-                          className="text-xs text-slate-400 hover:text-white"
-                        >
-                          Cancel Edit
-                        </button>
                       </div>
 
-                      <form onSubmit={handleSaveEditedPaper} className="space-y-4">
+                      <form onSubmit={handleSaveEditedPaper} className="space-y-3">
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          {/* Subject */}
                           <div>
-                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                              Subject
-                            </label>
-                            <select
+                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Title (English)</label>
+                            <input
+                              type="text"
+                              required
+                              value={editingPaper.titleEn}
+                              onChange={(e) => setEditingPaper({ ...editingPaper, titleEn: e.target.value })}
+                              className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Subject</label>
+                            <input
+                              type="text"
                               value={editingPaper.subjectNameEn}
-                              onChange={(e) => {
-                                const newSub = e.target.value;
-                                setEditingPaper({
-                                  ...editingPaper,
-                                  subjectNameEn: newSub,
-                                  subjectId: 
-                                    newSub === 'Physics' ? 'sub-physics' :
-                                    newSub === 'Chemistry' ? 'sub-chemistry' :
-                                    newSub === 'Biology' ? 'sub-biology' : 'sub-combined-maths',
-                                  stream: newSub === 'Biology' ? 'bio' : newSub === 'Combined Mathematics' ? 'maths' : editingPaper.stream,
-                                });
-                              }}
-                              className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
-                            >
-                              <option value="Physics">Physics</option>
-                              <option value="Chemistry">Chemistry</option>
-                              <option value="Combined Mathematics">Combined Mathematics</option>
-                              <option value="Biology">Biology</option>
-                            </select>
+                              onChange={(e) => setEditingPaper({ ...editingPaper, subjectNameEn: e.target.value })}
+                              className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white"
+                            />
                           </div>
 
-                          {/* Category */}
                           <div>
-                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                              Category / Section
-                            </label>
-                            <select
-                              value={editingPaper.category}
-                              onChange={(e) => setEditingPaper({ ...editingPaper, category: e.target.value as ResourceCategory })}
-                              className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
-                            >
-                              <option value="past-papers">Past Papers (Archive)</option>
-                              <option value="fwc-papers">FWC & Term Tests</option>
-                              <option value="theory-notes">Resources (Theory & Notes)</option>
-                              <option value="pilot-papers">Other Pilot Papers</option>
-                            </select>
-                          </div>
-
-                          {/* Year */}
-                          <div>
-                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                              Examination Year
-                            </label>
+                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Exam Year</label>
                             <input
                               type="number"
-                              min={1980}
-                              max={2030}
                               value={editingPaper.year}
                               onChange={(e) => setEditingPaper({ ...editingPaper, year: Number(e.target.value) })}
-                              className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400 font-mono"
+                              className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white font-mono"
                             />
                           </div>
                         </div>
 
-                        {/* Title English */}
-                        <div>
-                          <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                            Paper Title (English) <span className="text-rose-400">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={editingPaper.titleEn}
-                            onChange={(e) => setEditingPaper({ ...editingPaper, titleEn: e.target.value })}
-                            className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
-                          />
-                        </div>
-
-                        {/* Title Tamil */}
-                        <div>
-                          <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                            Paper Title (Tamil - Optional)
-                          </label>
-                          <input
-                            type="text"
-                            value={editingPaper.titleTa || ''}
-                            onChange={(e) => setEditingPaper({ ...editingPaper, titleTa: e.target.value })}
-                            placeholder="வினாத்தாள் தலைப்பு தமிழில்..."
-                            className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400 font-tamil"
-                          />
-                        </div>
-
-                        {/* Conditional Term or Pilot Type */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                              Term / Series Tag
-                            </label>
-                            <input
-                              type="text"
-                              value={editingPaper.term || ''}
-                              onChange={(e) => setEditingPaper({ ...editingPaper, term: e.target.value })}
-                              placeholder="e.g. 1st Term / All Island / Trial"
-                              className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                              School / Source / Pilot Provider
-                            </label>
-                            <input
-                              type="text"
-                              value={editingPaper.schoolOrSource || ''}
-                              onChange={(e) => setEditingPaper({ ...editingPaper, schoolOrSource: e.target.value })}
-                              placeholder="e.g. University of Moratuwa / Royal College"
-                              className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Drive Links */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-mono font-bold text-cyan-300 mb-1">
-                              Question Paper Google Drive Link <span className="text-rose-400">*</span>
-                            </label>
+                            <label className="block text-xs font-mono font-bold text-cyan-300 mb-1">Question Paper Drive Link *</label>
                             <input
                               type="text"
                               required
                               value={editingPaper.driveLink}
                               onChange={(e) => setEditingPaper({ ...editingPaper, driveLink: e.target.value })}
-                              className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/40 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400 font-mono"
+                              className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/40 rounded-xl text-xs text-white font-mono"
                             />
                           </div>
-
                           <div>
-                            <label className="block text-xs font-mono font-bold text-emerald-300 mb-1">
-                              Marking Scheme Drive Link (Optional)
-                            </label>
+                            <label className="block text-xs font-mono font-bold text-emerald-300 mb-1">Marking Scheme Link</label>
                             <input
                               type="text"
                               value={editingPaper.markingSchemeDriveLink || ''}
                               onChange={(e) => setEditingPaper({ ...editingPaper, markingSchemeDriveLink: e.target.value })}
-                              className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/40 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400 font-mono"
+                              className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/40 rounded-xl text-xs text-white font-mono"
                             />
                           </div>
                         </div>
@@ -819,13 +749,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           <button
                             type="button"
                             onClick={() => setEditingPaper(null)}
-                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl"
+                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl cursor-pointer"
                           >
                             Cancel
                           </button>
                           <button
                             type="submit"
-                            className="px-5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-[0_0_20px_rgba(6,182,212,0.4)] flex items-center gap-1.5 cursor-pointer"
+                            className="px-5 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer flex items-center gap-1.5"
                           >
                             <Save className="w-4 h-4" />
                             <span>Save Live Changes</span>
@@ -833,7 +763,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         </div>
                       </form>
                     </div>
-                  ) : null}
+                  )}
 
                   {/* SEARCH & FILTERS BAR */}
                   <div className="bg-[#091228] p-3.5 rounded-2xl border border-cyan-500/20 space-y-3">
@@ -845,25 +775,22 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           placeholder="Search papers by title, year, school..."
-                          className="w-full pl-9 pr-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-400 font-medium"
+                          className="w-full pl-9 pr-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-400"
                         />
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                        {/* Category Filter */}
                         <select
                           value={filterCategory}
                           onChange={(e) => setFilterCategory(e.target.value)}
                           className="px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-cyan-300 focus:outline-none font-mono"
                         >
-                          <option value="all">All Categories</option>
-                          <option value="past-papers">Past Papers</option>
+                          <option value="all">All Exam Categories</option>
+                          <option value="past-papers">National Past Papers</option>
                           <option value="fwc-papers">FWC & Term Tests</option>
-                          <option value="theory-notes">Resources</option>
-                          <option value="pilot-papers">Other Pilot Papers</option>
+                          <option value="pilot-papers">Pilot Papers</option>
                         </select>
 
-                        {/* Subject Filter */}
                         <select
                           value={filterSubject}
                           onChange={(e) => setFilterSubject(e.target.value)}
@@ -879,104 +806,240 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <button
                           onClick={() => {
                             playRoboticTab();
-                            setActiveTab('upload-paper');
+                            setActiveTab('publish');
+                            setPublishType('paper');
                           }}
-                          className="px-3.5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold font-mono flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+                          className="px-3.5 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          <span>Add New</span>
+                          <span>Add Paper</span>
                         </button>
                       </div>
+                    </div>
+
+                    <div className="text-[11px] font-mono text-slate-400 flex items-center justify-between">
+                      <span>Showing {filteredPapers.length} of {examPapers.length} active examination papers</span>
+                      <span className="text-cyan-400">Live Cloud Synced</span>
                     </div>
                   </div>
 
                   {/* PAPERS LIST */}
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs font-mono text-slate-400 px-1">
-                      <span>Showing {filteredPapers.length} of {papers.length} total active papers</span>
-                      <span>Real-time Edit & Delete Actions</span>
-                    </div>
-
                     {filteredPapers.length === 0 ? (
                       <div className="p-8 text-center text-xs text-slate-500 bg-[#091228] rounded-2xl border border-slate-800">
-                        No papers found matching "{searchQuery}". Try clearing filters.
+                        No papers found matching the filter criteria.
+                      </div>
+                    ) : (
+                      filteredPapers.map((p) => (
+                        <div
+                          key={p.id}
+                          className="p-3.5 rounded-2xl bg-[#091228] border border-slate-800 hover:border-cyan-500/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                        >
+                          <div className="space-y-1 truncate">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 font-mono text-[10px] font-bold border border-cyan-500/30">
+                                {p.subjectNameEn}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-mono text-[10px] font-bold">
+                                {p.year}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold">
+                                {p.category}
+                              </span>
+                              {p.term && (
+                                <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold">
+                                  {p.term}
+                                </span>
+                              )}
+                            </div>
+
+                            <h5 className="font-bold text-white text-sm truncate">{p.titleEn}</h5>
+                            <p className="text-[11px] text-slate-400 font-mono truncate">{p.schoolOrSource}</p>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                            <a
+                              href={p.driveLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 rounded-xl bg-slate-800 hover:bg-cyan-950 hover:text-cyan-400 text-slate-400 transition-colors"
+                              title="Open Drive Link"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+
+                            <button
+                              onClick={() => {
+                                playRoboticClick();
+                                setEditingPaper(p);
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 font-mono font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                              title="Edit Paper"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span>Edit</span>
+                            </button>
+
+                            {onDeletePaper && (
+                              <button
+                                onClick={() => {
+                                  playRoboticClick();
+                                  if (confirm(`Are you sure you want to permanently delete "${p.titleEn}"?`)) {
+                                    onDeletePaper(p.id);
+                                    showSuccess(`Paper "${p.titleEn}" deleted from live database.`);
+                                  }
+                                }}
+                                className="p-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-500/30 transition-colors cursor-pointer"
+                                title="Delete Paper"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: ACADEMIC RESOURCES & VAULTS (Resources Page Control) */}
+              {activeTab === 'resources' && (
+                <div className="space-y-6">
+                  {/* Master Subject Vaults Drive Link Manager */}
+                  <form onSubmit={handleSaveVaultLinks} className="bg-[#091228] p-5 sm:p-6 rounded-3xl border border-blue-500/30 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <FolderGit2 className="w-5 h-5 text-blue-400" />
+                        <div>
+                          <h4 className="text-sm sm:text-base font-black text-white">4 Main Subjects Master Vaults (Resources Page)</h4>
+                          <p className="text-xs text-slate-400">Control the Google Drive All-in-One Master folders for each of the 4 science subjects.</p>
+                        </div>
+                      </div>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Save Vault Links</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <label className="block font-mono font-bold text-blue-300 mb-1">
+                          Physics All-in-One Vault Drive Link
+                        </label>
+                        <input
+                          type="text"
+                          value={vaultPhysics}
+                          onChange={(e) => setVaultPhysics(e.target.value)}
+                          placeholder="https://drive.google.com/drive/folders/..."
+                          className="w-full px-3 py-2 bg-[#050A17] border border-blue-500/30 rounded-xl text-white font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-mono font-bold text-emerald-300 mb-1">
+                          Chemistry All-in-One Vault Drive Link
+                        </label>
+                        <input
+                          type="text"
+                          value={vaultChemistry}
+                          onChange={(e) => setVaultChemistry(e.target.value)}
+                          placeholder="https://drive.google.com/drive/folders/..."
+                          className="w-full px-3 py-2 bg-[#050A17] border border-emerald-500/30 rounded-xl text-white font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-mono font-bold text-purple-300 mb-1">
+                          Combined Mathematics All-in-One Vault Drive Link
+                        </label>
+                        <input
+                          type="text"
+                          value={vaultMaths}
+                          onChange={(e) => setVaultMaths(e.target.value)}
+                          placeholder="https://drive.google.com/drive/folders/..."
+                          className="w-full px-3 py-2 bg-[#050A17] border border-purple-500/30 rounded-xl text-white font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-mono font-bold text-rose-300 mb-1">
+                          Biology All-in-One Vault Drive Link
+                        </label>
+                        <input
+                          type="text"
+                          value={vaultBiology}
+                          onChange={(e) => setVaultBiology(e.target.value)}
+                          placeholder="https://drive.google.com/drive/folders/..."
+                          className="w-full px-3 py-2 bg-[#050A17] border border-rose-500/30 rounded-xl text-white font-mono"
+                        />
+                      </div>
+                    </div>
+                  </form>
+
+                  {/* Uploaded Resource Booklets / Theory Notes List */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 text-cyan-400" />
+                        <h4 className="text-sm font-bold text-white">Custom Uploaded Resource Notes & Booklets ({academicResources.length})</h4>
+                      </div>
+                      <button
+                        onClick={() => {
+                          playRoboticTab();
+                          setActiveTab('publish');
+                          setPublishType('resource');
+                        }}
+                        className="px-3.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Upload New Resource Note</span>
+                      </button>
+                    </div>
+
+                    {academicResources.length === 0 ? (
+                      <div className="p-8 text-center text-xs text-slate-500 bg-[#091228] rounded-2xl border border-slate-800">
+                        No custom resource notes uploaded yet. Click "Upload New Resource Note" above to add notes, formulas, or practical booklets.
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {filteredPapers.map((p) => (
-                          <div 
-                            key={p.id}
-                            className="p-3.5 rounded-2xl bg-[#091228] border border-slate-800 hover:border-cyan-500/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                          >
+                        {academicResources.map((res) => (
+                          <div key={res.id} className="p-3.5 rounded-2xl bg-[#091228] border border-slate-800 flex items-center justify-between gap-3 text-xs">
                             <div className="space-y-1 truncate">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 font-mono text-[10px] font-bold border border-cyan-500/30">
-                                  {p.subjectNameEn}
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-mono text-[10px] font-bold">
+                                  {res.subjectNameEn}
                                 </span>
-                                <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-mono text-[10px] font-bold">
-                                  {p.year}
-                                </span>
-                                <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold">
-                                  {p.category}
-                                </span>
-                                {p.term && (
-                                  <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold">
-                                    {p.term}
-                                  </span>
-                                )}
+                                <span className="text-slate-400 font-mono text-[10px]">{res.year || 2025}</span>
                               </div>
-
-                              <h5 className="font-bold text-white text-sm truncate">
-                                {p.titleEn}
-                              </h5>
-                              {p.titleTa && (
-                                <p className="text-[11px] text-slate-400 font-tamil truncate">
-                                  {p.titleTa}
-                                </p>
-                              )}
-                              <p className="text-[11px] text-slate-500 font-mono truncate">
-                                {p.schoolOrSource}
-                              </p>
+                              <h5 className="font-bold text-white truncate">{res.titleEn}</h5>
+                              <p className="text-[11px] text-slate-500 truncate">{res.schoolOrSource}</p>
                             </div>
 
-                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                              {/* Open Drive */}
+                            <div className="flex items-center gap-2 shrink-0">
                               <a
-                                href={p.driveLink}
+                                href={res.driveLink}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="p-2 rounded-xl bg-slate-800 hover:bg-cyan-950/60 hover:text-cyan-400 text-slate-400 transition-colors"
+                                className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-cyan-400"
                                 title="Open Drive Link"
                               >
                                 <ExternalLink className="w-4 h-4" />
                               </a>
-
-                              {/* Edit Paper Button */}
-                              <button
-                                onClick={() => {
-                                  playRoboticClick();
-                                  setEditingPaper(p);
-                                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}
-                                className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 font-mono font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-                                title="Edit Paper"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                                <span>Edit</span>
-                              </button>
-
-                              {/* Delete Paper Button */}
                               {onDeletePaper && (
                                 <button
                                   onClick={() => {
-                                    playRoboticClick();
-                                    if (confirm(`Are you sure you want to permanently delete "${p.titleEn}"?`)) {
-                                      onDeletePaper(p.id);
-                                      showSuccess(`Paper "${p.titleEn}" deleted successfully.`);
+                                    if (confirm(`Delete resource note "${res.titleEn}"?`)) {
+                                      onDeletePaper(res.id);
+                                      showSuccess('Resource note deleted from live database.');
                                     }
                                   }}
-                                  className="p-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-500/30 transition-colors cursor-pointer"
-                                  title="Delete Paper"
+                                  className="p-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-500/30 cursor-pointer"
+                                  title="Delete Resource Note"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -990,370 +1053,73 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 </div>
               )}
 
-              {/* TAB 2: ADD NEW PAPER */}
-              {activeTab === 'upload-paper' && (
-                <form onSubmit={handlePaperSubmit} className="max-w-3xl space-y-4">
-                  <div className="p-3.5 rounded-2xl bg-cyan-950/30 border border-cyan-500/20 text-xs text-cyan-300 flex items-center gap-2 font-mono">
-                    <FileText className="w-4 h-4 text-cyan-400" />
-                    <span>Publish live past papers, FWC term tests, resources, or pilot papers to the portal.</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {/* Category */}
-                    <div>
-                      <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                        Category / Section <span className="text-rose-400">*</span>
-                      </label>
-                      <select
-                        value={paperCategory}
-                        onChange={(e) => setPaperCategory(e.target.value as ResourceCategory)}
-                        className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400 font-mono"
-                      >
-                        <option value="past-papers">Past Papers Archive</option>
-                        <option value="fwc-papers">FWC & Term Tests</option>
-                        <option value="theory-notes">Resources (Theory & Books)</option>
-                        <option value="pilot-papers">Other Pilot Papers</option>
-                      </select>
-                    </div>
-
-                    {/* Stream */}
-                    <div>
-                      <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                        Academic Stream
-                      </label>
-                      <select
-                        value={paperStream}
-                        onChange={(e) => {
-                          const newStream = e.target.value as StreamId;
-                          setPaperStream(newStream);
-                          if (newStream === 'bio' && paperSubject === 'Combined Mathematics') {
-                            setPaperSubject('Biology');
-                          } else if (newStream === 'maths' && paperSubject === 'Biology') {
-                            setPaperSubject('Combined Mathematics');
-                          }
-                        }}
-                        className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
-                      >
-                        <option value="maths">Physical Science (Maths)</option>
-                        <option value="bio">Biological Science (Bio)</option>
-                        <option value="all">Common (All Streams)</option>
-                      </select>
-                    </div>
-
-                    {/* Subject */}
-                    <div>
-                      <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                        Subject
-                      </label>
-                      <select
-                        value={paperSubject}
-                        onChange={(e) => setPaperSubject(e.target.value)}
-                        className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
-                      >
-                        {paperStream === 'bio' ? (
-                          <>
-                            <option value="Biology">Biology</option>
-                            <option value="Chemistry">Chemistry</option>
-                            <option value="Physics">Physics</option>
-                          </>
-                        ) : paperStream === 'maths' ? (
-                          <>
-                            <option value="Combined Mathematics">Combined Mathematics</option>
-                            <option value="Physics">Physics</option>
-                            <option value="Chemistry">Chemistry</option>
-                          </>
-                        ) : (
-                          <>
-                            <option value="Physics">Physics</option>
-                            <option value="Chemistry">Chemistry</option>
-                            <option value="Combined Mathematics">Combined Mathematics</option>
-                            <option value="Biology">Biology</option>
-                          </>
-                        )}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Year & Term/Pilot Tag */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                        Examination Year
-                      </label>
-                      <input
-                        type="number"
-                        min={1980}
-                        max={2030}
-                        value={paperYear}
-                        onChange={(e) => setPaperYear(Number(e.target.value))}
-                        className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400 font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                        {paperCategory === 'fwc-papers' ? 'Term Test Tag' : paperCategory === 'pilot-papers' ? 'Pilot Provider' : 'Exam Session'}
-                      </label>
-                      {paperCategory === 'fwc-papers' ? (
-                        <select
-                          value={paperTerm}
-                          onChange={(e) => setPaperTerm(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400 font-mono"
-                        >
-                          <option value="1st Term">1st Term Examination</option>
-                          <option value="2nd Term">2nd Term Examination</option>
-                          <option value="3rd Term">3rd Term Examination</option>
-                          <option value="4th Term">4th Term Examination</option>
-                          <option value="5th Term">5th Term Examination</option>
-                          <option value="6th Term">6th Term Examination</option>
-                          <option value="All Island">All Island Evaluation</option>
-                        </select>
-                      ) : paperCategory === 'pilot-papers' ? (
-                        <input
-                          type="text"
-                          value={paperPilotType}
-                          onChange={(e) => setPaperPilotType(e.target.value)}
-                          placeholder="e.g. Moratuwa University / Royal College / WP"
-                          className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400 font-mono"
-                        />
-                      ) : (
-                        <input
-                          type="text"
-                          value={paperTerm}
-                          onChange={(e) => setPaperTerm(e.target.value)}
-                          placeholder="e.g. National Exam / Final / Official"
-                          className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400 font-mono"
-                        />
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Title En */}
-                  <div>
-                    <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                      Paper Title (English) <span className="text-rose-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={paperTitleEn}
-                      onChange={(e) => setPaperTitleEn(e.target.value)}
-                      placeholder={`e.g. G.C.E. A/L ${paperYear} ${paperSubject} Past Paper`}
-                      className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
-                    />
-                  </div>
-
-                  {/* Title Ta */}
-                  <div>
-                    <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                      Paper Title (Tamil - Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={paperTitleTa}
-                      onChange={(e) => setPaperTitleTa(e.target.value)}
-                      placeholder="எ.கா: உயர்தர பௌதிகவியல் கடந்த கால வினாத்தாள்..."
-                      className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400 font-tamil"
-                    />
-                  </div>
-
-                  {/* School / Source */}
-                  <div>
-                    <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                      School, Institution or Authority
-                    </label>
-                    <input
-                      type="text"
-                      value={paperSource}
-                      onChange={(e) => setPaperSource(e.target.value)}
-                      placeholder="e.g. Department of Examinations / Hartley College / Royal College"
-                      className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400"
-                    />
-                  </div>
-
-                  {/* Google Drive Links */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-mono font-bold text-cyan-300 mb-1">
-                        Question Paper Google Drive Link <span className="text-rose-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={paperDriveLink}
-                        onChange={(e) => setPaperDriveLink(e.target.value)}
-                        placeholder="https://drive.google.com/..."
-                        className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/40 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400 font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-mono font-bold text-emerald-300 mb-1">
-                        Marking Scheme Drive Link (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={paperSchemeLink}
-                        onChange={(e) => setPaperSchemeLink(e.target.value)}
-                        placeholder="https://drive.google.com/..."
-                        className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/40 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-400 font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="pt-3">
-                    <button
-                      type="submit"
-                      className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all cursor-pointer flex items-center gap-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Publish Paper Live to Paper Express</span>
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {/* TAB 3: VIDEO LESSONS */}
+              {/* TAB 3: VIDEO LESSONS (Videos Page Control) */}
               {activeTab === 'videos' && (
-                <div className="space-y-6">
-                  {/* Form to Add Video */}
-                  <form onSubmit={handleVideoSubmit} className="max-w-3xl bg-[#091228] p-5 rounded-2xl border border-rose-500/30 space-y-4">
-                    <div className="flex items-center gap-2 text-xs font-bold text-rose-300 font-mono">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
                       <Video className="w-4 h-4 text-rose-400" />
-                      <span>Upload New Video Masterclass (YouTube Link / ID)</span>
+                      <h4 className="text-sm font-bold text-white">Active Video Masterclasses ({videos.length})</h4>
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                          Subject
-                        </label>
-                        <select
-                          value={videoSubject}
-                          onChange={(e) => setVideoSubject(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white focus:outline-none font-mono"
-                        >
-                          <option value="Physics">Physics</option>
-                          <option value="Chemistry">Chemistry</option>
-                          <option value="Combined Mathematics">Combined Mathematics</option>
-                          <option value="Biology">Biology</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                          Unit Number
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={20}
-                          value={videoUnitNumber}
-                          onChange={(e) => setVideoUnitNumber(Number(e.target.value))}
-                          className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white font-mono"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                          Duration (Min)
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={300}
-                          value={videoDuration}
-                          onChange={(e) => setVideoDuration(Number(e.target.value))}
-                          className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-mono font-bold text-rose-300 mb-1">
-                        YouTube Link or 11-Character ID <span className="text-rose-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={videoYoutubeInput}
-                        onChange={(e) => setVideoYoutubeInput(e.target.value)}
-                        placeholder="https://www.youtube.com/watch?v=... or 11-char ID"
-                        className="w-full px-3 py-2 bg-[#050A17] border border-rose-500/40 rounded-xl text-xs text-white font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
-                        Lesson Title <span className="text-rose-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={videoTitleEn}
-                        onChange={(e) => setVideoTitleEn(e.target.value)}
-                        placeholder="e.g. Hydrodynamics Complete Formulas & Worked Problems"
-                        className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white"
-                      />
-                    </div>
-
                     <button
-                      type="submit"
-                      className="px-5 py-2.5 bg-gradient-to-r from-rose-500 to-indigo-600 hover:from-rose-400 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2"
+                      onClick={() => {
+                        playRoboticTab();
+                        setActiveTab('publish');
+                        setPublishType('video');
+                      }}
+                      className="px-3.5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md"
                     >
-                      <Plus className="w-4 h-4" />
-                      <span>Publish Video Lesson</span>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Upload New Video</span>
                     </button>
-                  </form>
+                  </div>
 
-                  {/* Existing Videos List */}
-                  <div className="space-y-3">
-                    <h4 className="text-xs font-mono font-black text-rose-400 uppercase tracking-wider">
-                      Active Video Lessons ({videos.length})
-                    </h4>
-                    <div className="space-y-2">
-                      {videos.map((v) => (
-                        <div key={v.id} className="p-3.5 rounded-2xl bg-[#091228] border border-slate-800 flex items-center justify-between gap-3 text-xs">
-                          <div className="space-y-0.5 truncate">
-                            <span className="font-bold text-white block truncate">{v.titleEn}</span>
-                            <span className="text-[11px] text-slate-400 font-mono">
-                              {v.subjectNameEn} · Unit {v.unitNumber} · Teacher: {v.teacherName} · YouTube: {v.youtubeId}
+                  <div className="space-y-2">
+                    {videos.map((v) => (
+                      <div key={v.id} className="p-3.5 rounded-2xl bg-[#091228] border border-slate-800 flex items-center justify-between gap-3 text-xs">
+                        <div className="space-y-1 truncate">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 font-mono text-[10px] font-bold">
+                              {v.subjectNameEn}
                             </span>
+                            <span className="text-slate-400 font-mono text-[10px]">Unit {v.unitNumber} · {v.durationMinutes} mins</span>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <a
-                              href={v.youtubeUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-rose-400"
-                              title="Open on YouTube"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                            {onDeleteVideo && (
-                              <button
-                                onClick={() => {
-                                  playRoboticClick();
-                                  if (confirm(`Remove video "${v.titleEn}"?`)) {
-                                    onDeleteVideo(v.id);
-                                    showSuccess('Video lesson removed.');
-                                  }
-                                }}
-                                className="p-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-500/30 cursor-pointer"
-                                title="Delete Video"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
+                          <h5 className="font-bold text-white truncate">{v.titleEn}</h5>
+                          <p className="text-[11px] text-slate-500 font-mono">Teacher: {v.teacherName} · ID: {v.youtubeId}</p>
                         </div>
-                      ))}
-                    </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <a
+                            href={v.youtubeUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-rose-400"
+                            title="Open on YouTube"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                          {onDeleteVideo && (
+                            <button
+                              onClick={() => {
+                                if (confirm(`Remove video "${v.titleEn}"?`)) {
+                                  onDeleteVideo(v.id);
+                                  showSuccess('Video lesson removed from live database.');
+                                }
+                              }}
+                              className="p-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-500/30 cursor-pointer"
+                              title="Delete Video"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {/* TAB 4: HELP DESK & REPORTS (Live WhatsApp-style Student Messages) */}
+              {/* TAB 4: HELP DESK / STUDENT MESSAGES (WhatsApp-style Inbox) */}
               {activeTab === 'reports' && (
                 <div className="space-y-4">
                   <div className="p-3.5 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-emerald-300 flex items-center justify-between gap-2 font-mono">
@@ -1361,7 +1127,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       <MessageCircle className="w-4 h-4 text-emerald-400 animate-pulse" />
                       <span>Live WhatsApp-style Student Inquiries Inbox & Help Desk (Real-time Cloud Sync)</span>
                     </div>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
                       {reports.filter(r => !r.resolved).length} Pending
                     </span>
                   </div>
@@ -1443,12 +1209,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               </div>
                             </div>
 
-                            {/* Message Bubble (WhatsApp style) */}
                             <div className="p-3.5 rounded-xl bg-[#050B17] border border-slate-800/80 text-xs text-slate-200 leading-relaxed font-sans whitespace-pre-wrap">
                               {r.message}
                             </div>
 
-                            {/* Card Footer Actions */}
                             <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-xs">
                               <button
                                 onClick={() => handleToggleReportResolve(r.id)}
@@ -1482,16 +1246,351 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 </div>
               )}
 
-              {/* TAB 5: SECURITY & URLS */}
+              {/* TAB 5: LIVE SITE ANNOUNCEMENT BANNER */}
+              {activeTab === 'announcement' && (
+                <form onSubmit={handleSaveAnnouncement} className="max-w-2xl bg-[#091228] p-5 sm:p-6 rounded-3xl border border-amber-500/30 space-y-4">
+                  <div className="flex items-center gap-2 text-amber-400">
+                    <Megaphone className="w-5 h-5" />
+                    <div>
+                      <h4 className="text-sm sm:text-base font-bold text-white">Live Site Notice & Announcement Bar</h4>
+                      <p className="text-xs text-slate-400">Broadcast an immediate notification banner at the very top of Paper Express for all students.</p>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-[#050A17] border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono font-bold text-slate-300">Show Announcement to Visitors</span>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={announceActive}
+                          onChange={(e) => setAnnounceActive(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                      </label>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Notice Banner Style</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAnnounceType('info')}
+                          className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                            announceType === 'info' ? 'bg-blue-600 text-white border-blue-400' : 'bg-[#091228] text-slate-400 border-slate-800'
+                          }`}
+                        >
+                          Blue Info
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAnnounceType('alert')}
+                          className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                            announceType === 'alert' ? 'bg-rose-600 text-white border-rose-400' : 'bg-[#091228] text-slate-400 border-slate-800'
+                          }`}
+                        >
+                          Rose Alert
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAnnounceType('success')}
+                          className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                            announceType === 'success' ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-[#091228] text-slate-400 border-slate-800'
+                          }`}
+                        >
+                          Green Success
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
+                        Announcement Text
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={announceText}
+                        onChange={(e) => setAnnounceText(e.target.value)}
+                        placeholder="e.g. ⚡ 2024 Pilot Papers have been uploaded! Check the Pilot Papers tab."
+                        className="w-full px-3 py-2 bg-[#091228] border border-cyan-500/30 rounded-xl text-xs text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Broadcast Live Announcement</span>
+                  </button>
+                </form>
+              )}
+
+              {/* TAB 6: UNIFIED PUBLISH WIZARD */}
+              {activeTab === 'publish' && (
+                <div className="max-w-3xl space-y-5">
+                  {/* Segmented Option Selector */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1.5 bg-[#050A17] border border-cyan-500/30 rounded-2xl">
+                    <button
+                      type="button"
+                      onClick={() => setPublishType('paper')}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        publishType === 'paper' ? 'bg-cyan-500 text-slate-950 font-black shadow-md' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Exam Paper</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPublishType('resource')}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        publishType === 'resource' ? 'bg-purple-600 text-white font-black shadow-md' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span>Resource Note</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPublishType('pilot')}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        publishType === 'pilot' ? 'bg-indigo-600 text-white font-black shadow-md' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Pilot Paper</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPublishType('video')}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        publishType === 'video' ? 'bg-rose-500 text-white font-black shadow-md' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Video className="w-3.5 h-3.5" />
+                      <span>Video Lesson</span>
+                    </button>
+                  </div>
+
+                  {/* Form Body */}
+                  <form onSubmit={handlePublishSubmit} className="bg-[#091228] p-5 sm:p-6 rounded-3xl border border-cyan-500/30 space-y-4">
+                    <div className="flex items-center gap-2 text-cyan-300 font-mono text-xs font-bold">
+                      <Plus className="w-4 h-4" />
+                      <span>
+                        {publishType === 'paper' && 'Publish New Examination Paper (Past Paper / Term Test)'}
+                        {publishType === 'resource' && 'Publish New Academic Resource / Theory Booklet (Resources Page)'}
+                        {publishType === 'pilot' && 'Publish New Pilot Examination Paper'}
+                        {publishType === 'video' && 'Publish New YouTube Video Masterclass'}
+                      </span>
+                    </div>
+
+                    {/* Common Metadata Fields */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Subject</label>
+                        <select
+                          value={itemSubject}
+                          onChange={(e) => setItemSubject(e.target.value)}
+                          className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white font-mono"
+                        >
+                          <option value="Physics">Physics</option>
+                          <option value="Chemistry">Chemistry</option>
+                          <option value="Combined Mathematics">Combined Mathematics</option>
+                          <option value="Biology">Biology</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Stream</label>
+                        <select
+                          value={itemStream}
+                          onChange={(e) => setItemStream(e.target.value as StreamId)}
+                          className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white font-mono"
+                        >
+                          <option value="maths">Physical Science (Maths)</option>
+                          <option value="bio">Biological Science (Bio)</option>
+                          <option value="all">All Science Streams</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Year</label>
+                        <input
+                          type="number"
+                          value={itemYear}
+                          onChange={(e) => setItemYear(Number(e.target.value))}
+                          className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Title */}
+                    <div>
+                      <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
+                        Title (English) <span className="text-cyan-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={itemTitleEn}
+                        onChange={(e) => setItemTitleEn(e.target.value)}
+                        placeholder="e.g. 2024 Combined Maths All-Island Pilot Exam Paper"
+                        className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white"
+                      />
+                    </div>
+
+                    {/* Conditional Fields based on publishType */}
+                    {publishType === 'paper' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Exam Term</label>
+                          <select
+                            value={itemTerm}
+                            onChange={(e) => setItemTerm(e.target.value)}
+                            className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white font-mono"
+                          >
+                            <option value="All Island">All Island National Past Paper</option>
+                            <option value="FWC Pilot">FWC Pilot Exam (Thondaimanaru)</option>
+                            <option value="1st Term">1st Term Examination</option>
+                            <option value="2nd Term">2nd Term Examination</option>
+                            <option value="3rd Term">3rd Term Examination</option>
+                            <option value="Trial Exam">Trial / Final Model Exam</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Institution / Authority</label>
+                          <input
+                            type="text"
+                            value={itemSource}
+                            onChange={(e) => setItemSource(e.target.value)}
+                            placeholder="e.g. Department of Examinations / Royal College"
+                            className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {publishType === 'pilot' && (
+                      <div>
+                        <label className="block text-xs font-mono font-bold text-indigo-300 mb-1">Pilot Organization / University</label>
+                        <input
+                          type="text"
+                          value={itemPilotType}
+                          onChange={(e) => setItemPilotType(e.target.value)}
+                          placeholder="e.g. Moratuwa University / Colombo Hindu College / GMSA Ampara"
+                          className="w-full px-3 py-2 bg-[#050A17] border border-indigo-500/30 rounded-xl text-xs text-white font-mono"
+                        />
+                      </div>
+                    )}
+
+                    {publishType === 'video' ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Unit Number</label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={20}
+                              value={videoUnitNumber}
+                              onChange={(e) => setVideoUnitNumber(Number(e.target.value))}
+                              className="w-full px-3 py-2 bg-[#050A17] border border-rose-500/30 rounded-xl text-xs text-white font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Duration (Min)</label>
+                            <input
+                              type="number"
+                              value={videoDuration}
+                              onChange={(e) => setVideoDuration(Number(e.target.value))}
+                              className="w-full px-3 py-2 bg-[#050A17] border border-rose-500/30 rounded-xl text-xs text-white font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Teacher Name</label>
+                            <input
+                              type="text"
+                              value={videoTeacher}
+                              onChange={(e) => setVideoTeacher(e.target.value)}
+                              className="w-full px-3 py-2 bg-[#050A17] border border-rose-500/30 rounded-xl text-xs text-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-mono font-bold text-rose-300 mb-1">
+                            YouTube URL or 11-Character Video ID <span className="text-rose-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={videoYoutubeInput}
+                            onChange={(e) => setVideoYoutubeInput(e.target.value)}
+                            placeholder="https://www.youtube.com/watch?v=... or 11-char ID"
+                            className="w-full px-3 py-2 bg-[#050A17] border border-rose-500/40 rounded-xl text-xs text-white font-mono"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      /* Drive Links for Paper / Resource / Pilot */
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-mono font-bold text-cyan-300 mb-1">
+                            Google Drive Document Link <span className="text-cyan-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={itemDriveLink}
+                            onChange={(e) => setItemDriveLink(e.target.value)}
+                            placeholder="https://drive.google.com/..."
+                            className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/40 rounded-xl text-xs text-white font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-mono font-bold text-emerald-300 mb-1">
+                            Marking Scheme Link (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={itemSchemeLink}
+                            onChange={(e) => setItemSchemeLink(e.target.value)}
+                            placeholder="https://drive.google.com/..."
+                            className="w-full px-3 py-2 bg-[#050A17] border border-emerald-500/40 rounded-xl text-xs text-white font-mono"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="pt-2">
+                      <button
+                        type="submit"
+                        className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all cursor-pointer flex items-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Publish Live to All Website Visitors</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* TAB 7: SECURITY & SETTINGS */}
               {activeTab === 'security' && (
                 <div className="max-w-2xl space-y-5">
                   <div className="p-5 rounded-2xl bg-[#091228] border border-cyan-500/30 space-y-3">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="w-5 h-5 text-cyan-400" />
-                      <h4 className="text-sm font-bold text-white">Direct Admin URL Route</h4>
+                      <h4 className="text-sm font-bold text-white">Direct Admin URL Access</h4>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Whenever you enter your domain with <code className="bg-[#050A17] text-cyan-300 px-2 py-0.5 rounded-md font-mono border border-cyan-500/30">/#admin</code>, this Admin Panel opens immediately!
+                      All buttons and links have been removed from the visible website. This Admin Console is exclusively accessible by appending <code className="bg-[#050A17] text-cyan-300 px-2 py-0.5 rounded-md font-mono border border-cyan-500/30">/#admin</code> to your URL.
                     </p>
                     <div className="flex items-center gap-2 p-2.5 rounded-xl bg-[#050A17] border border-cyan-500/30 font-mono text-xs text-cyan-300">
                       <span className="flex-1 truncate">https://paperexpress.vercel.app/#admin</span>
@@ -1500,42 +1599,43 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         className="px-3 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-500/40 text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0"
                       >
                         {copiedDirectUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>{copiedDirectUrl ? 'Copied' : 'Copy'}</span>
+                        <span>{copiedDirectUrl ? 'Copied!' : 'Copy Link'}</span>
                       </button>
                     </div>
                   </div>
 
                   <div className="p-5 rounded-2xl bg-[#091228] border border-slate-800 space-y-3">
                     <div className="flex items-center gap-2">
-                      <KeyRound className="w-5 h-5 text-amber-400" />
-                      <h4 className="text-sm font-bold text-white">Master Passcodes</h4>
+                      <Database className="w-5 h-5 text-emerald-400" />
+                      <h4 className="text-sm font-bold text-white">Cloud Database Real-time Status</h4>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      You can log in anytime using your Google account (<strong className="text-cyan-300">asmanlinzy44@gmail.com</strong>) or using any of these preset passcodes:
+                      Google Cloud Firestore is connected with real-time listeners (<code className="text-cyan-300 font-mono">onSnapshot</code>). Any changes made in this panel are broadcasted instantly across all phones and computers worldwide.
                     </p>
-                    <div className="flex flex-wrap gap-2">
-                      {VALID_PASSCODES.map((code) => (
-                        <span key={code} className="px-3 py-1 rounded-lg bg-[#050A17] border border-slate-700 font-mono text-xs text-amber-300">
-                          {code}
-                        </span>
-                      ))}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 text-center text-xs font-mono">
+                      <div className="p-2.5 rounded-xl bg-[#050A17] border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block">Exam Papers</span>
+                        <span className="font-bold text-cyan-400 text-sm">{examPapers.length}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-[#050A17] border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block">Resources</span>
+                        <span className="font-bold text-purple-400 text-sm">{academicResources.length}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-[#050A17] border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block">Videos</span>
+                        <span className="font-bold text-rose-400 text-sm">{videos.length}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-[#050A17] border border-slate-800">
+                        <span className="text-[10px] text-slate-500 block">Inquiries</span>
+                        <span className="font-bold text-emerald-400 text-sm">{reports.length}</span>
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="p-5 rounded-2xl bg-[#091228] border border-slate-800 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Database className="w-5 h-5 text-cyan-400" />
-                      <h4 className="text-sm font-bold text-white">Database & Synchronization</h4>
-                    </div>
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      All newly added papers, edits, and deletions synchronize in real-time with Google Cloud Firestore (<code className="text-cyan-300">papers</code> collection) and your browser's persistent cache.
-                    </p>
                   </div>
                 </div>
               )}
 
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

@@ -125,5 +125,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true;
     }
+
+    // Platform site announcements & resource vault settings
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 }

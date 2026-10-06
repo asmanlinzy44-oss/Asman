@@ -7,7 +7,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, Filter, BookOpen, Video, FileText, 
   ArrowLeft, ExternalLink, Download, Lock, CheckCircle, KeyRound, Unlock,
-  UserCheck, AlertCircle
+  UserCheck, AlertCircle, Megaphone, X
 } from 'lucide-react';
 import { 
   PaperResource, VideoLesson, User, ResourceCategory, 
@@ -152,6 +152,26 @@ export default function App() {
   const [inlineIndex, setInlineIndex] = useState('');
   const [inlinePassword, setInlinePassword] = useState('');
   const [inlineError, setInlineError] = useState('');
+
+  // Live Site Broadcast Announcement
+  const [siteAnnouncement, setSiteAnnouncement] = useState<{ active: boolean; text: string; type: 'info' | 'alert' | 'success' }>(() => {
+    try {
+      const saved = localStorage.getItem('studypro_site_announcement');
+      return saved ? JSON.parse(saved) : { active: false, text: '', type: 'info' };
+    } catch {
+      return { active: false, text: '', type: 'info' };
+    }
+  });
+
+  // Master Subject Vault Drive Links (Physics, Chemistry, Combined Maths, Biology)
+  const [vaultDriveLinks, setVaultDriveLinks] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('studypro_vault_drive_links');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
 
   // Listen for #admin URL route to automatically open the Admin Panel (e.g. paperexpress.vercel.app/#admin)
   useEffect(() => {
@@ -479,6 +499,64 @@ export default function App() {
       unsubVideos();
     };
   }, []);
+
+  // Real-time synchronization of Site Announcement and Vault Drive Links
+  useEffect(() => {
+    const unsubAnnounce = onSnapshot(doc(db, 'settings', 'announcement'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data && typeof data.active === 'boolean') {
+          const announce = {
+            active: data.active,
+            text: data.text || '',
+            type: (data.type as 'info' | 'alert' | 'success') || 'info',
+          };
+          setSiteAnnouncement(announce);
+          localStorage.setItem('studypro_site_announcement', JSON.stringify(announce));
+        }
+      }
+    }, (err) => console.warn('Announcement sync notice:', err));
+
+    const unsubVaults = onSnapshot(doc(db, 'settings', 'vault_links'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data) {
+          const links: Record<string, string> = {};
+          if (data.biology) links['biology'] = data.biology;
+          if (data.physics) links['physics'] = data.physics;
+          if (data.chemistry) links['chemistry'] = data.chemistry;
+          if (data['c-maths']) links['c-maths'] = data['c-maths'];
+          setVaultDriveLinks(links);
+          localStorage.setItem('studypro_vault_drive_links', JSON.stringify(links));
+        }
+      }
+    }, (err) => console.warn('Vault links sync notice:', err));
+
+    return () => {
+      unsubAnnounce();
+      unsubVaults();
+    };
+  }, []);
+
+  const handleUpdateSiteAnnouncement = async (announce: { active: boolean; text: string; type: 'info' | 'alert' | 'success' }) => {
+    setSiteAnnouncement(announce);
+    localStorage.setItem('studypro_site_announcement', JSON.stringify(announce));
+    try {
+      await setDoc(doc(db, 'settings', 'announcement'), announce);
+    } catch (err) {
+      console.warn('Save announcement error:', err);
+    }
+  };
+
+  const handleUpdateVaultDriveLinks = async (links: Record<string, string>) => {
+    setVaultDriveLinks(links);
+    localStorage.setItem('studypro_vault_drive_links', JSON.stringify(links));
+    try {
+      await setDoc(doc(db, 'settings', 'vault_links'), links);
+    } catch (err) {
+      console.warn('Save vault links error:', err);
+    }
+  };
 
   // Sync with Firebase Auth state
   useEffect(() => {
@@ -967,6 +1045,27 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col selection:bg-blue-100 selection:text-blue-900">
+      {/* 0. Live Site Broadcast Announcement Bar (Controlled from Admin Panel) */}
+      {siteAnnouncement.active && siteAnnouncement.text.trim() && (
+        <div className={`px-4 py-2.5 text-xs font-bold text-center flex items-center justify-center gap-2 relative z-40 transition-all ${
+          siteAnnouncement.type === 'alert'
+            ? 'bg-rose-600 text-white shadow-md'
+            : siteAnnouncement.type === 'success'
+            ? 'bg-emerald-600 text-white shadow-md'
+            : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white shadow-md'
+        }`}>
+          <Megaphone className="w-4 h-4 shrink-0 animate-bounce" />
+          <span className="leading-snug">{siteAnnouncement.text}</span>
+          <button 
+            onClick={() => setSiteAnnouncement(prev => ({ ...prev, active: false }))}
+            className="p-1 hover:bg-white/20 rounded-lg transition-colors ml-2 cursor-pointer"
+            title="Dismiss Announcement"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* 1. Header with Paper Express Branding and Clean Navigation */}
       <Header
         currentTab={activeTab}
@@ -1097,10 +1196,11 @@ export default function App() {
             <ResourcesFoldersView
               selectedSubject={selectedSubject}
               onSelectSubject={(subjId) => setSelectedSubject(subjId)}
-              resources={papers.filter((p) => p.category === 'theory-notes')}
+              resources={papers.filter((p) => p.category === 'theory-notes' || p.category === 'useful-resources')}
               onPreview={handleOpenPreview}
               isBookmarked={(id) => Boolean(user?.bookmarks?.includes(id))}
               onToggleBookmark={handleToggleBookmark}
+              vaultDriveLinks={vaultDriveLinks}
             />
           )}
 
@@ -1586,6 +1686,10 @@ export default function App() {
         }}
         currentUser={user}
         onGoogleLogin={handleDirectGoogleLogin}
+        siteAnnouncement={siteAnnouncement}
+        onUpdateSiteAnnouncement={handleUpdateSiteAnnouncement}
+        vaultDriveLinks={vaultDriveLinks}
+        onUpdateVaultDriveLinks={handleUpdateVaultDriveLinks}
       />
 
       {/* Vercel Firebase Domain Authorization Guide Modal */}

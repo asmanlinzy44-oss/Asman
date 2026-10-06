@@ -523,14 +523,17 @@ interface ResourcesFoldersViewProps {
   onPreview?: (res: PaperResource, mode?: 'paper' | 'scheme') => void;
   isBookmarked?: (id: string) => boolean;
   onToggleBookmark?: (id: string) => void;
+  vaultDriveLinks?: Record<string, string>;
 }
 
 export const ResourcesFoldersView: React.FC<ResourcesFoldersViewProps> = ({
   selectedSubject = 'all',
   onSelectSubject,
+  resources = [],
   onPreview,
   isBookmarked,
   onToggleBookmark,
+  vaultDriveLinks = {},
 }) => {
   // Current active subject (null = viewing the 4 main subject folders)
   const [activeSubjectId, setActiveSubjectId] = useState<string | null>(() => {
@@ -546,9 +549,16 @@ export const ResourcesFoldersView: React.FC<ResourcesFoldersViewProps> = ({
   // Copied link toast indicator
   const [copiedLink, setCopiedLink] = useState(false);
 
+  const effectiveSubjectsConfig = useMemo(() => {
+    return SUBJECTS_CONFIG.map((s) => ({
+      ...s,
+      driveLink: vaultDriveLinks[s.id] || s.driveLink,
+    }));
+  }, [vaultDriveLinks]);
+
   const activeSubject = useMemo(() => {
-    return SUBJECTS_CONFIG.find((s) => s.id === activeSubjectId) || null;
-  }, [activeSubjectId]);
+    return effectiveSubjectsConfig.find((s) => s.id === activeSubjectId) || null;
+  }, [effectiveSubjectsConfig, activeSubjectId]);
 
   const handleOpenSubject = (subjectId: string) => {
     playRoboticFolder();
@@ -748,7 +758,7 @@ export const ResourcesFoldersView: React.FC<ResourcesFoldersViewProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {SUBJECTS_CONFIG.map((subj) => {
+            {effectiveSubjectsConfig.map((subj) => {
               const Icon = subj.icon;
               const styles = getThemeStyles(subj.colorTheme);
 
@@ -1092,6 +1102,59 @@ export const ResourcesFoldersView: React.FC<ResourcesFoldersViewProps> = ({
                 );
               })}
             </div>
+
+            {/* Custom Uploaded Academic Notes & Booklets for this Subject */}
+            {(() => {
+              const customForSubj = resources.filter((r) => 
+                r.subjectId === activeSubject.id || 
+                (r.subjectNameEn && r.subjectNameEn.toLowerCase().includes(activeSubject.name.toLowerCase()))
+              );
+              if (customForSubj.length === 0) return null;
+
+              return (
+                <div className="space-y-4 pt-6 border-t border-slate-200">
+                  <div className="flex items-center justify-between px-1">
+                    <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-500" />
+                      <span>Uploaded {activeSubject.name} Notes & Master Materials ({customForSubj.length})</span>
+                    </h4>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {customForSubj.map((res) => (
+                      <div key={res.id} className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-blue-400 shadow-xs hover:shadow-md transition-all space-y-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-900 line-clamp-2">{res.titleEn}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold shrink-0">{res.year || 2025}</span>
+                        </div>
+                        {res.schoolOrSource && (
+                          <p className="text-[11px] text-slate-500 truncate">{res.schoolOrSource}</p>
+                        )}
+                        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                          <a
+                            href={res.driveLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 py-1.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center justify-center gap-1.5"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            <span>Open Drive</span>
+                          </a>
+                          {onPreview && (
+                            <button
+                              onClick={() => onPreview(res, 'paper')}
+                              className="p-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 cursor-pointer"
+                              title="Preview in App"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
