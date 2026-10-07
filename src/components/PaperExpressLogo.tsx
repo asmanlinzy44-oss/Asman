@@ -24,33 +24,33 @@ export const PaperExpressLogo: React.FC<PaperExpressLogoProps> = ({
 
   const { icon, text, swooshH, swooshW } = sizeMap[size];
 
-  // In dark variant (e.g. dark headers or dark modals), "Paper" is crisp white; in light variant, deep navy #0F172A
-  const paperTextColor = variant === 'dark' ? 'text-white' : 'text-[#0F172A]';
+  // In dark variant or dark mode, "Paper" is crisp white; in light mode, deep navy #0F172A
+  const paperTextColor = variant === 'dark' ? 'text-white' : 'text-[#0F172A] dark:text-white';
 
   return (
     <div className={`inline-flex items-center gap-2.5 sm:gap-3 select-none ${className}`}>
-      {/* 1. Paper Express Symbol (Exact symbol provided by user: Open book with energetic P-arrow in vivid blue/cyan) */}
+      {/* 1. Paper Express Symbol (Transparent emblem: Open book with energetic P-arrow in vivid blue/cyan) */}
       <div 
         className="relative shrink-0 flex items-center justify-center transition-transform duration-200 hover:scale-105"
         style={{ width: icon, height: icon }}
       >
         {!imgError ? (
           <img
-            src="/paper_express_symbol.png?v=3"
+            src="/paper_express_symbol.png"
             alt="Paper Express Logo"
             className="w-full h-full object-contain filter drop-shadow-sm select-none"
             onError={() => setImgError(true)}
           />
         ) : (
           <img
-            src="/paper_express_symbol.jpg?v=3"
+            src="/paper_express_symbol_royal.png"
             alt="Paper Express Logo"
             className="w-full h-full object-contain filter drop-shadow-sm select-none"
           />
         )}
       </div>
 
-      {/* 2. Paper Express Wordmark (NO "AL Science portal" text) */}
+      {/* 2. Paper Express Wordmark */}
       {showWordmark && (
         <div className="flex flex-col leading-none text-left relative">
           <div className="flex items-baseline tracking-tight font-black">

@@ -318,7 +318,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Main Container */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex-1 w-full space-y-12">
         {/* 4. Stream Selection Portals (Science Only: Maths & Bio) */}
-        <section>
+        <section className="reveal-on-scroll">
           <div className="text-center max-w-2xl mx-auto mb-6">
             <div className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#0066FF] mb-1">
               <Layers className="w-4 h-4" />
@@ -333,11 +333,11 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
-            {STREAMS_DATA.map((st) => (
+            {STREAMS_DATA.map((st, idx) => (
               <div
                 key={st.id}
                 onClick={() => handleNav('past-papers')}
-                className={`p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-xl transition-all duration-200 cursor-pointer flex flex-col justify-between group transform hover:-translate-y-1 ${st.borderHover}`}
+                className={`reveal-on-scroll reveal-delay-${idx + 1} p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between group transform hover:-translate-y-1 hover-card-elevate ${st.borderHover}`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -380,7 +380,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         </section>
 
         {/* 5. The 4 Academic Catalogs */}
-        <section className="space-y-6">
+        <section className="space-y-6 reveal-on-scroll">
           <div className="text-center max-w-2xl mx-auto mb-6">
             <div className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#0066FF] mb-1">
               <BookOpen className="w-4 h-4" />
@@ -395,12 +395,12 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {CATEGORY_SHOWCASE.map((cat) => {
+            {CATEGORY_SHOWCASE.map((cat, idx) => {
               const IconComponent = cat.icon;
               return (
                 <div
                   key={cat.id}
-                  className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group hover:border-blue-400 dark:hover:border-blue-500"
+                  className={`reveal-on-scroll reveal-delay-${(idx % 3) + 1} bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group hover:border-blue-400 dark:hover:border-blue-500 hover-card-elevate`}
                 >
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-3">
@@ -444,7 +444,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         </section>
 
         {/* 6. Elite Study Advantage & Cloud Storage Banner */}
-        <section className="bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 rounded-3xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8 border border-slate-800">
+        <section className="reveal-on-scroll bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 rounded-3xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8 border border-slate-800">
           <div className="relative z-10 max-w-xl text-center md:text-left">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-sky-300 text-xs font-extrabold uppercase tracking-wider mb-3 border border-blue-500/30">
               <ShieldCheck className="w-3.5 h-3.5" />

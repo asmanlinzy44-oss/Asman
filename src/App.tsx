@@ -7,7 +7,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, Filter, BookOpen, Video, FileText, 
   ArrowLeft, ExternalLink, Download, Lock, CheckCircle, KeyRound, Unlock,
-  UserCheck, AlertCircle, Megaphone, X
+  UserCheck, AlertCircle, Megaphone, X, ChevronUp
 } from 'lucide-react';
 import { 
   PaperResource, VideoLesson, User, ResourceCategory, 
@@ -32,6 +32,7 @@ import { OtherPilotPapersView } from './components/OtherPilotPapersView';
 import { UserProfileModal } from './components/UserProfileModal';
 import { DomainAuthModal } from './components/DomainAuthModal';
 import { LegalModal, LegalModalType } from './components/LegalModal';
+import { EducationalGuides } from './components/EducationalGuides';
 import { AiSearchView } from './components/AiSearchView';
 import { onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, onSnapshot } from 'firebase/firestore';
@@ -248,6 +249,62 @@ export default function App() {
       clearInterval(interval);
     };
   }, []);
+
+  // Smooth Reading Progress Bar & Scroll-To-Top Trigger
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (totalHeight > 0) {
+        const progress = Math.min(100, Math.max(0, (window.scrollY / totalHeight) * 100));
+        setScrollProgress(progress);
+      }
+      setShowScrollTop(window.scrollY > 280);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+
+    // IntersectionObserver for dynamic viewport reveal animations
+    let observer: IntersectionObserver | null = null;
+    if (typeof window !== 'undefined' && 'IntersectionObserver' in window) {
+      observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('is-revealed');
+            }
+          });
+        },
+        { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
+      );
+
+      const observeElements = () => {
+        const elements = document.querySelectorAll('.reveal-on-scroll:not(.is-revealed)');
+        elements.forEach((el) => observer?.observe(el));
+      };
+
+      observeElements();
+      const intervalId = setInterval(observeElements, 1200);
+
+      return () => {
+        window.removeEventListener('scroll', handleScroll);
+        clearInterval(intervalId);
+        observer?.disconnect();
+      };
+    }
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+  const scrollToTop = () => {
+    playRoboticClick();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleCloseAdminPanel = () => {
     setIsAdminPanelOpen(false);
@@ -1101,6 +1158,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#080D1A] text-slate-900 dark:text-slate-100 flex flex-col selection:bg-blue-100 selection:text-blue-900 transition-colors duration-200">
+      {/* 0. Glowing Scroll Progress Bar */}
+      <div 
+        className="fixed top-0 left-0 right-0 h-1 z-50 pointer-events-none transition-all duration-150"
+        style={{
+          width: `${scrollProgress}%`,
+          background: 'linear-gradient(90deg, #0052D4, #0066FF, #00C6FF, #38BDF8)',
+          boxShadow: scrollProgress > 0 ? '0 0 10px rgba(0, 102, 255, 0.7), 0 0 20px rgba(56, 189, 248, 0.5)' : 'none',
+        }}
+      />
+
       {/* 0. Live Site Broadcast Announcement Bar (Controlled from Admin Panel) */}
       {siteAnnouncement.active && siteAnnouncement.text.trim() && (
         <div className={`px-4 py-2.5 text-xs font-bold text-center flex items-center justify-center gap-2 relative z-40 transition-all ${
@@ -1434,115 +1501,160 @@ export default function App() {
             activeTab === 'theory-videos' ? (
               <div className="space-y-6">
                 {!isVideoUnlocked ? (
-                  /* Dedicated Attractive Cyber Lock Screen - No video cards or thumbnails shown until unlocked */
-                  <div className="relative max-w-md mx-auto my-8 overflow-hidden rounded-3xl bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950 border border-blue-500/35 shadow-[0_0_50px_rgba(0,102,255,0.3)] text-white p-7 animate-in fade-in duration-200">
-                    {/* Futuristic Background Glows */}
-                    <div className="absolute top-0 right-0 w-60 h-60 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
-                    <div className="absolute bottom-0 left-0 w-60 h-60 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+                  /* Dedicated Attractive Cyber Lock Screen with google-anno-skip and publisher curriculum overview */
+                  <div className="space-y-8">
+                    <div className="relative max-w-md mx-auto my-8 overflow-hidden rounded-3xl bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950 border border-blue-500/35 shadow-[0_0_50px_rgba(0,102,255,0.3)] text-white p-7 animate-in fade-in duration-200 google-anno-skip">
+                      {/* Futuristic Background Glows */}
+                      <div className="absolute top-0 right-0 w-60 h-60 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
+                      <div className="absolute bottom-0 left-0 w-60 h-60 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
 
-                    <div className="text-center relative z-10 mb-6">
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-sky-300 text-[11px] font-mono font-bold tracking-wider mb-4 shadow-inner">
-                        <Lock className="w-3.5 h-3.5 text-sky-400" />
-                        <span>CYBER-GATE · VERIFIED STUDENT ACCESS</span>
+                      <div className="text-center relative z-10 mb-6">
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-sky-300 text-[11px] font-mono font-bold tracking-wider mb-4 shadow-inner">
+                          <Lock className="w-3.5 h-3.5 text-sky-400" />
+                          <span>CYBER-GATE · VERIFIED STUDENT ACCESS</span>
+                        </div>
+
+                        {/* Glowing Holographic Lock */}
+                        <div className="relative w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                          <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-400 opacity-30 blur-md animate-pulse" />
+                          <div className="relative w-14 h-14 rounded-2xl bg-slate-900/90 border border-blue-400/40 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.3)]">
+                            <Lock className="w-7 h-7 text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.8)]" />
+                          </div>
+                        </div>
+
+                        <h3 className="text-xl font-black tracking-tight text-white">
+                          Theory Video Masterclasses
+                        </h3>
+                        <p className="text-xs text-sky-200/90 font-semibold mt-1">
+                          Exclusive Access to Theory Video Masterclasses
+                        </p>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          Physics Hydrodynamics (Units 1–5) & Chemistry IUPAC Lectures
+                        </p>
                       </div>
 
-                      {/* Glowing Holographic Lock */}
-                      <div className="relative w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-400 opacity-30 blur-md animate-pulse" />
-                        <div className="relative w-14 h-14 rounded-2xl bg-slate-900/90 border border-blue-400/40 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                          <Lock className="w-7 h-7 text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.8)]" />
+                      <div className="relative z-10">
+                        <p className="text-xs text-slate-300 mb-5 leading-relaxed text-center">
+                          This section is password protected. Enter your student <strong>Index</strong> and <strong>Password</strong> to access theory video lessons.
+                        </p>
+
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            if (inlineIndex.trim() === '4428' && inlinePassword.trim() === '1016') {
+                              playRoboticUnlock();
+                              setIsVideoUnlocked(true);
+                              localStorage.setItem('studypro_video_unlocked', 'true');
+                              setInlineIndex('');
+                              setInlinePassword('');
+                              setInlineError('');
+                            } else {
+                              playRoboticError();
+                              setInlineError('Invalid Index or Password. Please try again.');
+                            }
+                          }}
+                          className="space-y-4"
+                        >
+                          <div>
+                            <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                              <UserCheck className="w-3.5 h-3.5 text-sky-400" />
+                              <span>Index</span>
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              autoFocus
+                              value={inlineIndex}
+                              onChange={(e) => {
+                                setInlineIndex(e.target.value);
+                                setInlineError('');
+                              }}
+                              placeholder="Index"
+                              className="w-full px-4 py-2.5 bg-slate-900/90 border border-slate-700/90 rounded-xl text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition-all font-mono tracking-wider placeholder-slate-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                              <KeyRound className="w-3.5 h-3.5 text-sky-400" />
+                              <span>Password</span>
+                            </label>
+                            <input
+                              type="password"
+                              required
+                              value={inlinePassword}
+                              onChange={(e) => {
+                                setInlinePassword(e.target.value);
+                                setInlineError('');
+                              }}
+                              placeholder="Password"
+                              className="w-full px-4 py-2.5 bg-slate-900/90 border border-slate-700/90 rounded-xl text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition-all font-mono tracking-wider placeholder-slate-500"
+                            />
+                          </div>
+
+                          {inlineError && (
+                            <div className="p-3 bg-rose-950/70 border border-rose-500/50 rounded-xl flex items-center gap-2 text-xs font-bold text-rose-300 animate-in fade-in duration-150">
+                              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                              <span>{inlineError}</span>
+                            </div>
+                          )}
+
+                          <button
+                            type="submit"
+                            className="w-full py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.99] text-white font-extrabold text-sm rounded-xl transition-all shadow-[0_0_20px_rgba(0,102,255,0.4)] flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <Unlock className="w-4 h-4" />
+                            <span>Unlock Video Lessons</span>
+                          </button>
+                        </form>
+
+                        <div className="mt-5 pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                          <span>Protected Theory Video Masterclasses</span>
+                          <span className="font-mono font-bold text-sky-400">Security Gate</span>
                         </div>
                       </div>
-
-                      <h3 className="text-xl font-black tracking-tight text-white">
-                        Theory Video Masterclasses
-                      </h3>
-                      <p className="text-xs text-sky-200/90 font-semibold mt-1">
-                        Exclusive Access to Theory Video Masterclasses
-                      </p>
-                      <p className="text-[11px] text-slate-400 mt-1">
-                        Physics Hydrodynamics (Units 1–5) & Chemistry IUPAC Lectures
-                      </p>
                     </div>
 
-                    <div className="relative z-10">
-                      <p className="text-xs text-slate-300 mb-5 leading-relaxed text-center">
-                        This section is password protected. Enter your student <strong>Index</strong> and <strong>Password</strong> to access theory video lessons.
-                      </p>
+                    {/* Extensive Curriculum Syllabus Overview for AdSense & Student Learning */}
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-xs space-y-6">
+                      <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+                        <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
+                          Course Syllabus & Academic Scope
+                        </span>
+                        <h4 className="text-xl font-black text-slate-900 dark:text-white mt-1">
+                          A/L Theory Masterclass Lectures Overview
+                        </h4>
+                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+                          Our in-app video lectures provide rigorous, derivation-by-derivation coverage of critical G.C.E. A/L Science syllabus units.
+                        </p>
+                      </div>
 
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          if (inlineIndex.trim() === '4428' && inlinePassword.trim() === '1016') {
-                            playRoboticUnlock();
-                            setIsVideoUnlocked(true);
-                            localStorage.setItem('studypro_video_unlocked', 'true');
-                            setInlineIndex('');
-                            setInlinePassword('');
-                            setInlineError('');
-                          } else {
-                            playRoboticError();
-                            setInlineError('Invalid Index or Password. Please try again.');
-                          }
-                        }}
-                        className="space-y-4"
-                      >
-                        <div>
-                          <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
-                            <UserCheck className="w-3.5 h-3.5 text-sky-400" />
-                            <span>Index</span>
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            autoFocus
-                            value={inlineIndex}
-                            onChange={(e) => {
-                              setInlineIndex(e.target.value);
-                              setInlineError('');
-                            }}
-                            placeholder="Index"
-                            className="w-full px-4 py-2.5 bg-slate-900/90 border border-slate-700/90 rounded-xl text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition-all font-mono tracking-wider placeholder-slate-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
-                            <KeyRound className="w-3.5 h-3.5 text-sky-400" />
-                            <span>Password</span>
-                          </label>
-                          <input
-                            type="password"
-                            required
-                            value={inlinePassword}
-                            onChange={(e) => {
-                              setInlinePassword(e.target.value);
-                              setInlineError('');
-                            }}
-                            placeholder="Password"
-                            className="w-full px-4 py-2.5 bg-slate-900/90 border border-slate-700/90 rounded-xl text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition-all font-mono tracking-wider placeholder-slate-500"
-                          />
-                        </div>
-
-                        {inlineError && (
-                          <div className="p-3 bg-rose-950/70 border border-rose-500/50 rounded-xl flex items-center gap-2 text-xs font-bold text-rose-300 animate-in fade-in duration-150">
-                            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                            <span>{inlineError}</span>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/50 space-y-2.5">
+                          <div className="font-extrabold text-sm text-blue-950 dark:text-sky-200">
+                            🌊 Physics Unit 2: Hydrodynamics (Units 1–5)
                           </div>
-                        )}
+                          <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1.5 list-disc list-inside">
+                            <li><strong>Unit 1: Streamline Flow & Viscosity:</strong> Velocity gradient, Newton’s law of viscous force, coefficient of viscosity, Poiseuille’s formula derivation.</li>
+                            <li><strong>Unit 2: Equation of Continuity:</strong> Conservation of mass in non-viscous incompressible fluid, volume flow rate (Av = const).</li>
+                            <li><strong>Unit 3: Bernoulli’s Principle:</strong> Conservation of mechanical energy in streamline fluid flow, pressure head, velocity head, elevation head.</li>
+                            <li><strong>Unit 4: Engineering Applications:</strong> Pitot tube, Venturi meter, Torricelli’s law of efflux, dynamic lift on aerofoil.</li>
+                            <li><strong>Unit 5: Capillarity & Surface Tension:</strong> Intermolecular forces, angle of contact, Jurin’s law, excess pressure in spherical bubbles.</li>
+                          </ul>
+                        </div>
 
-                        <button
-                          type="submit"
-                          className="w-full py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.99] text-white font-extrabold text-sm rounded-xl transition-all shadow-[0_0_20px_rgba(0,102,255,0.4)] flex items-center justify-center gap-2 cursor-pointer"
-                        >
-                          <Unlock className="w-4 h-4" />
-                          <span>Unlock Video Lessons</span>
-                        </button>
-                      </form>
-
-                      <div className="mt-5 pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-                        <span>Protected Theory Video Masterclasses</span>
-                        <span className="font-mono font-bold text-sky-400">Security Gate</span>
+                        <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/50 space-y-2.5">
+                          <div className="font-extrabold text-sm text-emerald-950 dark:text-emerald-200">
+                            🧪 Chemistry Unit 7: IUPAC & Organic Mechanisms
+                          </div>
+                          <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1.5 list-disc list-inside">
+                            <li><strong>Systematic IUPAC Nomenclature:</strong> Principal functional group hierarchy, longest continuous carbon chain, locant numbering rules.</li>
+                            <li><strong>Electrophilic Addition:</strong> Markovnikov’s rule, carbocation stability intermediates, halogenation of alkenes & alkynes.</li>
+                            <li><strong>Nucleophilic Substitution:</strong> SN1 vs SN2 kinetics, steric hindrance, optical inversion (Walden inversion).</li>
+                            <li><strong>Elimination Reactions:</strong> E1 vs E2 pathways, Zaitsev’s rule, alkene stability determination.</li>
+                            <li><strong>Aromatic Substitution:</strong> Benzene ring delocalization, electrophilic aromatic substitution (nitration, halogenation, Friedel-Crafts).</li>
+                          </ul>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1859,6 +1971,20 @@ export default function App() {
             Dismiss
           </button>
         </div>
+      )}
+
+      {/* Floating Scroll to Top Button */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 left-6 z-40 p-3 rounded-2xl bg-white/95 dark:bg-slate-900/95 hover:bg-[#0066FF] hover:text-white dark:hover:bg-[#0066FF] text-slate-700 dark:text-slate-200 shadow-xl border border-slate-200/90 dark:border-slate-800 transition-all duration-300 backdrop-blur-md group hover:scale-110 active:scale-95 cursor-pointer animate-in fade-in slide-in-from-bottom-3"
+          title="Scroll to top"
+        >
+          <div className="flex items-center gap-1.5 text-xs font-bold">
+            <ChevronUp className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
+            <span className="hidden sm:inline">Top</span>
+          </div>
+        </button>
       )}
     </div>
   );
