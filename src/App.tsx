@@ -1845,6 +1845,7 @@ export default function App() {
           }
         }}
         targetVideoTitle={targetUnlockVideo?.titleEn}
+        onGoogleLogin={handleDirectGoogleLogin}
       />
       {/* Focus Timer Modal (Pomodoro) */}
       <StudyTimerModal
