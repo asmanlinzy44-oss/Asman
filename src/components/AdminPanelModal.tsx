@@ -639,13 +639,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   }}
                   className={`px-3.5 sm:px-4 py-3 text-xs font-mono font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                     activeTab === 'ai-copilot'
-                      ? 'border-purple-400 text-purple-300 bg-purple-950/30'
-                      : 'border-transparent text-purple-400 hover:text-purple-200'
+                      ? 'border-cyan-400 text-cyan-300 bg-cyan-950/30'
+                      : 'border-transparent text-cyan-400 hover:text-cyan-200'
                   }`}
                 >
-                  <Bot className="w-4 h-4 text-purple-400" />
-                  <span>AI Copilot (Upload)</span>
-                  <span className="px-1.5 py-0.2 rounded-md bg-purple-900/60 text-[9px] text-purple-300 border border-purple-400/40">
+                  <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
+                  <span>Gemini AI (Upload)</span>
+                  <span className="px-1.5 py-0.2 rounded-md bg-cyan-950/70 text-[9px] text-cyan-300 border border-cyan-400/40">
                     100/day
                   </span>
                 </button>
@@ -1393,10 +1393,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         playRoboticTab();
                         setActiveTab('ai-copilot');
                       }}
-                      className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span>Open AI Copilot</span>
+                      <span>Open Gemini AI</span>
                     </button>
                   </div>
 
