@@ -1237,6 +1237,7 @@ export default function App() {
           }}
           onOpenLegal={(type) => setLegalModalType(type)}
           user={user}
+          isDarkMode={isDarkMode}
         />
       ) : (
         /* Dedicated Category Archive (Past Papers, FWC, Term Tests, Theory Notes, Theory Videos) */

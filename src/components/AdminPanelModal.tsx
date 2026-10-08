@@ -6,7 +6,7 @@ import {
   Search, Filter, Lock, KeyRound, Eye, EyeOff, Save,
   RefreshCw, Database, Shield, BookOpen, Layers, ArrowLeft,
   Copy, Award, CheckCircle2, ChevronRight, MessageCircle, 
-  Send, CheckCheck, Megaphone, FolderGit2, Sparkles, Folder
+  Send, CheckCheck, Megaphone, FolderGit2, Sparkles, Folder, Bot
 } from 'lucide-react';
 import { collection, onSnapshot, deleteDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -14,6 +14,7 @@ import { PaperResource, VideoLesson, UserReport, StreamId, ResourceCategory, Use
 import { extractYoutubeId } from '../utils/drive';
 import { cleanFirestoreData } from '../utils/firestoreClean';
 import { playRoboticClick, playRoboticTab, playRoboticUnlock } from '../utils/audio';
+import { AdminAiCopilot } from './AdminAiCopilot';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -62,7 +63,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   onUpdateVaultDriveLinks,
 }) => {
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState<'papers' | 'resources' | 'videos' | 'reports' | 'announcement' | 'publish' | 'security'>('papers');
+  const [activeTab, setActiveTab] = useState<'papers' | 'resources' | 'videos' | 'reports' | 'announcement' | 'publish' | 'security' | 'ai-copilot'>('papers');
   const [reports, setReports] = useState<UserReport[]>([]);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
@@ -628,6 +629,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 >
                   <Megaphone className="w-4 h-4" />
                   <span>Live Notice</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    playRoboticTab();
+                    setActiveTab('ai-copilot');
+                    setEditingPaper(null);
+                  }}
+                  className={`px-3.5 sm:px-4 py-3 text-xs font-mono font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'ai-copilot'
+                      ? 'border-purple-400 text-purple-300 bg-purple-950/30'
+                      : 'border-transparent text-purple-400 hover:text-purple-200'
+                  }`}
+                >
+                  <Bot className="w-4 h-4 text-purple-400" />
+                  <span>AI Copilot (Upload)</span>
+                  <span className="px-1.5 py-0.2 rounded-md bg-purple-900/60 text-[9px] text-purple-300 border border-purple-400/40">
+                    100/day
+                  </span>
                 </button>
 
                 <button
@@ -1351,6 +1371,35 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
               {/* TAB 6: UNIFIED PUBLISH WIZARD */}
               {activeTab === 'publish' && (
                 <div className="max-w-3xl space-y-5">
+                  {/* AI Copilot Quick Upload Banner */}
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-950/60 via-indigo-950/40 to-slate-900 border border-purple-500/30 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-purple-600/30 border border-purple-400/40 flex items-center justify-center text-purple-300 shrink-0">
+                        <Bot className="w-4 h-4 animate-pulse" />
+                      </div>
+                      <div>
+                        <h5 className="text-xs font-black text-white flex items-center gap-1.5">
+                          <span>Prefer Chat Upload? Use AI Copilot</span>
+                          <span className="px-1.5 py-0.2 rounded-md bg-purple-500/20 text-purple-300 font-mono text-[9px]">100 chats/day</span>
+                        </h5>
+                        <p className="text-[11px] text-slate-300">
+                          Just tell the AI in Tamil, Tanglish, or English with your Drive Link!
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playRoboticTab();
+                        setActiveTab('ai-copilot');
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Open AI Copilot</span>
+                    </button>
+                  </div>
+
                   {/* Segmented Option Selector */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1.5 bg-[#050A17] border border-cyan-500/30 rounded-2xl">
                     <button
@@ -1651,6 +1700,34 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* TAB 8: AI COPILOT AUTONOMOUS UPLOADER */}
+              {activeTab === 'ai-copilot' && (
+                <div className="h-[620px] max-w-4xl mx-auto flex flex-col">
+                  <AdminAiCopilot
+                    papers={papers}
+                    videos={videos}
+                    onAddPaper={onAddPaper}
+                    onUpdatePaper={onUpdatePaper}
+                    onDeletePaper={onDeletePaper}
+                    onAddVideo={onAddVideo}
+                    vaultDriveLinks={vaultDriveLinks}
+                    onUpdateVaultDriveLinks={onUpdateVaultDriveLinks}
+                    siteAnnouncement={siteAnnouncement}
+                    onUpdateSiteAnnouncement={onUpdateSiteAnnouncement}
+                    onSwitchTab={(tab, filterParams) => {
+                      setActiveTab(tab);
+                      if (filterParams?.subject) {
+                        setFilterSubject(filterParams.subject);
+                      }
+                      if (filterParams?.category) {
+                        setFilterCategory(filterParams.category);
+                      }
+                    }}
+                    showSuccess={showSuccess}
+                  />
                 </div>
               )}
 

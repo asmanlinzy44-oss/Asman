@@ -18,6 +18,7 @@ interface HomePageProps {
   onOpenContactUs?: () => void;
   onOpenLegal?: (type: 'privacy' | 'terms' | 'about' | 'disclaimer') => void;
   user: User | null;
+  isDarkMode?: boolean;
 }
 
 const STREAMS_DATA = [
@@ -118,6 +119,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   onOpenContactUs,
   onOpenLegal,
   user,
+  isDarkMode = false,
 }) => {
   // Moving word cycler
   const rotatingWords = [
@@ -204,10 +206,10 @@ export const HomePage: React.FC<HomePageProps> = ({
       </div>
 
       {/* 2. Hero Section (Newspaper/Magazine Headline & Clean Aesthetic) */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-white via-blue-50/30 to-slate-50 border-b border-slate-200/80 px-4 pt-12 pb-14 sm:pt-16 sm:pb-18 text-center">
+      <section className="relative overflow-hidden bg-gradient-to-b from-white via-blue-50/30 to-slate-50 dark:from-slate-950 dark:via-slate-900/90 dark:to-slate-950 border-b border-slate-200/80 dark:border-slate-800 px-4 pt-12 pb-14 sm:pt-16 sm:pb-18 text-center transition-colors">
         {/* Subtle grid background */}
         <div 
-          className="absolute inset-0 opacity-[0.025] pointer-events-none"
+          className="absolute inset-0 opacity-[0.025] dark:opacity-[0.05] pointer-events-none"
           style={{
             backgroundImage: `radial-gradient(#0066FF 1px, transparent 1px)`,
             backgroundSize: '24px 24px',
@@ -217,22 +219,22 @@ export const HomePage: React.FC<HomePageProps> = ({
         <div className="max-w-4xl mx-auto relative z-10">
           {/* Logo Showcase */}
           <div className="flex justify-center mb-4">
-            <PaperExpressLogo size="xl" variant="light" />
+            <PaperExpressLogo size="xl" variant={isDarkMode ? 'dark' : 'light'} />
           </div>
 
           {/* Premium Sub-kicker / Logo Introduction */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-[#0066FF] text-xs font-bold mb-6 shadow-2xs">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/80 text-[#0066FF] dark:text-sky-300 text-xs font-bold mb-6 shadow-2xs">
             <Compass className="w-3.5 h-3.5" />
             <span>Official Sri Lankan G.C.E. Advanced Level Science Stream (Maths & Bio) Academic Archive</span>
           </div>
 
           {/* 3. Examination Countdown Widget */}
-          <div className="max-w-3xl mx-auto mb-8 text-left">
+          <div className="max-w-3xl mx-auto mb-8">
             <ExamCountdown />
           </div>
 
           {/* Dynamic Moving Headline */}
-          <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight mb-4">
+          <h1 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight leading-tight mb-4">
             Study Smart. Reach Your Highest Island Rank In
             <span className="block mt-2.5 min-h-[1.3em]">
               <span className="inline-block px-5 py-1.5 rounded-2xl bg-gradient-to-r from-blue-600 via-[#0066FF] to-indigo-600 text-white shadow-md transform transition-all duration-300 animate-pulse">
@@ -370,7 +372,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs font-extrabold text-[#0066FF]">
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-extrabold text-[#0066FF] dark:text-sky-400">
                   <span>Access {st.badge} Archive</span>
                   <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1.5 transition-transform" />
                 </div>
@@ -382,14 +384,14 @@ export const HomePage: React.FC<HomePageProps> = ({
         {/* 5. The 4 Academic Catalogs */}
         <section className="space-y-6 reveal-on-scroll">
           <div className="text-center max-w-2xl mx-auto mb-6">
-            <div className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#0066FF] mb-1">
+            <div className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#0066FF] dark:text-sky-400 mb-1">
               <BookOpen className="w-4 h-4" />
               <span>Academic Resource Catalog</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
               Choose What You Want to Practice
             </h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
               Select any archive below to enter its dedicated search, filter, and download repository.
             </p>
           </div>
