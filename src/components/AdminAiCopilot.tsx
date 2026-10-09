@@ -96,22 +96,22 @@ export const AdminAiCopilot: React.FC<AdminAiCopilotProps> = ({
             id: 'welcome',
             sender: 'ai',
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            thoughtProcess: `• Connected to Google Gemini 3.8 Flash Neural Agent
+            thoughtProcess: `• Connected to Google Gemini Flash Autonomous Agent
 • Loaded Sri Lankan G.C.E. A/L Science Curriculum database (Combined Maths, Physics, Chemistry, Biology)
 • Active Database State: ${papers.length} Past Papers/Schemes, ${videos.length} Video Masterclasses
-• Conversational Mode: Fluently understands Tamil, Tanglish & English; responds naturally to casual chat and executes uploads with deep reasoning.`,
-            text: `வணக்கம் Admin! நான் உங்கள் Paper Express Gemini AI Assistant. 
+• Conversational Mode: Fluently understands Tamil, Tanglish & English; thinks step-by-step and executes uploads directly.`,
+            text: `வணக்கம் Admin! நான் உங்கள் Paper Express Google Gemini AI Assistant. 🤖
 
-என்னிடம் நீங்கள் சாதாரணமாக "Hi" என பேசினாலும் சரி, அல்லது சிக்கலான A/L Exam Papers, Marking Schemes, Pilot Papers போன்றவற்றை Upload செய்யச் சொன்னாலும் சரி, யோசித்து புத்திசாலித்தனமாக (Clever & Thoughtful) பதிலளிப்பேன்.
+என்னிடம் நீங்கள் சாதாரணமாக "Hi bro, epdi irukinga?" என உரையாடினாலும் சரி, அல்லது Past Papers, Marking Schemes, Pilot Papers போன்றவற்றை Upload செய்யச் சொன்னாலும் சரி, ஆழ்ந்து சிந்தித்து புத்திசாலித்தனமாக (Clever & Thoughtful) பதிலளிப்பேன்.
 
 உதாரணமாக:
-• "Hi bro, epdi irukinga?"
-• "2024 Biology Marking Scheme upload pannu link: https://drive.google.com/..."
+• "Hi machan, epdi irukka?"
+• "Upload 2024 Chemistry Marking Scheme link: https://drive.google.com/..."
 • "Combined Maths 2023 Moratuwa pilot paper add pannu https://..."
 • "Open Physics NIE Resource textbook folder"
 • "Put live announcement: 2024 Marking Schemes Available Now!"`,
             suggestedPrompts: [
-              'Hi Gemini, what can you help me with?',
+              'Hi Gemini! How are you doing today?',
               'Upload 2024 Biology Marking Scheme with Drive link',
               'Open University of Moratuwa Pilot Archive',
               'Show total database statistics'
@@ -170,32 +170,61 @@ export const AdminAiCopilot: React.FC<AdminAiCopilotProps> = ({
     const q = input.trim();
     const lower = q.toLowerCase();
 
-    // 1. Casual Chat Handler (Greets back naturally, NOT repeating boilerplate!)
+    // 1. Casual Chat Handler (Greets back naturally, dynamically, NOT repeating boilerplate!)
     const isCasualGreeting = 
       /^(hi|hello|hey|vanakkam|வணக்கம்|hai|hola|good morning|good evening|good afternoon|machan|bro|mapla)[\s!.,?]*$/i.test(lower) ||
-      lower.includes('epdi irukinga') || lower.includes('eppadi irukkinga') || lower.includes('how are you');
+      lower.includes('epdi irukinga') || lower.includes('eppadi irukkinga') || lower.includes('how are you') || lower.includes('epdi irukka') ||
+      lower.includes('summa') || lower.includes('nalla irukiya');
 
-    if (isCasualGreeting) {
+    if (isCasualGreeting && !lower.includes('upload') && !lower.includes('delete') && !lower.includes('open')) {
+      const casualReplies = [
+        `வணக்கம் Asman Linzy bro! நான் நல்லா இருக்கேன். நீங்கள் எப்படி இருக்கிறீர்கள்? 😊\n\nPaper Express களஞ்சியத்தில் இன்று என்ன வேலை செய்ய வேண்டும்? Past Papers, Marking Schemes அல்லது Live Announcement ஏதும் தயார் செய்யவா?`,
+        `Hi Linzy bro! Super-ah irukken! நீங்கள் summa sonnalum naan eppovum ready-ah irukken! இன்று Chemistry Virtual Lab, Physics அல்லது Combined Maths-ல் என்ன update பண்ணலாம்? சொல்லுங்க, உடனே செய்துடுவோம்! 🔥`,
+        `Hello Admin! Paper Express console-ல் நான் எப்போதும் விழிப்புடன் உள்ளேன். ${papers.length} Past Papers & Schemes களஞ்சியத்தில் உள்ளன. நீங்கள் எந்த பணி சொன்னாலும் செய்யத் தயார்!`,
+      ];
+      const selectedReply = casualReplies[Math.floor(Math.random() * casualReplies.length)];
+
       return {
-        thoughtProcess: `1. Analyzed input: Casual greeting detected ("${q}")\n2. Tone: Friendly, courteous, conversational\n3. Action: Greet back politely without dumping repetitive instruction templates.`,
-        reply: `ஹலோ Admin! நான் நன்றாக இருக்கிறேன், நன்றி! 😊\n\nஇன்று Paper Express களஞ்சியத்தில் என்ன ஆவணங்களை பதிவேற்ற வேண்டும்? புதிய Past Papers அல்லது Marking Schemes சேர்க்க தயார் என்றால் கூறுங்கள்!`,
+        thoughtProcess: `1. Analyzed input: Informal greeting detected from Asman Linzy ("${q}")\n2. Tone: Warm, energetic, conversational\n3. Action: Responding naturally acknowledging founder identity.`,
+        reply: selectedReply,
         suggestedPrompts: [
-          'Upload 2024 Biology Marking Scheme',
-          'Open Combined Maths Pilot Vault',
+          'Upload 2024 Biology Marking Scheme with Drive link',
+          'Open University of Moratuwa Pilot Archive',
+          'Check Chemistry Virtual Lab (paperexpresslab1.vercel.app)',
           'Show repository status'
         ]
       };
     }
 
-    // 2. Who are you / What can you do
+    // 2. Who are you / What can you do / Chemistry Lab Info
     if (lower.includes('who are you') || lower.includes('yar neenga') || lower.includes('enna seiva') || lower.includes('what can you do')) {
       return {
-        thoughtProcess: `1. Intent: Self-introduction & capability query\n2. Role: Paper Express Autonomous Gemini Assistant\n3. Capabilities: Bilingual NLP upload execution, folder opening, live announcements.`,
-        reply: `நான் Paper Express Administrator Console-இன் Gemini AI Assistant! 🤖\n\nநீங்கள் தமிழ், Tanglish அல்லது ஆங்கிலத்தில் கூறினாலும்:\n1. கூகிள் டிரைவ் இணைப்புடன் Exam Papers & Marking Schemes-களை நேரடியாக Upload செய்வேன்.\n2. Moratuwa Pilot மற்றும் Resource Folders-களை உடனே திறந்து காட்டுவேன்.\n3. இணையதள முகப்பில் Live Announcement பதாகைகளை வெளியிடுவேன்.`,
+        thoughtProcess: `1. Intent: Self-introduction & capability query\n2. Role: Paper Express Autonomous Gemini Assistant\n3. Platform Knowledge: Full architecture, Chemistry Lab, A/L curriculum.`,
+        reply: `நான் உங்கள் Paper Express Administrator Console-ன் பிரத்யேக Google Gemini AI Assistant! 🤖\n\nநீங்கள் என்னிடம் எப்படி பேசினாலும்:\n1. கூகிள் டிரைவ் இணைப்புடன் Exam Papers & Marking Schemes-களை நேரடியாக களஞ்சியத்தில் Publish செய்வேன்.\n2. Moratuwa Pilot மற்றும் 4 Resource Folders-களை உடனே திறந்து தருவேன்.\n3. இணையதள முகப்பில் Live Announcement பதாகைகளை வெளியிடுவேன்.\n4. நீங்கள் உருவாக்கிய Chemistry Virtual Lab (paperexpresslab1.vercel.app) விபரங்களை மாணவர்களிடம் கொண்டு சேர்ப்பேன்!`,
         suggestedPrompts: [
           'Upload 2024 Chemistry Marking Scheme',
+          'Open Chemistry Virtual Lab',
           'Show total uploaded papers',
           'Open Physics Sub-Folders'
+        ]
+      };
+    }
+
+    // Chemistry Lab specific query
+    if (lower.includes('chem') && (lower.includes('lab') || lower.includes('virtual'))) {
+      return {
+        thoughtProcess: `1. Intent: Query about Chemistry Virtual Lab\n2. URL: https://paperexpresslab1.vercel.app/\n3. Action: Providing link and simulation overview.`,
+        reply: `🧪 **Paper Express Chemistry Virtual Lab (paperexpresslab1.vercel.app)** நேரலையில் இயங்குகிறது!\n\nமாணவர்கள் இணையவழியிலேயே Titrations (HCl + NaOH), Salt Qualitative Analysis (Cations/Anions flame spectra), மற்றும் Functional Group tests-களை ஆபத்தின்றி பயிற்சி பெற முடியும். முகப்பிலும் இது சேர்க்கப்பட்டுள்ளது!`,
+        receipt: {
+          type: 'OPEN_FOLDER',
+          title: 'Paper Express Chemistry Virtual Lab',
+          detail: 'paperexpresslab1.vercel.app — Interactive student practical simulator.',
+          driveLink: 'https://paperexpresslab1.vercel.app/'
+        },
+        suggestedPrompts: [
+          'Open Chemistry Virtual Lab',
+          'Put announcement about Chemistry Lab',
+          'Upload 2024 Chemistry Marking Scheme'
         ]
       };
     }
@@ -244,8 +273,8 @@ export const AdminAiCopilot: React.FC<AdminAiCopilotProps> = ({
       showSuccess(`"${newPaper.titleEn}" published live via Gemini!`);
 
       return {
-        thoughtProcess: `1. Intent: Resource Upload detected\n2. Subject: ${subject} (${stream.toUpperCase()}) | Year: ${year}\n3. Drive Link: ${driveLink.slice(0, 30)}...\n4. Executed onAddPaper() to cloud store.`,
-        reply: `🎉 **வெற்றிகரமாக பதிவேற்றப்பட்டது!**\n\n"${newPaper.titleEn}" ஆவணம் தளத்தின் நேரடி களஞ்சியத்தில் சேர்க்கப்பட்டுவிட்டது. கீழே உள்ள அட்டை மூலம் பார்க்கலாம்:`,
+        thoughtProcess: `1. Intent: Resource Upload detected for Asman Linzy\n2. Subject: ${subject} (${stream.toUpperCase()}) | Year: ${year}\n3. Drive Link: ${driveLink.slice(0, 30)}...\n4. Executed onAddPaper() to cloud store.`,
+        reply: `🎉 **வெற்றிகரமாக பதிவேற்றப்பட்டது, Linzy bro!**\n\n"${newPaper.titleEn}" ஆவணம் தளத்தின் நேரடி களஞ்சியத்தில் சேர்க்கப்பட்டுவிட்டது. மாணவர்கள் உடனே பதிவிறக்கலாம்:`,
         receipt: {
           type: 'UPLOAD_PAPER',
           title: newPaper.titleEn,
@@ -263,7 +292,7 @@ export const AdminAiCopilot: React.FC<AdminAiCopilotProps> = ({
     if (lower.includes('upload') || lower.includes('add') || lower.includes('பதிவேற்று') || lower.includes('podu')) {
       return {
         thoughtProcess: `1. Intent: Upload directive identified for ${subject} (${year})\n2. Missing Parameter: Google Drive URL\n3. Action: Asking Admin for drive link.`,
-        reply: `சரி Admin! **${year} ${subject}** (${isScheme ? 'Marking Scheme' : 'Question Paper'}) பதிவேற்றத் தயாராக உள்ளேன்.\n\nஇதற்கான **Google Drive Link**-ஐ (https://drive.google.com/...) தயவுசெய்து கொடுங்கள், நான் உடனே Publish செய்து விடுகிறேன்!`,
+        reply: `சரி Asman bro! **${year} ${subject}** (${isScheme ? 'Marking Scheme' : 'Question Paper'}) விபரங்கள் தயார்.\n\nஇதற்கான **Google Drive Link**-ஐ (https://drive.google.com/...) அனுப்பிவிடுங்கள், நான் உடனே Publish செய்து விடுகிறேன்!`,
         suggestedPrompts: [
           `Upload ${year} ${subject} with link https://drive.google.com/file/d/sample/view`,
           `Open ${subject} resources folder`
@@ -273,11 +302,12 @@ export const AdminAiCopilot: React.FC<AdminAiCopilotProps> = ({
 
     // Default intelligent guidance
     return {
-      thoughtProcess: `1. Linguistic analysis of: "${q}"\n2. Context: Sri Lankan G.C.E. A/L Science repository administration\n3. Result: Providing helpful direction.`,
-      reply: `நான் உங்கள் குறிப்பை கவனித்தேன்! ஏதேனும் குறிப்பிட்ட Exam Paper அல்லது Marking Scheme-ஐ பதிவேற்ற விரும்பினால், அதன் Drive Link மற்றும் விபரங்களை என்னிடம் கூறுங்கள்!`,
+      thoughtProcess: `1. Linguistic analysis of: "${q}"\n2. Context: Paper Express A/L Science repository administration (Asman Linzy)\n3. Result: Providing helpful direction.`,
+      reply: `நான் உங்கள் குறிப்பை கவனித்தேன் Linzy bro! ஏதேனும் குறிப்பிட்ட Exam Paper, Marking Scheme பதிவேற்ற வேண்டுமா, அல்லது Announcement / Folder திறக்க வேண்டுமா? கூறுங்கள், உடனே செய்திடுவோம்!`,
       suggestedPrompts: [
         'Upload 2024 Biology Marking Scheme',
         'Open Moratuwa Pilot Archive',
+        'Open Chemistry Virtual Lab',
         'Show repository statistics'
       ]
     };
@@ -308,7 +338,7 @@ export const AdminAiCopilot: React.FC<AdminAiCopilotProps> = ({
     setProcessingStatus('Gemini is reasoning & analyzing curriculum intent...');
 
     try {
-      // 1. Call Full-Stack Server-Side Gemini Endpoint
+      // 1. Call Full-Stack Server-Side Gemini Endpoint with Rich History & Admin Context
       const response = await fetch('/api/copilot/chat', {
         method: 'POST',
         headers: {
@@ -316,7 +346,28 @@ export const AdminAiCopilot: React.FC<AdminAiCopilotProps> = ({
         },
         body: JSON.stringify({
           message: rawText,
-          history: messages.slice(-4).map((m) => ({ role: m.sender === 'admin' ? 'user' : 'model', text: m.text })),
+          history: messages.slice(-10).map((m) => ({ role: m.sender === 'admin' ? 'user' : 'model', text: m.text })),
+          adminProfile: {
+            name: 'Asman Linzy',
+            email: 'asmanlinzy44@gmail.com',
+            instagram: '@asman_linzy',
+            role: 'Founder & Administrator',
+          },
+          platformContext: {
+            platformName: 'Paper Express',
+            targetExam: 'August 10, 2027 (G.C.E. A/L 2027 Examination)',
+            chemistryLabUrl: 'https://paperexpresslab1.vercel.app/',
+            totalPapers: papers.length,
+            totalVideos: videos.length,
+            activeAnnouncement: siteAnnouncement?.text || '',
+            recentUploads: papers.slice(-5).map((p) => ({
+              title: p.titleEn,
+              year: p.year,
+              subject: p.subjectNameEn,
+              category: p.category,
+              id: p.id,
+            })),
+          },
         }),
       });
 
@@ -387,6 +438,38 @@ export const AdminAiCopilot: React.FC<AdminAiCopilotProps> = ({
             type: 'UPDATE_ANNOUNCEMENT',
             title: 'Live Site Notice Published',
             detail: data.announcementText
+          };
+        }
+
+        // If intent is DELETE
+        if (data.intent === 'DELETE' && data.deleteTarget && onDeletePaper) {
+          const dt = data.deleteTarget;
+          const target = papers.find((p) => {
+            if (dt.year && p.year !== Number(dt.year)) return false;
+            if (dt.subject && !p.subjectNameEn.toLowerCase().includes(dt.subject.toLowerCase())) return false;
+            if (dt.query && !p.titleEn.toLowerCase().includes(dt.query.toLowerCase())) return false;
+            return true;
+          });
+          if (target) {
+            onDeletePaper(target.id);
+            playRoboticUnlock();
+            showSuccess(`"${target.titleEn}" removed from repository.`);
+            receipt = {
+              type: 'DELETE_PAPER',
+              title: target.titleEn,
+              detail: `Removed from ${target.category} archive (${target.subjectNameEn}).`,
+              paperId: target.id,
+            };
+          }
+        }
+
+        // If intent is CHEMISTRY_LAB
+        if (data.intent === 'CHEMISTRY_LAB') {
+          receipt = {
+            type: 'OPEN_FOLDER',
+            title: 'Paper Express Chemistry Virtual Lab',
+            detail: 'paperexpresslab1.vercel.app — Interactive student practical simulator.',
+            driveLink: 'https://paperexpresslab1.vercel.app/'
           };
         }
 
@@ -482,7 +565,7 @@ export const AdminAiCopilot: React.FC<AdminAiCopilotProps> = ({
                 <span>PAPER EXPRESS GEMINI AI</span>
                 <span className="px-2 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 font-mono text-[10px] font-bold border border-cyan-400/30 flex items-center gap-1">
                   <Sparkles className="w-3 h-3 text-cyan-400" />
-                  <span>GEMINI 3.8 FLASH</span>
+                  <span>GOOGLE GEMINI AI</span>
                 </span>
               </h3>
             </div>
@@ -521,7 +604,7 @@ export const AdminAiCopilot: React.FC<AdminAiCopilotProps> = ({
       {/* Chat Messages Stream Area */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 font-sans text-xs sm:text-sm">
         {messages.map((msg) => {
-          const isThoughtExpanded = expandedThoughts[msg.id] ?? false;
+          const isThoughtExpanded = expandedThoughts[msg.id] ?? true;
 
           return (
             <div
