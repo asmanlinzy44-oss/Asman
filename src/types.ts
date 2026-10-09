@@ -128,3 +128,19 @@ export interface UserReport {
   resolved?: boolean;
 }
 
+export type VideoAccessScope = 'all' | 'custom';
+
+export interface PaidStudentAccess {
+  email: string;
+  studentName?: string;
+  grantedAt: string;
+  grantedBy?: string;
+  note?: string;
+  // Granular part-by-part video access
+  accessScope?: VideoAccessScope; // 'all' (default) or 'custom'
+  allowedSubjectIds?: string[]; // e.g. ['physics'] or ['chemistry']
+  allowedVideoIds?: string[]; // specific video IDs e.g. ['vid-phy-hydro-class1']
+  allowedUnits?: number[]; // e.g. [2] for Hydrodynamics, [6] for IUPAC
+  accessLabel?: string; // e.g. 'All Videos', 'Physics Hydrodynamics Only', 'Chemistry IUPAC Only'
+}
+

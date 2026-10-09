@@ -10,6 +10,7 @@ interface VideoCardProps {
   isWatched: boolean;
   isUnlocked?: boolean;
   onRequireUnlock?: () => void;
+  accessStatusText?: string;
 }
 
 export const VideoCard: React.FC<VideoCardProps> = ({
@@ -20,6 +21,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   isWatched,
   isUnlocked = false,
   onRequireUnlock,
+  accessStatusText,
 }) => {
   const handleClick = () => {
     if (!isUnlocked) {
@@ -74,7 +76,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({
                 <Lock className="w-6 h-6 text-amber-300" />
               </div>
               <span className="text-xs font-bold text-slate-200">Thumbnail Locked</span>
-              <span className="text-[10px] text-amber-200/80 mt-0.5 font-medium">Unlock to View Video</span>
+              <span className="text-[10px] text-amber-200/80 mt-0.5 font-medium">
+                {accessStatusText || 'Unlock to View Video'}
+              </span>
             </div>
           )}
 
@@ -136,15 +140,25 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </div>
       </div>
 
-      {/* Bottom Action: Only Play Now button as requested */}
+      {/* Bottom Action */}
       <div className="p-4 pt-0">
-        <button
-          onClick={handleClick}
-          className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#0066FF] via-blue-600 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-md shadow-blue-500/20 hover:shadow-blue-500/35 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
-        >
-          <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
-          <span>Play Now</span>
-        </button>
+        {isUnlocked ? (
+          <button
+            onClick={handleClick}
+            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#0066FF] via-blue-600 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-md shadow-blue-500/20 hover:shadow-blue-500/35 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+          >
+            <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+            <span>Play Now</span>
+          </button>
+        ) : (
+          <button
+            onClick={handleClick}
+            className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-300 font-black text-xs uppercase tracking-wider border border-amber-400/30 hover:border-amber-400/60 shadow-md shadow-amber-500/10 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+          >
+            <Lock className="w-3.5 h-3.5 text-amber-400" />
+            <span>Locked 🔐 · Paid Access Only</span>
+          </button>
+        )}
       </div>
     </div>
   );

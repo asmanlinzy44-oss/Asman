@@ -6,11 +6,12 @@ import {
   Search, Filter, Lock, KeyRound, Eye, EyeOff, Save,
   RefreshCw, Database, Shield, BookOpen, Layers, ArrowLeft,
   Copy, Award, CheckCircle2, ChevronRight, MessageCircle, 
-  Send, CheckCheck, Megaphone, FolderGit2, Sparkles, Folder, Bot
+  Send, CheckCheck, Megaphone, FolderGit2, Sparkles, Folder, Bot,
+  Mail, UserCheck
 } from 'lucide-react';
 import { collection, onSnapshot, deleteDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { PaperResource, VideoLesson, UserReport, StreamId, ResourceCategory, User } from '../types';
+import { PaperResource, VideoLesson, UserReport, StreamId, ResourceCategory, User, PaidStudentAccess } from '../types';
 import { extractYoutubeId } from '../utils/drive';
 import { cleanFirestoreData } from '../utils/firestoreClean';
 import { playRoboticClick, playRoboticTab, playRoboticUnlock } from '../utils/audio';
@@ -36,6 +37,10 @@ interface AdminPanelModalProps {
   onUpdateSiteAnnouncement?: (announcement: { active: boolean; text: string; type: 'info' | 'alert' | 'success' }) => void;
   vaultDriveLinks?: Record<string, string>;
   onUpdateVaultDriveLinks?: (links: Record<string, string>) => void;
+  videoAccessEmails?: string[];
+  paidAccessList?: PaidStudentAccess[];
+  onGrantVideoAccess?: (email: string, studentName?: string, note?: string, extra?: Partial<PaidStudentAccess>) => Promise<boolean> | boolean;
+  onRevokeVideoAccess?: (email: string) => Promise<boolean> | boolean;
 }
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
@@ -61,11 +66,36 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   onUpdateSiteAnnouncement,
   vaultDriveLinks = {},
   onUpdateVaultDriveLinks,
+  videoAccessEmails = ['asmanlinzy44@gmail.com'],
+  paidAccessList = [],
+  onGrantVideoAccess,
+  onRevokeVideoAccess,
 }) => {
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState<'papers' | 'resources' | 'videos' | 'reports' | 'announcement' | 'publish' | 'security' | 'ai-copilot'>('papers');
+  const [activeTab, setActiveTab] = useState<'papers' | 'resources' | 'videos' | 'reports' | 'announcement' | 'publish' | 'security' | 'ai-copilot' | 'video-access'>('papers');
   const [reports, setReports] = useState<UserReport[]>([]);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+
+  // Paid Video Access Form State
+  const [studentEmailInput, setStudentEmailInput] = useState('');
+  const [studentNameInput, setStudentNameInput] = useState('');
+  const [studentNoteInput, setStudentNoteInput] = useState('');
+  const [accessScopeInput, setAccessScopeInput] = useState<'all' | 'custom'>('all');
+  const [selectedScopeSubjects, setSelectedScopeSubjects] = useState<string[]>(['physics']);
+  const [selectedScopeUnits, setSelectedScopeUnits] = useState<number[]>([2]);
+  const [customScopeLabel, setCustomScopeLabel] = useState<string>('Physics Hydrodynamics Only');
+  const [searchEmailQuery, setSearchEmailQuery] = useState('');
+  const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
+  const [accessError, setAccessError] = useState<string | null>(null);
+
+  // Edit Existing Student Access Modal State
+  const [editingStudent, setEditingStudent] = useState<PaidStudentAccess | null>(null);
+  const [editScope, setEditScope] = useState<'all' | 'custom'>('all');
+  const [editSubjects, setEditSubjects] = useState<string[]>([]);
+  const [editUnits, setEditUnits] = useState<number[]>([]);
+  const [editLabel, setEditLabel] = useState<string>('');
+  const [editName, setEditName] = useState<string>('');
+  const [editNote, setEditNote] = useState<string>('');
 
   // Authentication Gate State
   const [passcodeInput, setPasscodeInput] = useState('');
@@ -235,6 +265,108 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       showSuccess('Live Announcement Banner broadcasted across the website!');
     }
   };
+
+  // Paid Video Access Handlers
+  const handleGrantAccessSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAccessError(null);
+
+    const email = studentEmailInput.trim().toLowerCase();
+    if (!email) return;
+
+    if (!email.includes('@') || !email.includes('.')) {
+      setAccessError('Please enter a valid Gmail / Email address (e.g. student@gmail.com)');
+      return;
+    }
+
+    if (videoAccessEmails.some((e) => e.toLowerCase().trim() === email)) {
+      setAccessError(`Access already granted: ${email} already has video access. You can click "Edit Scope" below to modify permissions.`);
+      return;
+    }
+
+    const isCustom = accessScopeInput === 'custom';
+    const label = isCustom 
+      ? (customScopeLabel.trim() || 'Custom Modules') 
+      : 'All Videos';
+
+    const extra: Partial<PaidStudentAccess> = {
+      accessScope: accessScopeInput,
+      allowedSubjectIds: isCustom ? selectedScopeSubjects : undefined,
+      allowedUnits: isCustom ? selectedScopeUnits : undefined,
+      accessLabel: label,
+    };
+
+    if (onGrantVideoAccess) {
+      try {
+        await onGrantVideoAccess(email, studentNameInput.trim(), studentNoteInput.trim(), extra);
+        playRoboticUnlock();
+        showSuccess(`🎉 Video masterclass access (${label}) granted to ${email}!`);
+        setStudentEmailInput('');
+        setStudentNameInput('');
+        setStudentNoteInput('');
+      } catch (err: any) {
+        setAccessError(err?.message || 'Failed to grant access. Please try again.');
+      }
+    }
+  };
+
+  const handleOpenEditStudent = (student: PaidStudentAccess) => {
+    setEditingStudent(student);
+    setEditScope(student.accessScope || 'all');
+    setEditSubjects(student.allowedSubjectIds || ['physics']);
+    setEditUnits(student.allowedUnits || [2]);
+    setEditLabel(student.accessLabel || (student.accessScope === 'custom' ? 'Physics Hydrodynamics Only' : 'All Videos'));
+    setEditName(student.studentName || '');
+    setEditNote(student.note || '');
+  };
+
+  const handleSaveStudentEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent || !onGrantVideoAccess) return;
+
+    const isCustom = editScope === 'custom';
+    const label = isCustom ? (editLabel.trim() || 'Custom Modules') : 'All Videos';
+
+    const extra: Partial<PaidStudentAccess> = {
+      grantedAt: editingStudent.grantedAt,
+      accessScope: editScope,
+      allowedSubjectIds: isCustom ? editSubjects : undefined,
+      allowedUnits: isCustom ? editUnits : undefined,
+      accessLabel: label,
+    };
+
+    try {
+      await onGrantVideoAccess(editingStudent.email, editName.trim(), editNote.trim(), extra);
+      playRoboticUnlock();
+      showSuccess(`Permissions updated for ${editingStudent.email} (${label})!`);
+      setEditingStudent(null);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to update student access.');
+    }
+  };
+
+  const handleRevokeClick = async (email: string) => {
+    if (email.toLowerCase().trim() === 'asmanlinzy44@gmail.com') {
+      alert('Permanent Super Admin access cannot be revoked.');
+      return;
+    }
+    if (window.confirm(`Are you sure you want to revoke video access for ${email}? This student will see "Locked 🔐".`)) {
+      if (onRevokeVideoAccess) {
+        await onRevokeVideoAccess(email);
+        showSuccess(`Revoked video access for ${email}`);
+      }
+    }
+  };
+
+  const filteredStudents = useMemo(() => {
+    const q = searchEmailQuery.trim().toLowerCase();
+    if (!q) return paidAccessList;
+    return paidAccessList.filter((item) => 
+      item.email.toLowerCase().includes(q) ||
+      (item.studentName && item.studentName.toLowerCase().includes(q)) ||
+      (item.note && item.note.toLowerCase().includes(q))
+    );
+  }, [paidAccessList, searchEmailQuery]);
 
   // Handle Publish Submit
   const handlePublishSubmit = (e: React.FormEvent) => {
@@ -594,6 +726,25 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 >
                   <Video className="w-4 h-4" />
                   <span>Video Lessons ({videos.length})</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    playRoboticTab();
+                    setActiveTab('video-access');
+                    setEditingPaper(null);
+                  }}
+                  className={`px-3 sm:px-4 py-3 text-xs font-mono font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                    activeTab === 'video-access'
+                      ? 'border-amber-400 text-amber-300 bg-amber-950/40 shadow-inner'
+                      : 'border-transparent text-amber-400 hover:text-amber-200'
+                  }`}
+                >
+                  <Lock className="w-4 h-4 text-amber-400" />
+                  <span>Paid Video Access ({paidAccessList.length})</span>
+                  <span className="px-1.5 py-0.2 rounded-md bg-amber-500/20 text-[9px] text-amber-300 font-bold border border-amber-400/30">
+                    Students
+                  </span>
                 </button>
 
                 <button
@@ -1717,6 +1868,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     onUpdateVaultDriveLinks={onUpdateVaultDriveLinks}
                     siteAnnouncement={siteAnnouncement}
                     onUpdateSiteAnnouncement={onUpdateSiteAnnouncement}
+                    onGrantVideoAccess={onGrantVideoAccess}
                     onSwitchTab={(tab, filterParams) => {
                       setActiveTab(tab);
                       if (filterParams?.subject) {
@@ -1728,6 +1880,626 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     }}
                     showSuccess={showSuccess}
                   />
+                </div>
+              )}
+
+              {/* TAB 9: PAID STUDENTS VIDEO ACCESS MANAGER */}
+              {activeTab === 'video-access' && (
+                <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-200">
+                  {/* Top Stats & Overview Card */}
+                  <div className="p-6 rounded-3xl bg-gradient-to-r from-[#091228] via-[#0D1B3E] to-[#0A1633] border border-amber-500/40 shadow-xl space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[11px] font-mono font-bold tracking-wider mb-2">
+                          <Lock className="w-3.5 h-3.5 text-amber-400" />
+                          <span>PAID STUDENT EXCLUSIVE ACCESS · வீடியோ அனுமதி</span>
+                        </div>
+                        <h3 className="text-xl font-black text-white">
+                          Paid Student Video Masterclass Gate
+                        </h3>
+                        <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                          Only students logged in with authorized Gmail accounts below can watch theory video lessons. All other Gmail accounts will strictly see <span className="text-amber-300 font-bold">Locked 🔐</span>.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <div className="px-4 py-2.5 rounded-2xl bg-[#050A17] border border-amber-500/30 text-center">
+                          <span className="text-[10px] text-amber-300/80 uppercase font-mono block">Enrolled Students</span>
+                          <span className="text-xl font-black text-amber-300 font-mono">{paidAccessList.length}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs font-mono">
+                      <div className="p-3 rounded-xl bg-[#050A17]/80 border border-slate-800 flex items-center gap-2.5">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <div className="truncate">
+                          <span className="text-[10px] text-slate-400 block">Permanent Admin</span>
+                          <span className="text-emerald-300 font-bold truncate">asmanlinzy44@gmail.com</span>
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-[#050A17]/80 border border-slate-800 flex items-center gap-2.5">
+                        <Database className="w-4 h-4 text-cyan-400 shrink-0" />
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Cloud Sync</span>
+                          <span className="text-cyan-300 font-bold">Firestore Real-time Active</span>
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-[#050A17]/80 border border-slate-800 flex items-center gap-2.5">
+                        <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                        <div>
+                          <span className="text-[10px] text-slate-400 block">Non-Paid Status</span>
+                          <span className="text-amber-300 font-bold">Locked 🔐 for all others</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Add Student Gmail Form */}
+                  <div className="p-6 rounded-3xl bg-[#091228] border-2 border-amber-500/40 shadow-xl space-y-4">
+                    <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                      <KeyRound className="w-5 h-5 text-amber-400" />
+                      <div>
+                        <h4 className="text-sm font-bold text-white">
+                          Grant Video Access to New Student (அனுமதி வழங்கு)
+                        </h4>
+                        <p className="text-[11px] text-slate-400">
+                          Type the student's Gmail to activate video lessons for their account
+                        </p>
+                      </div>
+                    </div>
+
+                    <form onSubmit={handleGrantAccessSubmit} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {/* Email Input */}
+                        <div className="md:col-span-1">
+                          <label className="block text-xs font-mono font-bold text-amber-300 mb-1 flex items-center gap-1.5">
+                            <Mail className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Student Gmail <span className="text-rose-400">*</span></span>
+                          </label>
+                          <input
+                            type="email"
+                            required
+                            value={studentEmailInput}
+                            onChange={(e) => {
+                              setStudentEmailInput(e.target.value);
+                              setAccessError(null);
+                            }}
+                            placeholder="student@gmail.com"
+                            className="w-full px-3.5 py-2.5 bg-[#050A17] border border-amber-500/40 focus:border-amber-400 focus:ring-2 focus:ring-amber-500/20 rounded-xl text-xs font-mono text-white placeholder-slate-500 transition-all outline-none"
+                          />
+                        </div>
+
+                        {/* Name Input */}
+                        <div>
+                          <label className="block text-xs font-mono font-bold text-slate-300 mb-1 flex items-center gap-1.5">
+                            <UserCheck className="w-3.5 h-3.5 text-sky-400" />
+                            <span>Student Name / Stream (Optional)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={studentNameInput}
+                            onChange={(e) => setStudentNameInput(e.target.value)}
+                            placeholder="e.g. Kavindu · 2026 Combined Maths"
+                            className="w-full px-3.5 py-2.5 bg-[#050A17] border border-slate-700 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 rounded-xl text-xs text-white placeholder-slate-500 transition-all outline-none"
+                          />
+                        </div>
+
+                        {/* Notes / Payment Ref */}
+                        <div>
+                          <label className="block text-xs font-mono font-bold text-slate-300 mb-1 flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Payment Ref / Notes (Optional)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={studentNoteInput}
+                            onChange={(e) => setStudentNoteInput(e.target.value)}
+                            placeholder="e.g. Paid full course / Bank slip verified"
+                            className="w-full px-3.5 py-2.5 bg-[#050A17] border border-slate-700 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 rounded-xl text-xs text-white placeholder-slate-500 transition-all outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Access Scope Options: All Videos vs Part-by-Part */}
+                      <div className="p-3.5 rounded-2xl bg-[#050A17] border border-amber-500/30 space-y-3">
+                        <label className="block text-xs font-mono font-bold text-amber-300 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <Layers className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Permission Scope / அனுமதி எல்லை <span className="text-rose-400">*</span></span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-normal">Choose full or partial access</span>
+                        </label>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              playRoboticClick();
+                              setAccessScopeInput('all');
+                              setCustomScopeLabel('All Videos');
+                            }}
+                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                              accessScopeInput === 'all'
+                                ? 'bg-emerald-950/40 border-emerald-400/60 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                                : 'bg-[#091228] border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                                accessScopeInput === 'all' ? 'border-emerald-400 bg-emerald-500' : 'border-slate-600'
+                              }`}>
+                                {accessScopeInput === 'all' && <Check className="w-2.5 h-2.5 text-black stroke-[3]" />}
+                              </span>
+                              <span className="text-xs font-bold text-white">Full Access (முழுமையானது) 🌐</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1 pl-5.5 leading-relaxed">
+                              Student can watch all Physics, Chemistry, Maths & Biology video masterclasses.
+                            </p>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              playRoboticClick();
+                              setAccessScopeInput('custom');
+                              if (!customScopeLabel || customScopeLabel === 'All Videos') {
+                                setCustomScopeLabel('Physics Hydrodynamics Only');
+                              }
+                            }}
+                            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                              accessScopeInput === 'custom'
+                                ? 'bg-amber-950/40 border-amber-400/60 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                                : 'bg-[#091228] border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                                accessScopeInput === 'custom' ? 'border-amber-400 bg-amber-500' : 'border-slate-600'
+                              }`}>
+                                {accessScopeInput === 'custom' && <Check className="w-2.5 h-2.5 text-black stroke-[3]" />}
+                              </span>
+                              <span className="text-xs font-bold text-white">Custom / Part-by-Part (பகுதி பகுதி) 🎯</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1 pl-5.5 leading-relaxed">
+                              Selective units e.g. Hydrodynamics only, Chemistry only. Other lessons show Locked 🔐.
+                            </p>
+                          </button>
+                        </div>
+
+                        {/* If Custom Scope Selected: Quick Presets & Topic Selectors */}
+                        {accessScopeInput === 'custom' && (
+                          <div className="pt-2 border-t border-slate-800/80 space-y-3 animate-in fade-in duration-200">
+                            <div>
+                              <span className="text-[10px] font-mono font-bold text-amber-300 uppercase tracking-wider block mb-1.5">
+                                Quick Presets (உடனடி தேர்வுகள்)
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playRoboticClick();
+                                    setSelectedScopeSubjects(['physics']);
+                                    setSelectedScopeUnits([2]);
+                                    setCustomScopeLabel('Physics Hydrodynamics Only');
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-blue-950/60 hover:bg-blue-900 border border-blue-500/40 text-blue-200 text-[11px] font-medium flex items-center gap-1 cursor-pointer"
+                                >
+                                  <span>💧 Hydrodynamics Only (பாயியக்கவியல்)</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playRoboticClick();
+                                    setSelectedScopeSubjects(['chemistry']);
+                                    setSelectedScopeUnits([6]);
+                                    setCustomScopeLabel('Chemistry IUPAC Only');
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-purple-950/60 hover:bg-purple-900 border border-purple-500/40 text-purple-200 text-[11px] font-medium flex items-center gap-1 cursor-pointer"
+                                >
+                                  <span>🧪 Chemistry IUPAC Only (சேதன இரசாயனம்)</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playRoboticClick();
+                                    setSelectedScopeSubjects(['physics']);
+                                    setSelectedScopeUnits([]);
+                                    setCustomScopeLabel('Physics Complete');
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-sky-950/60 hover:bg-sky-900 border border-sky-500/40 text-sky-200 text-[11px] font-medium flex items-center gap-1 cursor-pointer"
+                                >
+                                  <span>⚡ Physics Complete</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playRoboticClick();
+                                    setSelectedScopeSubjects(['chemistry']);
+                                    setSelectedScopeUnits([]);
+                                    setCustomScopeLabel('Chemistry Complete');
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-200 text-[11px] font-medium flex items-center gap-1 cursor-pointer"
+                                >
+                                  <span>🔬 Chemistry Complete</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Subjects Checkboxes */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              {[
+                                { id: 'physics', label: 'Physics (பௌதிகவியல்)' },
+                                { id: 'chemistry', label: 'Chemistry (இரசாயனம்)' },
+                                { id: 'combined-maths', label: 'Combined Maths (கணிதம்)' },
+                                { id: 'biology', label: 'Biology (உயிரியல்)' },
+                              ].map((sub) => {
+                                const isChecked = selectedScopeSubjects.includes(sub.id);
+                                return (
+                                  <label
+                                    key={sub.id}
+                                    className={`p-2 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${
+                                      isChecked ? 'bg-amber-500/15 border-amber-500/50 text-white' : 'bg-[#091228] border-slate-800 text-slate-400'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setSelectedScopeSubjects([...selectedScopeSubjects, sub.id]);
+                                        } else {
+                                          setSelectedScopeSubjects(selectedScopeSubjects.filter((s) => s !== sub.id));
+                                        }
+                                      }}
+                                      className="rounded text-amber-500 focus:ring-amber-400"
+                                    />
+                                    <span className="text-[11px] font-medium truncate">{sub.label}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+
+                            {/* Custom Label Input */}
+                            <div>
+                              <label className="block text-[11px] font-mono text-slate-300 mb-1">
+                                Permission Label shown to Student (மாணவருக்கு காட்டப்படும் விபரம்):
+                              </label>
+                              <input
+                                type="text"
+                                value={customScopeLabel}
+                                onChange={(e) => setCustomScopeLabel(e.target.value)}
+                                placeholder="e.g. Physics Hydrodynamics Only"
+                                className="w-full px-3 py-1.5 bg-[#091228] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 outline-none focus:border-amber-400"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {accessError && (
+                        <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-500/50 flex items-center gap-2 text-xs font-mono text-rose-300">
+                          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                          <span>{accessError}</span>
+                        </div>
+                      )}
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                        <span className="text-[11px] text-slate-400">
+                          Once granted, the student can sign in with this Gmail to unlock all videos immediately.
+                        </span>
+
+                        <button
+                          type="submit"
+                          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 active:scale-[0.98] text-slate-950 font-black text-xs uppercase tracking-wider shadow-[0_0_20px_rgba(245,158,11,0.35)] transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Grant Video Access (அனுமதி வழங்கு)</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Enrolled Students Directory */}
+                  <div className="p-6 rounded-3xl bg-[#091228] border border-slate-800 shadow-xl space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                      <div>
+                        <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                          <span>Active Authorized Student Accounts</span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-mono border border-emerald-500/30">
+                            {paidAccessList.length} Accounts
+                          </span>
+                        </h4>
+                        <p className="text-[11px] text-slate-400">
+                          List of Gmail accounts with active video masterclass permission
+                        </p>
+                      </div>
+
+                      {/* Search Filter */}
+                      <div className="relative min-w-[240px]">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          value={searchEmailQuery}
+                          onChange={(e) => setSearchEmailQuery(e.target.value)}
+                          placeholder="Search by Gmail or name..."
+                          className="w-full pl-8 pr-3 py-1.5 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Table / List */}
+                    <div className="space-y-2">
+                      {filteredStudents.map((item) => {
+                        const isOwner = item.email.toLowerCase().trim() === 'asmanlinzy44@gmail.com';
+                        const isCopied = copiedEmail === item.email;
+
+                        return (
+                          <div
+                            key={item.email}
+                            className={`p-3.5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                              isOwner
+                                ? 'bg-indigo-950/30 border-indigo-500/40'
+                                : 'bg-[#050A17] border-slate-800/90 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                                isOwner ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              }`}>
+                                {isOwner ? <ShieldCheck className="w-5 h-5 text-indigo-400" /> : <Mail className="w-4 h-4 text-amber-400" />}
+                              </div>
+
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-mono text-xs font-bold text-white truncate">
+                                    {item.email}
+                                  </span>
+
+                                  {isOwner ? (
+                                    <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-bold border border-indigo-500/30 flex items-center gap-1">
+                                      <Lock className="w-2.5 h-2.5" />
+                                      Permanent Super Admin
+                                    </span>
+                                  ) : item.accessScope === 'custom' ? (
+                                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30 flex items-center gap-1">
+                                      <Lock className="w-2.5 h-2.5 text-amber-400" />
+                                      <span>{item.accessLabel || 'Custom: Partial'}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1">
+                                      <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
+                                      All Videos 🌐
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5 flex-wrap">
+                                  {item.studentName && (
+                                    <span className="text-slate-200 font-medium">{item.studentName}</span>
+                                  )}
+                                  {item.note && (
+                                    <span className="text-slate-400">· {item.note}</span>
+                                  )}
+                                  {item.grantedAt && (
+                                    <span className="text-slate-500">· Added {new Date(item.grantedAt).toLocaleDateString()}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(item.email);
+                                  setCopiedEmail(item.email);
+                                  setTimeout(() => setCopiedEmail(null), 2000);
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-700"
+                                title="Copy Email"
+                              >
+                                {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                <span>{isCopied ? 'Copied' : 'Copy'}</span>
+                              </button>
+
+                              {!isOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditStudent(item)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-indigo-950/40 hover:bg-indigo-900/60 text-indigo-200 text-[11px] font-mono flex items-center gap-1.5 transition-colors cursor-pointer border border-indigo-500/30"
+                                  title="Edit Permissions"
+                                >
+                                  <Edit3 className="w-3 h-3 text-indigo-400" />
+                                  <span>Edit Scope</span>
+                                </button>
+                              )}
+
+                              {!isOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRevokeClick(item.email)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 text-[11px] font-mono flex items-center gap-1.5 transition-colors cursor-pointer border border-rose-500/30"
+                                  title="Revoke Video Access"
+                                >
+                                  <Trash2 className="w-3 h-3 text-rose-400" />
+                                  <span>Revoke</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {filteredStudents.length === 0 && (
+                        <div className="p-8 text-center bg-[#050A17] rounded-2xl border border-slate-800 text-slate-400 text-xs">
+                          No students found matching "{searchEmailQuery}". Type a Gmail above to add.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Edit Student Permission Modal */}
+                  {editingStudent && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+                      <div className="bg-[#091228] border border-amber-500/40 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                          <div>
+                            <h4 className="text-base font-bold text-white flex items-center gap-2">
+                              <KeyRound className="w-4 h-4 text-amber-400" />
+                              <span className="truncate">Edit Permissions: {editingStudent.email}</span>
+                            </h4>
+                            <p className="text-xs text-slate-400">Update video course access scope for this student</p>
+                          </div>
+                          <button
+                            onClick={() => setEditingStudent(null)}
+                            className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <form onSubmit={handleSaveStudentEdit} className="space-y-4">
+                          <div>
+                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Student Name</label>
+                            <input
+                              type="text"
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              className="w-full px-3 py-2 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white outline-none focus:border-amber-400"
+                              placeholder="Student Name"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Note / Payment Info</label>
+                            <input
+                              type="text"
+                              value={editNote}
+                              onChange={(e) => setEditNote(e.target.value)}
+                              className="w-full px-3 py-2 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white outline-none focus:border-amber-400"
+                              placeholder="Note"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="block text-xs font-mono font-bold text-amber-300">Access Scope</label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditScope('all');
+                                  setEditLabel('All Videos');
+                                }}
+                                className={`p-2.5 rounded-xl border text-left text-xs font-bold cursor-pointer ${
+                                  editScope === 'all' ? 'bg-emerald-950 border-emerald-400 text-emerald-200' : 'bg-[#050A17] border-slate-800 text-slate-400'
+                                }`}
+                              >
+                                All Videos 🌐
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditScope('custom');
+                                  if (!editLabel || editLabel === 'All Videos') setEditLabel('Physics Hydrodynamics Only');
+                                }}
+                                className={`p-2.5 rounded-xl border text-left text-xs font-bold cursor-pointer ${
+                                  editScope === 'custom' ? 'bg-amber-950 border-amber-400 text-amber-200' : 'bg-[#050A17] border-slate-800 text-slate-400'
+                                }`}
+                              >
+                                Part-by-Part 🎯
+                              </button>
+                            </div>
+                          </div>
+
+                          {editScope === 'custom' && (
+                            <div className="space-y-3 p-3 bg-[#050A17] rounded-2xl border border-slate-800">
+                              <div className="flex flex-wrap gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditSubjects(['physics']);
+                                    setEditUnits([2]);
+                                    setEditLabel('Physics Hydrodynamics Only');
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-blue-950/60 border border-blue-500/40 text-blue-200 text-[10px] cursor-pointer"
+                                >
+                                  💧 Hydrodynamics Only
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditSubjects(['chemistry']);
+                                    setEditUnits([6]);
+                                    setEditLabel('Chemistry IUPAC Only');
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-purple-950/60 border border-purple-500/40 text-purple-200 text-[10px] cursor-pointer"
+                                >
+                                  🧪 Chemistry IUPAC Only
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditSubjects(['physics']);
+                                    setEditUnits([]);
+                                    setEditLabel('Physics Complete');
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-sky-950/60 border border-sky-500/40 text-sky-200 text-[10px] cursor-pointer"
+                                >
+                                  ⚡ Physics Complete
+                                </button>
+                              </div>
+
+                              <div>
+                                <label className="block text-[11px] font-mono text-slate-300 mb-1">Access Label:</label>
+                                <input
+                                  type="text"
+                                  value={editLabel}
+                                  onChange={(e) => setEditLabel(e.target.value)}
+                                  className="w-full px-3 py-1.5 bg-[#091228] border border-slate-700 rounded-xl text-xs text-white outline-none focus:border-amber-400"
+                                  placeholder="e.g. Physics Hydrodynamics Only"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                            <button
+                              type="button"
+                              onClick={() => setEditingStudent(null)}
+                              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-bold text-xs cursor-pointer"
+                            >
+                              Save Permissions
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Practical Tamil & English Guide */}
+                  <div className="p-5 rounded-3xl bg-blue-950/20 border border-blue-500/30 text-xs text-sky-200 leading-relaxed space-y-2">
+                    <p className="font-bold flex items-center gap-1.5 text-sky-300">
+                      <span>💡 எவ்வாறு இயங்குகிறது? (How it works):</span>
+                    </p>
+                    <ol className="list-decimal list-inside space-y-1 text-slate-300 text-[11px]">
+                      <li>மாணவர் (Student) கட்டணம் செலுத்தியவுடன் அவருடைய Gmail முகவரியை மேலே உள்ள பெட்டியில் type செய்து <strong>Grant Video Access</strong> ஐ அழுத்தவும்.</li>
+                      <li>மாணவர் இந்த இணையதளத்திற்கு வந்து அதே Gmail மூலம் <strong>Login with Google</strong> செய்தால் மட்டுமே வீடியோக்கள் திறக்கப்படும் (Unlocked).</li>
+                      <li>வேறு எந்த Gmail அல்லது அனுமதியற்ற பயனர்கள் பார்த்தால் தானாகவே <strong>Locked 🔐</strong> என்று மட்டுமே காண்பிக்கப்படும்.</li>
+                    </ol>
+                  </div>
                 </div>
               )}
 

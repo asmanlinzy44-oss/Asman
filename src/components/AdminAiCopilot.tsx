@@ -4,9 +4,9 @@ import {
   FolderOpen, FileText, Trash2, Megaphone, ExternalLink, 
   Copy, Check, ArrowRight, Video, RefreshCw, Layers, 
   Zap, HelpCircle, ShieldCheck, ChevronDown, ChevronUp,
-  Brain, BookOpen, Clock, MessageSquare
+  Brain, BookOpen, Clock, MessageSquare, Lock, KeyRound
 } from 'lucide-react';
-import { PaperResource, VideoLesson, ResourceCategory, StreamId } from '../types';
+import { PaperResource, VideoLesson, ResourceCategory, StreamId, PaidStudentAccess } from '../types';
 import { ALL_SUB_FOLDERS } from './AiSearchView';
 import { extractYoutubeId } from '../utils/drive';
 import { playRoboticClick, playRoboticUnlock } from '../utils/audio';
@@ -22,12 +22,13 @@ interface AdminAiCopilotProps {
   onUpdateVaultDriveLinks?: (links: Record<string, string>) => void;
   siteAnnouncement?: { active: boolean; text: string; type: 'info' | 'alert' | 'success' };
   onUpdateSiteAnnouncement?: (announcement: { active: boolean; text: string; type: 'info' | 'alert' | 'success' }) => void;
-  onSwitchTab: (tab: 'papers' | 'resources' | 'videos' | 'reports' | 'announcement' | 'publish' | 'security', filterParams?: { category?: string; subject?: string }) => void;
+  onGrantVideoAccess?: (email: string, studentName?: string, note?: string, extra?: Partial<PaidStudentAccess>) => void;
+  onSwitchTab: (tab: 'papers' | 'resources' | 'videos' | 'reports' | 'announcement' | 'publish' | 'security' | 'video-access', filterParams?: { category?: string; subject?: string }) => void;
   showSuccess: (msg: string) => void;
 }
 
 export interface CopilotActionReceipt {
-  type: 'UPLOAD_PAPER' | 'OPEN_FOLDER' | 'DELETE_PAPER' | 'UPDATE_ANNOUNCEMENT' | 'ADD_VIDEO';
+  type: 'UPLOAD_PAPER' | 'OPEN_FOLDER' | 'DELETE_PAPER' | 'UPDATE_ANNOUNCEMENT' | 'ADD_VIDEO' | 'GRANT_VIDEO_ACCESS';
   title: string;
   detail: string;
   subject?: string;
@@ -60,6 +61,7 @@ export const AdminAiCopilot: React.FC<AdminAiCopilotProps> = ({
   onUpdateVaultDriveLinks,
   siteAnnouncement,
   onUpdateSiteAnnouncement,
+  onGrantVideoAccess,
   onSwitchTab,
   showSuccess,
 }) => {
@@ -225,6 +227,56 @@ export const AdminAiCopilot: React.FC<AdminAiCopilotProps> = ({
           'Open Chemistry Virtual Lab',
           'Put announcement about Chemistry Lab',
           'Upload 2024 Chemistry Marking Scheme'
+        ]
+      };
+    }
+
+    // 2.5 Video Access Grant Intent (Full & Part-by-part)
+    const emailMatch = q.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    if (emailMatch && (lower.includes('access') || lower.includes('video') || lower.includes('அனுமதி') || lower.includes('pay') || lower.includes('grant') || lower.includes('add'))) {
+      const email = emailMatch[0].toLowerCase();
+      const isHydroOnly = lower.includes('hydro') || lower.includes('பாயி');
+      const isChemOnly = lower.includes('chem') || lower.includes('இரசாய');
+      
+      let extra: Partial<PaidStudentAccess> = {
+        accessScope: 'all',
+        accessLabel: 'All Videos'
+      };
+
+      if (isHydroOnly) {
+        extra = {
+          accessScope: 'custom',
+          allowedUnits: [2],
+          allowedSubjectIds: ['physics'],
+          accessLabel: 'Physics Hydrodynamics Only',
+        };
+      } else if (isChemOnly) {
+        extra = {
+          accessScope: 'custom',
+          allowedUnits: [6],
+          allowedSubjectIds: ['chemistry'],
+          accessLabel: 'Chemistry IUPAC Only',
+        };
+      }
+
+      if (onGrantVideoAccess) {
+        onGrantVideoAccess(email, 'Enrolled Student', `Granted via Gemini Smart Engine (${extra.accessLabel})`, extra);
+        playRoboticUnlock();
+        showSuccess(`Granted video access (${extra.accessLabel}) to ${email}!`);
+      }
+
+      return {
+        thoughtProcess: `1. Intent: Video Masterclass Access Grant for ${email}\n2. Scope: ${extra.accessLabel}\n3. Executed onGrantVideoAccess() and synchronized to Firestore and local storage.`,
+        reply: `🎉 **அனுமதி வழங்கப்பட்டது, Asman bro!**\n\n**${email}** என்ற மாணவர் கணக்கிற்கு **${extra.accessLabel}** அனுமதி வெற்றிகரமாக வழங்கப்பட்டுவிட்டது. அவர் Google Sign-In செய்து வீடியோக்களை உடனே பார்வையிடலாம்! 🔐▶️`,
+        receipt: {
+          type: 'GRANT_VIDEO_ACCESS',
+          title: `Video Access Granted: ${email}`,
+          detail: `Permission Scope: ${extra.accessLabel}`,
+        },
+        suggestedPrompts: [
+          'Open Paid Video Access Manager',
+          'Upload 2024 Biology Marking Scheme',
+          'Show repository stats'
         ]
       };
     }
@@ -461,6 +513,27 @@ export const AdminAiCopilot: React.FC<AdminAiCopilotProps> = ({
               paperId: target.id,
             };
           }
+        }
+
+        // If intent is GRANT_VIDEO_ACCESS
+        if (data.intent === 'GRANT_VIDEO_ACCESS' && data.grantVideoEmail && onGrantVideoAccess) {
+          const isCustom = data.accessScope === 'custom' || (data.allowedUnits && data.allowedUnits.length > 0) || (data.allowedSubjectIds && data.allowedSubjectIds.length > 0);
+          const scopeLabel = data.accessLabel || (isCustom ? 'Custom Selected Modules' : 'All Videos');
+          const extra: Partial<PaidStudentAccess> = {
+            accessScope: isCustom ? 'custom' : 'all',
+            allowedSubjectIds: data.allowedSubjectIds,
+            allowedUnits: data.allowedUnits,
+            accessLabel: scopeLabel,
+          };
+
+          onGrantVideoAccess(data.grantVideoEmail, data.grantStudentName || 'Enrolled Student', `Granted via Gemini AI (${scopeLabel})`, extra);
+          receipt = {
+            type: 'GRANT_VIDEO_ACCESS',
+            title: `Paid Video Access Granted: ${data.grantVideoEmail}`,
+            detail: `Scope: ${scopeLabel} · Real-time Firestore & browser synced.`,
+          };
+          playRoboticUnlock();
+          showSuccess(`Granted video access (${scopeLabel}) to ${data.grantVideoEmail}!`);
         }
 
         // If intent is CHEMISTRY_LAB
@@ -728,17 +801,31 @@ export const AdminAiCopilot: React.FC<AdminAiCopilotProps> = ({
                         </>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          playRoboticClick();
-                          onSwitchTab('papers');
-                        }}
-                        className="px-3 py-1.5 rounded-lg bg-cyan-950 hover:bg-cyan-900 text-cyan-300 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer border border-cyan-500/30"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        <span>View in Papers Tab</span>
-                      </button>
+                      {msg.actionReceipt.type === 'GRANT_VIDEO_ACCESS' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playRoboticClick();
+                            onSwitchTab('video-access');
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-amber-950 hover:bg-amber-900 text-amber-300 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer border border-amber-500/30"
+                        >
+                          <Lock className="w-3.5 h-3.5" />
+                          <span>View in Video Access Tab</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playRoboticClick();
+                            onSwitchTab('papers');
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-cyan-950 hover:bg-cyan-900 text-cyan-300 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer border border-cyan-500/30"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>View in Papers Tab</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

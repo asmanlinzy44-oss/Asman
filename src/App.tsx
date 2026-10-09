@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Search, Filter, BookOpen, Video, FileText, 
   ArrowLeft, ExternalLink, Download, Lock, CheckCircle, KeyRound, Unlock,
@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { 
   PaperResource, VideoLesson, User, ResourceCategory, 
-  StreamId, UserNote 
+  StreamId, UserNote, PaidStudentAccess 
 } from './types';
 import { INITIAL_PAPERS, INITIAL_VIDEOS, SUBJECTS, STREAMS, CATEGORIES } from './data/mockData';
 import { Header } from './components/Header';
@@ -146,10 +146,94 @@ export default function App() {
     return localStorage.getItem('studypro_admin_session') === 'true';
   });
 
-  // Student Video Lock (Index 4428 & Password 1016)
+  // Paid Students Video Access List (Authorized Gmail Accounts)
+  const [videoAccessEmails, setVideoAccessEmails] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('studypro_paid_video_emails');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return ['asmanlinzy44@gmail.com'];
+  });
+
+  const [paidAccessList, setPaidAccessList] = useState<PaidStudentAccess[]>(() => {
+    try {
+      const saved = localStorage.getItem('studypro_paid_video_access_list');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [{
+      email: 'asmanlinzy44@gmail.com',
+      studentName: 'Asman Linzy (Founder & Super Admin)',
+      grantedAt: '2026-01-01T00:00:00.000Z',
+      note: 'Permanent Platform Administrator'
+    }];
+  });
+
+  // Student Video Lock & Masterclass Access Calculation
+  const currentUserAccess = useMemo(() => {
+    if (!user || !user.email) return null;
+    const currentEmail = user.email.toLowerCase().trim();
+    return paidAccessList.find((item) => item.email.toLowerCase().trim() === currentEmail) || null;
+  }, [user, paidAccessList]);
+
+  // Granular check if a specific VideoLesson is unlocked for this student
+  const isVideoLessonUnlocked = useCallback((video: VideoLesson): boolean => {
+    if (isAdminLoggedIn) return true;
+    if (!user || !user.email) return false;
+    const currentEmail = user.email.toLowerCase().trim();
+    if (currentEmail === 'asmanlinzy44@gmail.com') return true;
+
+    // Check detailed student access record
+    if (currentUserAccess) {
+      if (!currentUserAccess.accessScope || currentUserAccess.accessScope === 'all') {
+        return true;
+      }
+      if (currentUserAccess.accessScope === 'custom') {
+        // 1. Specific Video ID match
+        if (currentUserAccess.allowedVideoIds && currentUserAccess.allowedVideoIds.includes(video.id)) {
+          return true;
+        }
+        // 2. Allowed Subject match
+        if (currentUserAccess.allowedSubjectIds && currentUserAccess.allowedSubjectIds.includes(video.subjectId)) {
+          if (currentUserAccess.allowedUnits && currentUserAccess.allowedUnits.length > 0) {
+            return currentUserAccess.allowedUnits.includes(video.unitNumber);
+          }
+          return true;
+        }
+        // 3. Allowed Unit Number match
+        if (currentUserAccess.allowedUnits && currentUserAccess.allowedUnits.includes(video.unitNumber)) {
+          return true;
+        }
+        // 4. Topic / Keyword match (e.g. "hydro" for Hydrodynamics)
+        const label = (currentUserAccess.accessLabel || '').toLowerCase();
+        const vidText = `${video.titleEn} ${video.unitNameEn} ${video.subjectNameEn}`.toLowerCase();
+        if (label.includes('hydro') && (vidText.includes('hydro') || video.unitNumber === 2)) {
+          return true;
+        }
+        if (label.includes('chem') && (video.subjectId.includes('chem') || vidText.includes('chem') || video.unitNumber === 6)) {
+          return true;
+        }
+        return false;
+      }
+    }
+
+    // Fallback: check email whitelist
+    return videoAccessEmails.some((e) => e.toLowerCase().trim() === currentEmail);
+  }, [isAdminLoggedIn, user, currentUserAccess, videoAccessEmails]);
+
+  const hasVideoAccess = useMemo(() => {
+    if (isAdminLoggedIn) return true;
+    if (!user || !user.email) return false;
+    const currentEmail = user.email.toLowerCase().trim();
+    if (currentEmail === 'asmanlinzy44@gmail.com') return true;
+    return videoAccessEmails.some((e) => e.toLowerCase().trim() === currentEmail);
+  }, [user, videoAccessEmails, isAdminLoggedIn]);
+
   const [isVideoUnlocked, setIsVideoUnlocked] = useState<boolean>(() => {
     return localStorage.getItem('studypro_video_unlocked') === 'true';
   });
+
+  const isEffectiveVideoUnlocked = hasVideoAccess || isVideoUnlocked;
+
   const [isVideoLockOpen, setIsVideoLockOpen] = useState(false);
   const [targetUnlockVideo, setTargetUnlockVideo] = useState<VideoLesson | null>(null);
   const [inlineIndex, setInlineIndex] = useState('');
@@ -662,6 +746,104 @@ export default function App() {
     }
   };
 
+  // Real-time synchronization of Paid Student Video Access list
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'videoAccess'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.emails)) {
+          const merged = Array.from(new Set(['asmanlinzy44@gmail.com', ...data.emails.map((e: string) => e.toLowerCase().trim())]));
+          setVideoAccessEmails(merged);
+          localStorage.setItem('studypro_paid_video_emails', JSON.stringify(merged));
+        }
+        if (Array.isArray(data.accessList)) {
+          setPaidAccessList(data.accessList);
+          localStorage.setItem('studypro_paid_video_access_list', JSON.stringify(data.accessList));
+        }
+      }
+    }, (err) => {
+      console.warn('Video access live sync notice:', err);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleGrantVideoAccess = async (
+    email: string, 
+    studentName?: string, 
+    note?: string,
+    extra?: Partial<PaidStudentAccess>
+  ) => {
+    const cleanEmail = email.toLowerCase().trim();
+    if (!cleanEmail) return false;
+
+    const newEntry: PaidStudentAccess = {
+      email: cleanEmail,
+      studentName: studentName?.trim() || undefined,
+      grantedAt: extra?.grantedAt || new Date().toISOString(),
+      grantedBy: user?.email || 'asmanlinzy44@gmail.com',
+      note: note?.trim() || undefined,
+      accessScope: extra?.accessScope || 'all',
+      allowedSubjectIds: extra?.allowedSubjectIds,
+      allowedVideoIds: extra?.allowedVideoIds,
+      allowedUnits: extra?.allowedUnits,
+      accessLabel: extra?.accessLabel || (extra?.accessScope === 'custom' ? 'Custom Modules' : 'All Videos'),
+    };
+
+    const updatedEmails = Array.from(new Set([...videoAccessEmails, cleanEmail]));
+    const existingList = paidAccessList.filter(item => item.email.toLowerCase().trim() !== cleanEmail);
+    const updatedList = [newEntry, ...existingList];
+
+    setVideoAccessEmails(updatedEmails);
+    setPaidAccessList(updatedList);
+
+    localStorage.setItem('studypro_paid_video_emails', JSON.stringify(updatedEmails));
+    localStorage.setItem('studypro_paid_video_access_list', JSON.stringify(updatedList));
+
+    try {
+      await setDoc(doc(db, 'settings', 'videoAccess'), {
+        emails: updatedEmails,
+        accessList: updatedList,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+
+      const cleanDocId = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+      await setDoc(doc(db, 'video_access', cleanDocId), newEntry, { merge: true });
+    } catch (err) {
+      console.warn('Sync video access error:', err);
+    }
+
+    return true;
+  };
+
+  const handleRevokeVideoAccess = async (email: string) => {
+    const cleanEmail = email.toLowerCase().trim();
+    if (cleanEmail === 'asmanlinzy44@gmail.com') return false;
+
+    const updatedEmails = videoAccessEmails.filter(e => e.toLowerCase().trim() !== cleanEmail);
+    const updatedList = paidAccessList.filter(item => item.email.toLowerCase().trim() !== cleanEmail);
+
+    setVideoAccessEmails(updatedEmails);
+    setPaidAccessList(updatedList);
+
+    localStorage.setItem('studypro_paid_video_emails', JSON.stringify(updatedEmails));
+    localStorage.setItem('studypro_paid_video_access_list', JSON.stringify(updatedList));
+
+    try {
+      await setDoc(doc(db, 'settings', 'videoAccess'), {
+        emails: updatedEmails,
+        accessList: updatedList,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+
+      const cleanDocId = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+      await deleteDoc(doc(db, 'video_access', cleanDocId));
+    } catch (err) {
+      console.warn('Revoke video access error:', err);
+    }
+
+    return true;
+  };
+
   // Sync with Firebase Auth state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
@@ -949,7 +1131,7 @@ export default function App() {
   };
 
   const handlePlayVideo = (video: VideoLesson) => {
-    if (!isVideoUnlocked) {
+    if (!isVideoLessonUnlocked(video)) {
       setTargetUnlockVideo(video);
       setIsVideoLockOpen(true);
       return;
@@ -1309,7 +1491,7 @@ export default function App() {
               onPlayVideo={(video) => handlePlayVideo(video)}
               isBookmarked={(id) => Boolean(user?.bookmarks?.includes(id))}
               onToggleBookmark={handleToggleBookmark}
-              isVideoUnlocked={isVideoUnlocked}
+              isVideoUnlocked={isEffectiveVideoUnlocked}
               onRequireUnlockVideo={() => setIsVideoLockOpen(true)}
             />
           )}
@@ -1501,48 +1683,165 @@ export default function App() {
           {activeTab !== 'past-papers' && activeTab !== 'theory-notes' && activeTab !== 'pilot-papers' && activeTab !== 'ai-search' && (
             activeTab === 'theory-videos' ? (
               <div className="space-y-6">
-                {!isVideoUnlocked ? (
-                  /* Dedicated Attractive Cyber Lock Screen with google-anno-skip and publisher curriculum overview */
-                  <div className="space-y-8">
-                    <div className="relative max-w-md mx-auto my-8 overflow-hidden rounded-3xl bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950 border border-blue-500/35 shadow-[0_0_50px_rgba(0,102,255,0.3)] text-white p-7 animate-in fade-in duration-200 google-anno-skip">
-                      {/* Futuristic Background Glows */}
-                      <div className="absolute top-0 right-0 w-60 h-60 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
-                      <div className="absolute bottom-0 left-0 w-60 h-60 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
-
-                      <div className="text-center relative z-10 mb-6">
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-sky-300 text-[11px] font-mono font-bold tracking-wider mb-4 shadow-inner">
-                          <Lock className="w-3.5 h-3.5 text-sky-400" />
-                          <span>CYBER-GATE · VERIFIED STUDENT ACCESS</span>
-                        </div>
-
-                        {/* Glowing Holographic Lock */}
-                        <div className="relative w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                          <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-400 opacity-30 blur-md animate-pulse" />
-                          <div className="relative w-14 h-14 rounded-2xl bg-slate-900/90 border border-blue-400/40 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-                            <Lock className="w-7 h-7 text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.8)]" />
-                          </div>
-                        </div>
-
-                        <h3 className="text-xl font-black tracking-tight text-white">
-                          Theory Video Masterclasses
-                        </h3>
-                        <p className="text-xs text-sky-200/90 font-semibold mt-1">
-                          Exclusive Access to Theory Video Masterclasses
+                {/* 1. Access Status Banner */}
+                {isAdminLoggedIn || (hasVideoAccess && (!currentUserAccess || currentUserAccess.accessScope === 'all')) ? (
+                  <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-950 dark:text-emerald-200 shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                        <Unlock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="font-extrabold text-sm text-emerald-900 dark:text-emerald-200">
+                          Paid Student Video Masterclasses Unlocked (All Lessons Active 🟢)
                         </p>
-                        <p className="text-[11px] text-slate-400 mt-1">
-                          Physics Hydrodynamics (Units 1–5) & Chemistry IUPAC Lectures
+                        <p className="text-[11px] text-emerald-700 dark:text-emerald-300">
+                          Active session for: <strong className="font-mono">{user?.email || 'Platform Administrator'}</strong>
                         </p>
                       </div>
-
-                      <div className="relative z-10">
-                        <p className="text-xs text-slate-300 mb-5 leading-relaxed text-center">
-                          This section is password protected. Enter your student <strong>Index</strong> and <strong>Password</strong> to access theory video lessons.
+                    </div>
+                  </div>
+                ) : currentUserAccess && currentUserAccess.accessScope === 'custom' ? (
+                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-950 dark:text-amber-200 shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 font-bold">
+                        <Lock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="font-extrabold text-sm text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                          <span>Partial Course Access Active: {currentUserAccess.accessLabel || 'Selected Units Only'}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300 text-[10px] font-mono border border-amber-500/30">Custom Scope</span>
                         </p>
+                        <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                          Enrolled session for <strong className="font-mono">{user?.email}</strong>. Unlocked lectures can be played ▶️. Other course topics show Locked 🔐.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Dedicated Attractive Cyber Lock Screen for unauthorized or unauthenticated users */
+                  <div className="relative max-w-md mx-auto my-6 overflow-hidden rounded-3xl bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950 border border-amber-500/40 shadow-[0_0_50px_rgba(245,158,11,0.25)] text-white p-7 animate-in fade-in duration-200 google-anno-skip">
+                    <div className="absolute top-0 right-0 w-60 h-60 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 w-60 h-60 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
 
+                    <div className="text-center relative z-10 mb-6">
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[11px] font-mono font-bold tracking-wider mb-4 shadow-inner">
+                        <Lock className="w-3.5 h-3.5 text-amber-400" />
+                        <span>LOCKED 🔐 · PAID STUDENTS ONLY</span>
+                      </div>
+
+                      <div className="relative w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-amber-600 via-orange-600 to-red-500 opacity-30 blur-md animate-pulse" />
+                        <div className="relative w-14 h-14 rounded-2xl bg-slate-900/90 border border-amber-400/40 flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.3)]">
+                          <Lock className="w-7 h-7 text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.8)]" />
+                        </div>
+                      </div>
+
+                      <h3 className="text-xl font-black tracking-tight text-white">
+                        Locked 🔐 Video Lessons
+                      </h3>
+                      <p className="text-xs text-amber-200/90 font-semibold mt-1">
+                        Exclusive Access for Paid & Enrolled Students Only
+                      </p>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Physics Hydrodynamics (Units 1–5) & Chemistry IUPAC Lectures
+                      </p>
+                    </div>
+
+                    <div className="relative z-10 space-y-4">
+                      {user && user.email ? (
+                        <div className="bg-slate-900/90 border border-amber-500/30 rounded-2xl p-4 text-center space-y-3">
+                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-300">
+                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                            <span>Logged in as: <strong className="text-white font-mono">{user.email}</strong></span>
+                          </div>
+
+                          <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-200 text-xs text-left leading-relaxed">
+                            <p className="font-bold flex items-center gap-1.5 text-amber-300 mb-1">
+                              <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                              <span>Access Not Activated (Locked 🔐)</span>
+                            </p>
+                            <p className="text-[11px] text-slate-300">
+                              This Gmail account has not been granted paid masterclass access yet. If you have completed payment, please contact Asman Linzy to activate access in the Admin Panel.
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                playRoboticClick();
+                                setIsContactOpen(true);
+                              }}
+                              className="w-full py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Megaphone className="w-4 h-4" />
+                              <span>Contact Admin</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                playRoboticClick();
+                                await handleLogout();
+                                setTimeout(() => handleDirectGoogleLogin(), 300);
+                              }}
+                              className="w-full py-2.5 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <UserCheck className="w-4 h-4 text-sky-400" />
+                              <span>Switch Gmail</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 text-center space-y-3">
+                          <p className="text-xs text-slate-300 leading-relaxed">
+                            Video lessons are available exclusively for paid students. Please sign in with your authorized <strong>Google / Gmail</strong> account to unlock lectures.
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={handleDirectGoogleLogin}
+                            className="w-full py-3 px-4 bg-white hover:bg-slate-100 text-slate-900 font-extrabold text-xs sm:text-sm rounded-xl transition-all shadow-lg flex items-center justify-center gap-2.5 cursor-pointer group active:scale-[0.98]"
+                          >
+                            <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shrink-0">
+                              <svg className="w-full h-full" viewBox="0 0 24 24">
+                                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z" />
+                                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z" />
+                                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z" />
+                                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
+                              </svg>
+                            </div>
+                            <span>Sign In with Google (Gmail)</span>
+                          </button>
+
+                          <div className="pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                playRoboticClick();
+                                setIsContactOpen(true);
+                              }}
+                              className="text-xs text-sky-400 hover:text-sky-300 font-semibold underline underline-offset-2 flex items-center justify-center gap-1 mx-auto cursor-pointer"
+                            >
+                              <span>Want to enroll? Contact Asman Linzy to get access</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Collapsible Admin Passcode Override */}
+                      <details className="text-[11px] text-slate-400 group">
+                        <summary className="cursor-pointer hover:text-slate-300 py-1 transition-colors select-none">
+                          Admin Passcode Override (Optional)
+                        </summary>
                         <form
                           onSubmit={(e) => {
                             e.preventDefault();
-                            if (inlineIndex.trim() === '4428' && inlinePassword.trim() === '1016') {
+                            if (
+                              (inlineIndex.trim() === '4428' && inlinePassword.trim() === '1016') ||
+                              inlinePassword.trim() === 'admin2026' ||
+                              inlinePassword.trim() === 'asman44'
+                            ) {
                               playRoboticUnlock();
                               setIsVideoUnlocked(true);
                               localStorage.setItem('studypro_video_unlocked', 'true');
@@ -1551,154 +1850,126 @@ export default function App() {
                               setInlineError('');
                             } else {
                               playRoboticError();
-                              setInlineError('Invalid Index or Password. Please try again.');
+                              setInlineError('Invalid Index or Passcode.');
                             }
                           }}
-                          className="space-y-4"
+                          className="mt-2 space-y-2"
                         >
-                          <div>
-                            <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
-                              <UserCheck className="w-3.5 h-3.5 text-sky-400" />
-                              <span>Index</span>
-                            </label>
+                          <div className="grid grid-cols-2 gap-2">
                             <input
                               type="text"
-                              required
-                              autoFocus
                               value={inlineIndex}
                               onChange={(e) => {
                                 setInlineIndex(e.target.value);
                                 setInlineError('');
                               }}
                               placeholder="Index"
-                              className="w-full px-4 py-2.5 bg-slate-900/90 border border-slate-700/90 rounded-xl text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition-all font-mono tracking-wider placeholder-slate-500"
+                              className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-blue-400"
                             />
-                          </div>
-
-                          <div>
-                            <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
-                              <KeyRound className="w-3.5 h-3.5 text-sky-400" />
-                              <span>Password</span>
-                            </label>
                             <input
                               type="password"
-                              required
                               value={inlinePassword}
                               onChange={(e) => {
                                 setInlinePassword(e.target.value);
                                 setInlineError('');
                               }}
-                              placeholder="Password"
-                              className="w-full px-4 py-2.5 bg-slate-900/90 border border-slate-700/90 rounded-xl text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition-all font-mono tracking-wider placeholder-slate-500"
+                              placeholder="Passcode"
+                              className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-blue-400"
                             />
                           </div>
 
                           {inlineError && (
-                            <div className="p-3 bg-rose-950/70 border border-rose-500/50 rounded-xl flex items-center gap-2 text-xs font-bold text-rose-300 animate-in fade-in duration-150">
-                              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                              <span>{inlineError}</span>
+                            <div className="p-1.5 bg-rose-950/70 border border-rose-500/50 rounded-lg text-rose-300 text-[10px] font-bold">
+                              {inlineError}
                             </div>
                           )}
 
                           <button
                             type="submit"
-                            className="w-full py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.99] text-white font-extrabold text-sm rounded-xl transition-all shadow-[0_0_20px_rgba(0,102,255,0.4)] flex items-center justify-center gap-2 cursor-pointer"
+                            className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
                           >
-                            <Unlock className="w-4 h-4" />
-                            <span>Unlock Video Lessons</span>
+                            Verify
                           </button>
                         </form>
+                      </details>
 
-                        <div className="mt-5 pt-4 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-                          <span>Protected Theory Video Masterclasses</span>
-                          <span className="font-mono font-bold text-sky-400">Security Gate</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Extensive Curriculum Syllabus Overview for AdSense & Student Learning */}
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-xs space-y-6">
-                      <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-                        <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
-                          Course Syllabus & Academic Scope
-                        </span>
-                        <h4 className="text-xl font-black text-slate-900 dark:text-white mt-1">
-                          A/L Theory Masterclass Lectures Overview
-                        </h4>
-                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
-                          Our in-app video lectures provide rigorous, derivation-by-derivation coverage of critical G.C.E. A/L Science syllabus units.
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/50 space-y-2.5">
-                          <div className="font-extrabold text-sm text-blue-950 dark:text-sky-200">
-                            🌊 Physics Unit 2: Hydrodynamics (Units 1–5)
-                          </div>
-                          <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1.5 list-disc list-inside">
-                            <li><strong>Unit 1: Streamline Flow & Viscosity:</strong> Velocity gradient, Newton’s law of viscous force, coefficient of viscosity, Poiseuille’s formula derivation.</li>
-                            <li><strong>Unit 2: Equation of Continuity:</strong> Conservation of mass in non-viscous incompressible fluid, volume flow rate (Av = const).</li>
-                            <li><strong>Unit 3: Bernoulli’s Principle:</strong> Conservation of mechanical energy in streamline fluid flow, pressure head, velocity head, elevation head.</li>
-                            <li><strong>Unit 4: Engineering Applications:</strong> Pitot tube, Venturi meter, Torricelli’s law of efflux, dynamic lift on aerofoil.</li>
-                            <li><strong>Unit 5: Capillarity & Surface Tension:</strong> Intermolecular forces, angle of contact, Jurin’s law, excess pressure in spherical bubbles.</li>
-                          </ul>
-                        </div>
-
-                        <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/50 space-y-2.5">
-                          <div className="font-extrabold text-sm text-emerald-950 dark:text-emerald-200">
-                            🧪 Chemistry Unit 7: IUPAC & Organic Mechanisms
-                          </div>
-                          <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1.5 list-disc list-inside">
-                            <li><strong>Systematic IUPAC Nomenclature:</strong> Principal functional group hierarchy, longest continuous carbon chain, locant numbering rules.</li>
-                            <li><strong>Electrophilic Addition:</strong> Markovnikov’s rule, carbocation stability intermediates, halogenation of alkenes & alkynes.</li>
-                            <li><strong>Nucleophilic Substitution:</strong> SN1 vs SN2 kinetics, steric hindrance, optical inversion (Walden inversion).</li>
-                            <li><strong>Elimination Reactions:</strong> E1 vs E2 pathways, Zaitsev’s rule, alkene stability determination.</li>
-                            <li><strong>Aromatic Substitution:</strong> Benzene ring delocalization, electrophilic aromatic substitution (nitration, halogenation, Friedel-Crafts).</li>
-                          </ul>
-                        </div>
+                      <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                        <span>Protected Theory Video Masterclasses</span>
+                        <span className="font-mono font-bold text-sky-400">Paper Express</span>
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <>
-                    {/* Unlocked Access Status Banner */}
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-950 shadow-2xs">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
-                          <Unlock className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="font-extrabold text-emerald-900 text-sm">Student Access Verified</div>
-                          <div className="text-emerald-700 text-xs">All theory video classes and chapter markers are unlocked for learning.</div>
-                        </div>
-                      </div>
+                )}
 
-                      <div className="flex items-center gap-2 self-start sm:self-auto">
-                        <button
-                          onClick={() => {
-                            setIsVideoUnlocked(false);
-                            localStorage.removeItem('studypro_video_unlocked');
-                          }}
-                          className="px-3 py-1.5 rounded-xl border border-slate-300 hover:border-rose-300 text-xs font-bold text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                        >
-                          Lock Videos
-                        </button>
+                {/* Extensive Curriculum Syllabus Overview */}
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-xs space-y-6">
+                  <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+                    <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
+                      Course Syllabus & Academic Scope
+                    </span>
+                    <h4 className="text-xl font-black text-slate-900 dark:text-white mt-1">
+                      A/L Theory Masterclass Lectures Overview
+                    </h4>
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+                      Our in-app video lectures provide rigorous, derivation-by-derivation coverage of critical G.C.E. A/L Science syllabus units.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/50 space-y-2.5">
+                      <div className="font-extrabold text-sm text-blue-950 dark:text-sky-200">
+                        🌊 Physics Unit 2: Hydrodynamics (Units 1–5)
                       </div>
+                      <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1.5 list-disc list-inside">
+                        <li><strong>Unit 1: Streamline Flow & Viscosity:</strong> Velocity gradient, Newton’s law of viscous force, coefficient of viscosity, Poiseuille’s formula derivation.</li>
+                        <li><strong>Unit 2: Equation of Continuity:</strong> Conservation of mass in non-viscous incompressible fluid, volume flow rate (Av = const).</li>
+                        <li><strong>Unit 3: Bernoulli’s Principle:</strong> Conservation of mechanical energy in streamline fluid flow, pressure head, velocity head, elevation head.</li>
+                        <li><strong>Unit 4: Engineering Applications:</strong> Pitot tube, Venturi meter, Torricelli’s law of efflux, dynamic lift on aerofoil.</li>
+                        <li><strong>Unit 5: Capillarity & Surface Tension:</strong> Intermolecular forces, angle of contact, Jurin’s law, excess pressure in spherical bubbles.</li>
+                      </ul>
                     </div>
 
-                    {filteredVideos.length === 0 ? (
-                      <div className="bg-white rounded-3xl border border-slate-200/90 p-12 text-center text-slate-500 shadow-xs max-w-md mx-auto my-8">
-                        <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto mb-4 border border-rose-100 shadow-2xs">
-                          <Video className="w-7 h-7" />
-                        </div>
-                        <p className="font-extrabold text-base text-slate-900 mb-1">No Video Lessons in This Category Yet</p>
-                        <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-                          Video lessons, topic walkthroughs, and theory tutorials are curated directly by educators. Check back soon for new additions.
-                        </p>
+                    <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/50 space-y-2.5">
+                      <div className="font-extrabold text-sm text-emerald-950 dark:text-emerald-200">
+                        🧪 Chemistry Unit 7: IUPAC & Organic Mechanisms
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                        {filteredVideos.map((video) => (
+                      <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1.5 list-disc list-inside">
+                        <li><strong>Systematic IUPAC Nomenclature:</strong> Principal functional group hierarchy, longest continuous carbon chain, locant numbering rules.</li>
+                        <li><strong>Electrophilic Addition:</strong> Markovnikov’s rule, carbocation stability intermediates, halogenation of alkenes & alkynes.</li>
+                        <li><strong>Nucleophilic Substitution:</strong> SN1 vs SN2 kinetics, steric hindrance, optical inversion (Walden inversion).</li>
+                        <li><strong>Elimination Reactions:</strong> E1 vs E2 pathways, Zaitsev’s rule, alkene stability determination.</li>
+                        <li><strong>Aromatic Substitution:</strong> Benzene ring delocalization, electrophilic aromatic substitution (nitration, halogenation, Friedel-Crafts).</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Masterclass Video Cards Grid */}
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
+                      Masterclass Video Lessons · விரிவுரைகள்
+                    </span>
+                    <h4 className="text-lg font-black text-slate-900 dark:text-white mt-0.5">
+                      Browse Masterclass Lectures
+                    </h4>
+                  </div>
+
+                  {filteredVideos.length === 0 ? (
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-12 text-center text-slate-500 shadow-xs max-w-md mx-auto my-8">
+                      <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto mb-4 border border-rose-100 shadow-2xs">
+                        <Video className="w-7 h-7" />
+                      </div>
+                      <p className="font-extrabold text-base text-slate-900 dark:text-white mb-1">No Video Lessons in This Category</p>
+                      <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
+                        Video lessons are curated directly by educators. Check back soon for new additions.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {filteredVideos.map((video) => {
+                        const isUnlocked = isVideoLessonUnlocked(video);
+                        return (
                           <VideoCard
                             key={video.id}
                             video={video}
@@ -1709,17 +1980,17 @@ export default function App() {
                               setIsVideoLockOpen(true);
                             }}
                             isWatched={user?.watchedVideoIds?.includes(video.id) || false}
-                            isUnlocked={isVideoUnlocked}
+                            isUnlocked={isUnlocked}
                             onRequireUnlock={() => {
                               setTargetUnlockVideo(video);
                               setIsVideoLockOpen(true);
                             }}
                           />
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div id="fwc-papers-results">
@@ -1846,7 +2117,23 @@ export default function App() {
           }
         }}
         targetVideoTitle={targetUnlockVideo?.titleEn}
+        currentUser={user}
+        userAccessScopeLabel={
+          currentUserAccess?.accessScope === 'custom'
+            ? (currentUserAccess.accessLabel || 'Selected Topics Only')
+            : undefined
+        }
         onGoogleLogin={handleDirectGoogleLogin}
+        onLogoutAndSwitch={async () => {
+          await handleLogout();
+          setIsVideoLockOpen(false);
+          setTimeout(() => {
+            handleDirectGoogleLogin();
+          }, 300);
+        }}
+        onOpenContactUs={() => {
+          setIsContactOpen(true);
+        }}
       />
       {/* Focus Timer Modal (Pomodoro) */}
       <StudyTimerModal
@@ -1929,6 +2216,10 @@ export default function App() {
         onUpdateSiteAnnouncement={handleUpdateSiteAnnouncement}
         vaultDriveLinks={vaultDriveLinks}
         onUpdateVaultDriveLinks={handleUpdateVaultDriveLinks}
+        videoAccessEmails={videoAccessEmails}
+        paidAccessList={paidAccessList}
+        onGrantVideoAccess={handleGrantVideoAccess}
+        onRevokeVideoAccess={handleRevokeVideoAccess}
       />
 
       {/* Vercel Firebase Domain Authorization Guide Modal */}
