@@ -89,6 +89,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
   const hudFlashTimeoutRef = useRef<any>(null);
   const touchHandledRef = useRef<boolean>(false);
+  const loadingTimeoutRef = useRef<any>(null);
 
   // Controlled embed URL with optional forced quality and seek start
   const embedUrl = useMemo(() => {
@@ -135,9 +136,11 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           sendYtCommand('setPlaybackQuality', [currentQuality]);
           sendYtCommand('setPlaybackQualityRange', [currentQuality, currentQuality]);
         }
-        setTimeout(() => {
+        // Unified single loading screen: safety fallback timeout (2500ms max)
+        if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = setTimeout(() => {
           setIsLoading(false);
-        }, 2200);
+        }, 2500);
       } catch (e) {
         console.warn('Iframe handshake issue:', e);
         setIsLoading(false);
@@ -158,9 +161,13 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     setNoteText('');
     setShowMobileSpeedDrawer(false);
     setShowQualityModal(false);
+    if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
     if (video?.durationMinutes) {
       setDuration(video.durationMinutes * 60);
     }
+    return () => {
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+    };
   }, [video?.id, video?.durationMinutes]);
 
   // Handle postMessage events from YouTube iframe
@@ -177,24 +184,25 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           }
           if (typeof data.info.playerState === 'number') {
             if (data.info.playerState === 1) {
-              // Playing
+              // Playing: single initial load completed smoothly
               setIsPlaying(true);
               setIsLoading(false);
               setIsBuffering(false);
+              if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
             } else if (data.info.playerState === 2) {
-              // Paused
+              // Paused: video is ready
               setIsPlaying(false);
               setIsLoading(false);
               setIsBuffering(false);
+              if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
             } else if (data.info.playerState === 0) {
               // Ended
               setIsPlaying(false);
               setIsLoading(false);
               setIsBuffering(false);
             } else if (data.info.playerState === 3) {
-              // Buffering / Loading
+              // Buffering mid-stream: keep isBuffering true, but DO NOT trigger the full-screen loading screen again!
               setIsBuffering(true);
-              setIsLoading(true);
             }
           }
           if (typeof data.info.muted === 'boolean') {
@@ -308,7 +316,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     setCurrentQuality(qualityId);
     setEmbedQuality(qualityId);
     setStreamStartTime(Math.floor(currentTime));
-    setIsLoading(true);
+    setIsBuffering(true);
     
     // Command YouTube API
     sendYtCommand('setPlaybackQuality', [qualityId]);
@@ -318,6 +326,9 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     flashGamingHud(`📺 RESOLUTION: ${qConfig?.label || qualityId} [${qConfig?.tag || 'ENGAGED'}]`);
     setShowQualityModal(false);
     resetControlsTimeout();
+    setTimeout(() => {
+      setIsBuffering(false);
+    }, 600);
   };
 
   // Seek To Timestamp
@@ -325,14 +336,12 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     const clamped = Math.max(0, Math.min(duration, newSeconds));
     setCurrentTime(clamped);
 
-    setIsLoading(true);
     setIsBuffering(true);
     sendYtCommand('seekTo', [clamped, true]);
     resetControlsTimeout();
     setTimeout(() => {
       setIsBuffering(false);
-      setIsLoading(false);
-    }, 1100);
+    }, 600);
   };
 
   // Skip relative offset in seconds (e.g. -10s or +10s)
@@ -619,9 +628,9 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                 )}
               </div>
 
-              {/* CENTER COCKPIT LOADING & BUFFERING SPINNER */}
-              {(isLoading || isBuffering) && (
-                <div className="absolute inset-0 z-25 flex flex-col items-center justify-center pointer-events-none bg-black/45 backdrop-blur-[1.5px] transition-all">
+              {/* SINGLE CENTER COCKPIT LOADING SCREEN (Only 1 loading screen on initial open) */}
+              {isLoading && (
+                <div className="absolute inset-0 z-25 flex flex-col items-center justify-center pointer-events-none bg-black/75 backdrop-blur-[2px] transition-all duration-300">
                   <div className="relative flex items-center justify-center">
                     {/* Outer Neon Cyber Ring */}
                     <div className="w-18 h-18 sm:w-22 sm:h-22 rounded-full border-4 border-cyan-500/20 border-t-cyan-400 border-r-blue-500 animate-spin shadow-[0_0_30px_rgba(6,182,212,0.7)]" />
@@ -639,7 +648,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   <div className="mt-4 px-3.5 py-1 rounded-full bg-slate-950/90 border border-cyan-400/60 shadow-[0_0_20px_rgba(6,182,212,0.5)] flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
                     <span className="text-[10px] sm:text-xs font-mono font-black text-cyan-200 uppercase tracking-widest">
-                      {isBuffering ? 'BUFFERING VIDEO STREAM...' : 'LOADING VIDEO STREAM...'}
+                      LOADING VIDEO STREAM...
                     </span>
                   </div>
                 </div>
