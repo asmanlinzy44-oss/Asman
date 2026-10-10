@@ -7,13 +7,13 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Search, Filter, BookOpen, Video, FileText, 
   ArrowLeft, ExternalLink, Download, Lock, CheckCircle, KeyRound, Unlock,
-  UserCheck, AlertCircle, Megaphone, X, ChevronUp
+  UserCheck, AlertCircle, Megaphone, X, ChevronUp, Folder
 } from 'lucide-react';
 import { 
-  PaperResource, VideoLesson, User, ResourceCategory, 
+  PaperResource, VideoLesson, VideoFolder, User, ResourceCategory, 
   StreamId, UserNote, PaidStudentAccess 
 } from './types';
-import { INITIAL_PAPERS, INITIAL_VIDEOS, SUBJECTS, STREAMS, CATEGORIES } from './data/mockData';
+import { INITIAL_PAPERS, INITIAL_VIDEOS, INITIAL_VIDEO_FOLDERS, SUBJECTS, STREAMS, CATEGORIES } from './data/mockData';
 import { Header } from './components/Header';
 import { HomePage } from './components/HomePage';
 import { VideoPlayerModal } from './components/VideoPlayerModal';
@@ -34,12 +34,19 @@ import { DomainAuthModal } from './components/DomainAuthModal';
 import { LegalModal, LegalModalType } from './components/LegalModal';
 import { EducationalGuides } from './components/EducationalGuides';
 import { AiSearchView } from './components/AiSearchView';
+import { PaperExpressSplashLoader } from './components/PaperExpressSplashLoader';
 import { onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, googleProvider } from './firebase';
 import { cleanFirestoreData } from './utils/firestoreClean';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrors';
-import { playRoboticTab, playRoboticClick, playRoboticUnlock, playRoboticError } from './utils/audio';
+import { 
+  playRoboticTab, 
+  playRoboticClick, 
+  playRoboticUnlock, 
+  playRoboticError,
+  initSoloLevelingGlobalAudio 
+} from './utils/audio';
 
 export default function App() {
   // Local storage persisted state - ensure newly uploaded past papers, physics papers, terms and hydro videos are always loaded
@@ -98,6 +105,29 @@ export default function App() {
     }
   });
 
+  const [videoFolders, setVideoFolders] = useState<VideoFolder[]>(() => {
+    const saved = localStorage.getItem('studypro_video_folders');
+    if (saved) {
+      try {
+        const parsed: VideoFolder[] = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const existingIds = new Set(parsed.map((f) => f.id));
+          const missing = INITIAL_VIDEO_FOLDERS.filter((f) => !existingIds.has(f.id));
+          if (missing.length > 0) {
+            const merged = [...parsed, ...missing];
+            localStorage.setItem('studypro_video_folders', JSON.stringify(merged));
+            return merged;
+          }
+          return parsed;
+        }
+      } catch {}
+    }
+    localStorage.setItem('studypro_video_folders', JSON.stringify(INITIAL_VIDEO_FOLDERS));
+    return INITIAL_VIDEO_FOLDERS;
+  });
+
+  const [selectedVideoFolder, setSelectedVideoFolder] = useState<string>('all');
+
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('studypro_user_session');
     if (saved) {
@@ -120,6 +150,7 @@ export default function App() {
 
   // Navigation & Filtering
   const [activeTab, setActiveTab] = useState<ResourceCategory | 'home'>('home');
+  const [showSplash, setShowSplash] = useState<boolean>(true);
   const [selectedStream, setSelectedStream] = useState<string>('all');
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedYear, setSelectedYear] = useState<string>('all');
@@ -334,6 +365,11 @@ export default function App() {
     };
   }, []);
 
+  // Initialize Solo Leveling system audio click listener
+  useEffect(() => {
+    initSoloLevelingGlobalAudio();
+  }, []);
+
   // Smooth Reading Progress Bar & Scroll-To-Top Trigger
   const [scrollProgress, setScrollProgress] = useState(0);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -534,6 +570,107 @@ export default function App() {
     }
   };
 
+  // Video Folder Handlers (Admin Folder Management & Video Assignment)
+  const handleAddFolder = async (newFolder: VideoFolder) => {
+    setVideoFolders((prev) => {
+      const updated = [newFolder, ...prev.filter((f) => f.id !== newFolder.id)];
+      localStorage.setItem('studypro_video_folders', JSON.stringify(updated));
+      return updated;
+    });
+    try {
+      const cleaned = cleanFirestoreData({
+        ...newFolder,
+        createdAt: newFolder.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      await setDoc(doc(db, 'video_folders', newFolder.id), cleaned);
+    } catch (err) {
+      console.warn('Firestore folder add notice:', err);
+    }
+  };
+
+  const handleUpdateFolder = async (updatedFolder: VideoFolder) => {
+    setVideoFolders((prev) => {
+      const updated = prev.map((f) => f.id === updatedFolder.id ? updatedFolder : f);
+      localStorage.setItem('studypro_video_folders', JSON.stringify(updated));
+      return updated;
+    });
+    setVideos((prev) => {
+      const updated = prev.map((v) =>
+        v.folderId === updatedFolder.id
+          ? { ...v, folderName: updatedFolder.name }
+          : v
+      );
+      localStorage.setItem('studypro_videos_data', JSON.stringify(updated));
+      return updated;
+    });
+    try {
+      const cleaned = cleanFirestoreData({
+        ...updatedFolder,
+        updatedAt: new Date().toISOString(),
+      });
+      await setDoc(doc(db, 'video_folders', updatedFolder.id), cleaned);
+    } catch (err) {
+      console.warn('Firestore folder update notice:', err);
+    }
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+    setVideoFolders((prev) => {
+      const updated = prev.filter((f) => f.id !== folderId);
+      localStorage.setItem('studypro_video_folders', JSON.stringify(updated));
+      return updated;
+    });
+    setVideos((prev) => {
+      const updated = prev.map((v) => (v.folderId === folderId ? { ...v, folderId: undefined, folderName: undefined } : v));
+      localStorage.setItem('studypro_videos_data', JSON.stringify(updated));
+      return updated;
+    });
+    try {
+      await deleteDoc(doc(db, 'video_folders', folderId));
+    } catch (err) {
+      console.warn('Firestore folder delete notice:', err);
+    }
+  };
+
+  const handleAssignVideosToFolder = async (folderId: string, folderName: string, videoIds: string[]) => {
+    const videoIdSet = new Set(videoIds);
+    setVideos((prev) => {
+      const updated = prev.map((v) => {
+        if (videoIdSet.has(v.id)) {
+          return { ...v, folderId, folderName };
+        }
+        return v;
+      });
+      localStorage.setItem('studypro_videos_data', JSON.stringify(updated));
+      return updated;
+    });
+    for (const vid of videoIds) {
+      const currentVideo = videos.find((v) => v.id === vid);
+      if (currentVideo) {
+        try {
+          const updated = { ...currentVideo, folderId, folderName };
+          await setDoc(doc(db, 'videos', vid), cleanFirestoreData(updated));
+        } catch {}
+      }
+    }
+  };
+
+  const handleRemoveVideoFromFolder = async (videoId: string) => {
+    setVideos((prev) => {
+      const updated = prev.map((v) => (v.id === videoId ? { ...v, folderId: undefined, folderName: undefined } : v));
+      localStorage.setItem('studypro_videos_data', JSON.stringify(updated));
+      return updated;
+    });
+    const currentVideo = videos.find((v) => v.id === videoId);
+    if (currentVideo) {
+      try {
+        const updated = { ...currentVideo, folderId: null, folderName: null };
+        await setDoc(doc(db, 'videos', videoId), cleanFirestoreData(updated));
+      } catch {}
+    }
+  };
+
   // Active Viewers
   const [previewResource, setPreviewResource] = useState<PaperResource | null>(null);
   const [previewMode, setPreviewMode] = useState<'paper' | 'scheme'>('paper');
@@ -682,9 +819,27 @@ export default function App() {
       console.warn('Live videos realtime sync notice:', err);
     });
 
+    const unsubFolders = onSnapshot(collection(db, 'video_folders'), (snap) => {
+      if (!snap.empty) {
+        const fsFolders = snap.docs.map((d) => d.data() as VideoFolder).filter((f) => f && f.id);
+        setVideoFolders((prev) => {
+          const map = new Map<string, VideoFolder>();
+          INITIAL_VIDEO_FOLDERS.forEach((f) => map.set(f.id, f));
+          prev.forEach((f) => map.set(f.id, f));
+          fsFolders.forEach((f) => map.set(f.id, f));
+          const result = Array.from(map.values());
+          localStorage.setItem('studypro_video_folders', JSON.stringify(result));
+          return result;
+        });
+      }
+    }, (err) => {
+      console.warn('Live video folders realtime sync notice:', err);
+    });
+
     return () => {
       unsubDeletedVideos();
       unsubVideos();
+      unsubFolders();
     };
   }, []);
 
@@ -865,11 +1020,12 @@ export default function App() {
             }
 
             const defaultName = data.name || fbUser.displayName || fbUser.email?.split('@')[0] || 'A/L Student';
+            const userPhoto = fbUser.photoURL || fbUser.providerData?.[0]?.photoURL || data.photoURL || '';
             userData = {
               id: fbUser.uid,
               name: defaultName,
               email: fbUser.email || '',
-              photoURL: fbUser.photoURL || data.photoURL || '',
+              photoURL: userPhoto,
               alYear: data.alYear || 2026,
               stream: data.stream || 'bio',
               district: data.district || '',
@@ -880,20 +1036,28 @@ export default function App() {
               notes: fetchedNotes.length > 0 ? fetchedNotes : (data.notes || []),
             };
 
-            // Keep admin role in sync if owner
+            // Keep photoURL and admin role in sync in Firestore
+            const updatesToFirestore: Record<string, any> = {};
             if (isOwnerAdmin && data.role !== 'admin') {
+              updatesToFirestore.role = 'admin';
+            }
+            if (userPhoto && data.photoURL !== userPhoto) {
+              updatesToFirestore.photoURL = userPhoto;
+            }
+            if (Object.keys(updatesToFirestore).length > 0) {
               try {
-                await updateDoc(userRef, { role: 'admin', updatedAt: new Date().toISOString() });
+                await updateDoc(userRef, { ...updatesToFirestore, updatedAt: new Date().toISOString() });
               } catch {}
             }
           } else {
             // First time Google user: initialize profile in Firestore
             const defaultName = fbUser.displayName || fbUser.email?.split('@')[0] || 'A/L Student';
+            const userPhoto = fbUser.photoURL || fbUser.providerData?.[0]?.photoURL || '';
             userData = {
               id: fbUser.uid,
               name: defaultName,
               email: fbUser.email || '',
-              photoURL: fbUser.photoURL || '',
+              photoURL: userPhoto,
               alYear: 2026,
               stream: 'bio',
               district: '',
@@ -922,11 +1086,12 @@ export default function App() {
           localStorage.setItem('studypro_user_session', JSON.stringify(userData));
         } catch (err) {
           console.warn('Error syncing Firebase user profile:', err);
+          const fallbackPhoto = fbUser.photoURL || fbUser.providerData?.[0]?.photoURL || '';
           const fallbackUser: User = {
             id: fbUser.uid,
             name: fbUser.displayName || fbUser.email?.split('@')[0] || 'A/L Student',
             email: fbUser.email || '',
-            photoURL: fbUser.photoURL || '',
+            photoURL: fallbackPhoto,
             alYear: 2026,
             stream: 'bio',
             district: '',
@@ -992,6 +1157,10 @@ export default function App() {
       const result = await signInWithPopup(auth, googleProvider);
       if (result.user) {
         playRoboticUnlock();
+        const photo = result.user.photoURL || result.user.providerData?.[0]?.photoURL || '';
+        if (photo) {
+          setUser((prev) => (prev ? { ...prev, photoURL: photo } : prev));
+        }
       }
     } catch (err: any) {
       console.warn('Direct Google Sign In popup notice:', err);
@@ -1082,6 +1251,7 @@ export default function App() {
             district: updatedUser.district || '',
             alYear: updatedUser.alYear,
             stream: updatedUser.stream,
+            photoURL: updatedUser.photoURL || auth.currentUser?.photoURL || auth.currentUser?.providerData?.[0]?.photoURL || '',
             updatedAt: new Date().toISOString(),
           },
           { merge: true }
@@ -1278,6 +1448,13 @@ export default function App() {
       if (selectedSubject !== 'all' && v.subjectId !== selectedSubject) {
         return false;
       }
+      if (selectedVideoFolder !== 'all') {
+        if (selectedVideoFolder === 'unorganized') {
+          if (v.folderId) return false;
+        } else {
+          if (v.folderId !== selectedVideoFolder) return false;
+        }
+      }
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matchTitle = (v.titleEn || '').toLowerCase().includes(query);
@@ -1288,7 +1465,7 @@ export default function App() {
       }
       return true;
     });
-  }, [videos, selectedStream, selectedSubject, searchQuery]);
+  }, [videos, selectedStream, selectedSubject, selectedVideoFolder, searchQuery]);
 
   // Dedicated Subject Options based on Stream:
   // Bio Stream: Only Biology, Chemistry, Physics (no Agricultural Science, no Combined Maths)
@@ -1340,6 +1517,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#080D1A] text-slate-900 dark:text-slate-100 flex flex-col selection:bg-blue-100 selection:text-blue-900 transition-colors duration-200">
+      {/* Paper Express Decent & Elegant Splash Loader */}
+      {showSplash && (
+        <PaperExpressSplashLoader
+          onComplete={() => setShowSplash(false)}
+        />
+      )}
+
       {/* 0. Glowing Scroll Progress Bar */}
       <div 
         className="fixed top-0 left-0 right-0 h-1 z-50 pointer-events-none transition-all duration-150"
@@ -1955,6 +2139,80 @@ export default function App() {
                     </h4>
                   </div>
 
+                  {/* Video Folders Navigation Ribbon */}
+                  {videoFolders.length > 0 && (
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 sm:p-4 shadow-xs space-y-2.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-mono text-[11px]">
+                          <Folder className="w-3.5 h-3.5 text-blue-600 dark:text-cyan-400" />
+                          <span>Lecture Folders · பாட அலகுக் கோப்புறைகள்:</span>
+                        </span>
+                        {selectedVideoFolder !== 'all' && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedVideoFolder('all')}
+                            className="text-[11px] text-blue-600 dark:text-cyan-400 hover:underline cursor-pointer font-bold"
+                          >
+                            Show All Folders
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedVideoFolder('all')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-all ${
+                            selectedVideoFolder === 'all'
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                        >
+                          All Videos ({videos.length})
+                        </button>
+
+                        {videoFolders.map((f) => {
+                          const count = videos.filter((v) => v.folderId === f.id).length;
+                          const isSelected = selectedVideoFolder === f.id;
+                          return (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={() => setSelectedVideoFolder(f.id)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-all flex items-center gap-1.5 ${
+                                isSelected
+                                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-black'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                              }`}
+                            >
+                              <Folder className="w-3.5 h-3.5" />
+                              <span>{f.name}</span>
+                              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                                isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                              }`}>
+                                {count}
+                              </span>
+                            </button>
+                          );
+                        })}
+
+                        {videos.some((v) => !v.folderId) && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedVideoFolder('unorganized')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-all ${
+                              selectedVideoFolder === 'unorganized'
+                                ? 'bg-amber-500 text-slate-950 shadow-xs font-black'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                          >
+                            Unorganized ({videos.filter((v) => !v.folderId).length})
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {filteredVideos.length === 0 ? (
                     <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-12 text-center text-slate-500 shadow-xs max-w-md mx-auto my-8">
                       <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto mb-4 border border-rose-100 shadow-2xs">
@@ -2092,6 +2350,14 @@ export default function App() {
               >
                 Contact Support
               </button>
+              <button 
+                onClick={() => setShowSplash(true)} 
+                className="text-slate-500 hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-1.5"
+                title="View Paper Express Loading Screen"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
+                <span>Loading Screen</span>
+              </button>
             </div>
 
             <div>© {new Date().getFullYear()} Paper Express</div>
@@ -2205,6 +2471,12 @@ export default function App() {
         onDeleteVideo={handleDeleteVideo}
         papers={papers}
         videos={videos}
+        videoFolders={videoFolders}
+        onAddFolder={handleAddFolder}
+        onUpdateFolder={handleUpdateFolder}
+        onDeleteFolder={handleDeleteFolder}
+        onAssignVideosToFolder={handleAssignVideosToFolder}
+        onRemoveVideoFromFolder={handleRemoveVideoFromFolder}
         isAdminLoggedIn={isAdminLoggedIn}
         onAdminLoginSuccess={() => {
           setIsAdminLoggedIn(true);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { User as UserIcon, LogOut, BookmarkCheck, ShieldCheck, Search, Sun, Moon, FlaskConical } from 'lucide-react';
 import { User, ResourceCategory } from '../types';
 import { PaperExpressLogo } from './PaperExpressLogo';
@@ -54,6 +54,12 @@ export const Header: React.FC<HeaderProps> = ({
   isDarkMode = false,
   onToggleDarkMode,
 }) => {
+  const [photoError, setPhotoError] = useState(false);
+
+  useEffect(() => {
+    setPhotoError(false);
+  }, [user?.photoURL]);
+
   const handleNav = (tab: ResourceCategory | 'home') => {
     playRoboticTab();
     onTabChange(tab);
@@ -230,8 +236,19 @@ export const Header: React.FC<HeaderProps> = ({
                 className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-700 dark:text-slate-200 hover:text-blue-600 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer group"
                 title="View Profile & Settings"
               >
-                <div className="w-6 h-6 rounded-lg bg-[#0066FF] text-white flex items-center justify-center font-bold text-xs shadow-2xs">
-                  {user.name ? user.name.charAt(0).toUpperCase() : 'S'}
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#0066FF] to-blue-500 text-white flex items-center justify-center font-bold text-xs shadow-2xs overflow-hidden shrink-0 border border-blue-400/40">
+                  {user.photoURL && !photoError ? (
+                    <img
+                      src={user.photoURL}
+                      alt={user.name || 'User Profile'}
+                      className="w-full h-full object-cover rounded-xl"
+                      referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
+                      onError={() => setPhotoError(true)}
+                    />
+                  ) : (
+                    <span>{user.name ? user.name.charAt(0).toUpperCase() : 'S'}</span>
+                  )}
                 </div>
                 <div className="hidden sm:block text-left">
                   <div className="text-xs font-bold leading-tight group-hover:text-blue-600 truncate max-w-[90px]">

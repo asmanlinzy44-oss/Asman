@@ -120,6 +120,12 @@ service cloud.firestore {
       allow write: if true;
     }
 
+    // Video folders (Live sync for organizing video masterclasses)
+    match /video_folders/{folderId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // Deleted videos blacklist
     match /deleted_videos/{videoId} {
       allow read: if true;

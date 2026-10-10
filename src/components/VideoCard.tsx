@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Lock, Clock, CheckCircle } from 'lucide-react';
+import { Play, Lock, Clock, CheckCircle, Folder } from 'lucide-react';
 import { VideoLesson, User } from '../types';
 
 interface VideoCardProps {
@@ -112,12 +112,18 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         {/* Content Details */}
         <div className="p-4">
           {/* Metadata line */}
-          <div className="flex items-center gap-2 text-xs text-slate-500 mb-1.5 truncate">
-            <span className="font-bold text-[#0066FF] bg-blue-50 px-2 py-0.5 rounded-md">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1.5 flex-wrap">
+            <span className="font-bold text-[#0066FF] bg-blue-50 px-2 py-0.5 rounded-md text-[11px]">
               {video.subjectNameEn}
             </span>
-            <span className="text-slate-400 font-mono">· Unit {video.unitNumber}</span>
-            <span className="text-slate-400 font-mono">· {video.chapters.length} Chapters</span>
+            <span className="text-slate-400 font-mono text-[11px]">· Unit {video.unitNumber}</span>
+            {video.folderName && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-200/60 truncate max-w-[170px]" title={`Folder: ${video.folderName}`}>
+                <Folder className="w-2.5 h-2.5 shrink-0 text-purple-600" />
+                <span className="truncate">{video.folderName}</span>
+              </span>
+            )}
+            <span className="text-slate-400 font-mono text-[11px]">· {video.chapters.length} Chapters</span>
           </div>
 
           {/* Title */}

@@ -71,6 +71,19 @@ export interface VideoLesson {
   chapters: VideoChapter[];
   viewsCount: number;
   uploadedAt: string;
+  folderId?: string;
+  folderName?: string;
+}
+
+export interface VideoFolder {
+  id: string;
+  name: string;
+  nameTa?: string;
+  description?: string;
+  stream?: StreamId | 'all';
+  subjectName?: string;
+  color?: string; // 'rose' | 'blue' | 'emerald' | 'amber' | 'purple' | 'cyan'
+  createdAt: string;
 }
 
 export interface UserNote {

@@ -1,4 +1,4 @@
-import { PaperResource, StreamId, SubjectItem, VideoLesson } from '../types';
+import { PaperResource, StreamId, SubjectItem, VideoLesson, VideoFolder } from '../types';
 
 export const SUBJECTS: SubjectItem[] = [
   // Physical Science & Biological Science primary subjects
@@ -2925,6 +2925,8 @@ export const INITIAL_VIDEOS: VideoLesson[] = [
     ],
     viewsCount: 2140,
     uploadedAt: '2026-09-24',
+    folderId: 'vf-chem-iupac',
+    folderName: 'Chemistry Unit 06 — Inorganic & IUPAC',
   },
   {
     id: 'vid-phy-hydro-class1',
@@ -2953,6 +2955,8 @@ export const INITIAL_VIDEOS: VideoLesson[] = [
     ],
     viewsCount: 1820,
     uploadedAt: '2026-09-25',
+    folderId: 'vf-phy-hydro',
+    folderName: 'Physics Unit 02 — Hydrodynamics',
   },
   {
     id: 'vid-phy-hydro-class2',
@@ -2981,6 +2985,8 @@ export const INITIAL_VIDEOS: VideoLesson[] = [
     ],
     viewsCount: 1650,
     uploadedAt: '2026-09-25',
+    folderId: 'vf-phy-hydro',
+    folderName: 'Physics Unit 02 — Hydrodynamics',
   },
   {
     id: 'vid-phy-hydro-class3',
@@ -3009,6 +3015,8 @@ export const INITIAL_VIDEOS: VideoLesson[] = [
     ],
     viewsCount: 1530,
     uploadedAt: '2026-09-25',
+    folderId: 'vf-phy-hydro',
+    folderName: 'Physics Unit 02 — Hydrodynamics',
   },
   {
     id: 'vid-phy-hydro-class4',
@@ -3037,6 +3045,8 @@ export const INITIAL_VIDEOS: VideoLesson[] = [
     ],
     viewsCount: 1410,
     uploadedAt: '2026-09-25',
+    folderId: 'vf-phy-hydro',
+    folderName: 'Physics Unit 02 — Hydrodynamics',
   },
   {
     id: 'vid-phy-hydro-class5',
@@ -3066,5 +3076,30 @@ export const INITIAL_VIDEOS: VideoLesson[] = [
     ],
     viewsCount: 1690,
     uploadedAt: '2026-09-25',
+    folderId: 'vf-phy-hydro',
+    folderName: 'Physics Unit 02 — Hydrodynamics',
+  },
+];
+
+export const INITIAL_VIDEO_FOLDERS: VideoFolder[] = [
+  {
+    id: 'vf-phy-hydro',
+    name: 'Physics Unit 02 — Hydrodynamics',
+    nameTa: 'பாய்ம இயக்கவியல் அலகு 02 விரிவுரைகள்',
+    description: 'Complete 5-part theory lecture series on fluid dynamics, Bernoulli theorem, Torricelli, Venturi & viscosity.',
+    stream: 'all',
+    subjectName: 'Physics',
+    color: 'blue',
+    createdAt: '2026-09-24',
+  },
+  {
+    id: 'vf-chem-iupac',
+    name: 'Chemistry Unit 06 — Inorganic & IUPAC',
+    nameTa: 'இரசாயனவியல் அலகு 06 — IUPAC விதிமுறைகள்',
+    description: 'Comprehensive masterclass on coordination compounds, complex ions, ligand nomenclature and oxidation numbers.',
+    stream: 'all',
+    subjectName: 'Chemistry',
+    color: 'emerald',
+    createdAt: '2026-09-24',
   },
 ];

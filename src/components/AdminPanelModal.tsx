@@ -7,11 +7,11 @@ import {
   RefreshCw, Database, Shield, BookOpen, Layers, ArrowLeft,
   Copy, Award, CheckCircle2, ChevronRight, MessageCircle, 
   Send, CheckCheck, Megaphone, FolderGit2, Sparkles, Folder, Bot,
-  Mail, UserCheck
+  Mail, UserCheck, FolderPlus, CheckSquare, Square, FolderCheck
 } from 'lucide-react';
 import { collection, onSnapshot, deleteDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { PaperResource, VideoLesson, UserReport, StreamId, ResourceCategory, User, PaidStudentAccess } from '../types';
+import { PaperResource, VideoLesson, VideoFolder, UserReport, StreamId, ResourceCategory, User, PaidStudentAccess } from '../types';
 import { extractYoutubeId } from '../utils/drive';
 import { cleanFirestoreData } from '../utils/firestoreClean';
 import { playRoboticClick, playRoboticTab, playRoboticUnlock } from '../utils/audio';
@@ -29,6 +29,12 @@ interface AdminPanelModalProps {
   onDeleteVideo?: (videoId: string) => void;
   papers: PaperResource[];
   videos: VideoLesson[];
+  videoFolders?: VideoFolder[];
+  onAddFolder?: (folder: VideoFolder) => void;
+  onUpdateFolder?: (folder: VideoFolder) => void;
+  onDeleteFolder?: (folderId: string) => void;
+  onAssignVideosToFolder?: (folderId: string, folderName: string, videoIds: string[]) => void;
+  onRemoveVideoFromFolder?: (videoId: string) => void;
   isAdminLoggedIn: boolean;
   onAdminLoginSuccess: () => void;
   currentUser?: User | null;
@@ -58,6 +64,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   onDeleteVideo,
   papers,
   videos,
+  videoFolders = [],
+  onAddFolder,
+  onUpdateFolder,
+  onDeleteFolder,
+  onAssignVideosToFolder,
+  onRemoveVideoFromFolder,
   isAdminLoggedIn,
   onAdminLoginSuccess,
   currentUser,
@@ -133,6 +145,23 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [videoTeacher, setVideoTeacher] = useState('Asman Linzy');
   const [videoDuration, setVideoDuration] = useState<number>(45);
   const [videoYoutubeInput, setVideoYoutubeInput] = useState('');
+  const [videoFolderSelect, setVideoFolderSelect] = useState<string>('none');
+
+  // Video Folders & Video Organization State
+  const [videoFolderFilter, setVideoFolderFilter] = useState<string>('all');
+  const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
+  const [bulkTargetFolderId, setBulkTargetFolderId] = useState<string>('none');
+
+  // Video Folder Create / Edit Modal State
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState<boolean>(false);
+  const [editingFolder, setEditingFolder] = useState<VideoFolder | null>(null);
+  const [folderNameInput, setFolderNameInput] = useState<string>('');
+  const [folderNameTaInput, setFolderNameTaInput] = useState<string>('');
+  const [folderDescInput, setFolderDescInput] = useState<string>('');
+  const [folderSubjectInput, setFolderSubjectInput] = useState<string>('Physics');
+  const [folderColorInput, setFolderColorInput] = useState<string>('blue');
+  const [folderSelectedVideoIds, setFolderSelectedVideoIds] = useState<string[]>([]);
+  const [folderVideoSearch, setFolderVideoSearch] = useState<string>('');
 
   // Resource Vault Drive Links Form State
   const [vaultPhysics, setVaultPhysics] = useState(vaultDriveLinks['physics'] || '');
@@ -400,6 +429,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         teacherName: videoTeacher.trim() || 'Asman Linzy',
         descriptionEn: 'Full syllabus masterclass with derivations and exam questions.',
         isUnlisted: false,
+        folderId: videoFolderSelect !== 'none' ? videoFolderSelect : undefined,
+        folderName: videoFolderSelect !== 'none' ? (videoFolders.find(f => f.id === videoFolderSelect)?.name) : undefined,
         chapters: [
           { time: '00:00', seconds: 0, title: 'Introduction & Core Concepts' },
           { time: '15:00', seconds: 900, title: 'Formulas & Derivations' },
@@ -482,6 +513,141 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }
     showSuccess(`Updated "${editingPaper.titleEn}" live in cloud database for all visitors!`);
     setEditingPaper(null);
+  };
+
+  // Video Folders Management Helpers
+  const openCreateFolderModal = () => {
+    setEditingFolder(null);
+    setFolderNameInput('');
+    setFolderNameTaInput('');
+    setFolderDescInput('');
+    setFolderSubjectInput('Physics');
+    setFolderColorInput('blue');
+    setFolderSelectedVideoIds([]);
+    setFolderVideoSearch('');
+    setIsFolderModalOpen(true);
+  };
+
+  const openEditFolderModal = (folder: VideoFolder) => {
+    setEditingFolder(folder);
+    setFolderNameInput(folder.name);
+    setFolderNameTaInput(folder.nameTa || '');
+    setFolderDescInput(folder.description || '');
+    setFolderSubjectInput(folder.subjectName || 'Physics');
+    setFolderColorInput(folder.color || 'blue');
+    const existingVideoIds = videos.filter((v) => v.folderId === folder.id).map((v) => v.id);
+    setFolderSelectedVideoIds(existingVideoIds);
+    setFolderVideoSearch('');
+    setIsFolderModalOpen(true);
+  };
+
+  const handleSaveFolderSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!folderNameInput.trim()) {
+      alert('Please enter a folder name.');
+      return;
+    }
+
+    if (editingFolder) {
+      const updated: VideoFolder = {
+        ...editingFolder,
+        name: folderNameInput.trim(),
+        nameTa: folderNameTaInput.trim() || undefined,
+        description: folderDescInput.trim() || undefined,
+        subjectName: folderSubjectInput,
+        color: folderColorInput,
+      };
+      if (onUpdateFolder) {
+        onUpdateFolder(updated);
+      }
+      if (onAssignVideosToFolder) {
+        const previouslyAssigned = videos.filter((v) => v.folderId === editingFolder.id).map((v) => v.id);
+        const unassigned = previouslyAssigned.filter((id) => !folderSelectedVideoIds.includes(id));
+        unassigned.forEach((id) => {
+          if (onRemoveVideoFromFolder) onRemoveVideoFromFolder(id);
+        });
+        onAssignVideosToFolder(updated.id, updated.name, folderSelectedVideoIds);
+      }
+      showSuccess(`Folder "${updated.name}" updated with ${folderSelectedVideoIds.length} video(s)!`);
+    } else {
+      const newFolder: VideoFolder = {
+        id: 'vfolder_' + Date.now(),
+        name: folderNameInput.trim(),
+        nameTa: folderNameTaInput.trim() || undefined,
+        description: folderDescInput.trim() || undefined,
+        subjectName: folderSubjectInput,
+        color: folderColorInput,
+        createdAt: new Date().toISOString(),
+      };
+      if (onAddFolder) {
+        onAddFolder(newFolder);
+      }
+      if (onAssignVideosToFolder && folderSelectedVideoIds.length > 0) {
+        onAssignVideosToFolder(newFolder.id, newFolder.name, folderSelectedVideoIds);
+      }
+      showSuccess(`Folder "${newFolder.name}" created with ${folderSelectedVideoIds.length} video(s)!`);
+    }
+
+    setIsFolderModalOpen(false);
+  };
+
+  const handleDeleteFolderClick = (folder: VideoFolder) => {
+    const vidsInFolder = videos.filter((v) => v.folderId === folder.id);
+    if (confirm(`Delete folder "${folder.name}"? The ${vidsInFolder.length} video(s) inside will remain active as unassigned.`)) {
+      if (onDeleteFolder) {
+        onDeleteFolder(folder.id);
+        if (videoFolderFilter === folder.id) {
+          setVideoFolderFilter('all');
+        }
+        showSuccess(`Folder "${folder.name}" deleted. Videos are preserved.`);
+      }
+    }
+  };
+
+  const handleAssignSingleVideo = (videoId: string, targetFolderId: string) => {
+    if (targetFolderId === 'none') {
+      if (onRemoveVideoFromFolder) {
+        onRemoveVideoFromFolder(videoId);
+        showSuccess('Video unassigned from folder.');
+      }
+      return;
+    }
+    const matched = videoFolders.find((f) => f.id === targetFolderId);
+    if (matched && onAssignVideosToFolder) {
+      onAssignVideosToFolder(matched.id, matched.name, [videoId]);
+      showSuccess(`Video assigned to folder "${matched.name}".`);
+    }
+  };
+
+  const handleBulkMoveSelectedVideos = (targetFolderId: string) => {
+    if (selectedVideoIds.length === 0) return;
+    if (targetFolderId === 'none') {
+      selectedVideoIds.forEach((vid) => {
+        if (onRemoveVideoFromFolder) onRemoveVideoFromFolder(vid);
+      });
+      showSuccess(`${selectedVideoIds.length} video(s) removed from folders.`);
+    } else {
+      const matched = videoFolders.find((f) => f.id === targetFolderId);
+      if (matched && onAssignVideosToFolder) {
+        onAssignVideosToFolder(matched.id, matched.name, selectedVideoIds);
+        showSuccess(`Moved ${selectedVideoIds.length} video(s) to "${matched.name}".`);
+      }
+    }
+    setSelectedVideoIds([]);
+  };
+
+  const toggleSelectVideo = (videoId: string) => {
+    setSelectedVideoIds((prev) =>
+      prev.includes(videoId) ? prev.filter((id) => id !== videoId) : [...prev, videoId]
+    );
+  };
+
+  const toggleSelectAllVideos = (list: VideoLesson[]) => {
+    if (selectedVideoIds.length === list.length) {
+      setSelectedVideoIds([]);
+    } else {
+      setSelectedVideoIds(list.map((v) => v.id));
+    }
   };
 
   // Filtered Exam Papers (Excludes pure theory-notes/useful-resources to avoid clutter)
@@ -1244,68 +1410,427 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 </div>
               )}
 
-              {/* TAB 3: VIDEO LESSONS (Videos Page Control) */}
+              {/* TAB 3: VIDEO LESSONS & FOLDERS (Videos Page Control) */}
               {activeTab === 'videos' && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Video className="w-4 h-4 text-rose-400" />
-                      <h4 className="text-sm font-bold text-white">Active Video Masterclasses ({videos.length})</h4>
+                <div className="space-y-6">
+                  {/* Top Bar with Counters & Actions */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-3xl bg-[#091228] border border-cyan-500/20">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Video className="w-4 h-4 text-rose-400" />
+                        <h4 className="text-sm font-bold text-white">Video Masterclasses & Folders</h4>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5 font-mono">
+                        {videos.length} Active Videos · {videoFolders.length} Folders
+                      </p>
                     </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playRoboticClick();
+                          openCreateFolderModal();
+                        }}
+                        className="px-3.5 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
+                        title="Create New Video Folder"
+                      >
+                        <FolderPlus className="w-3.5 h-3.5" />
+                        <span>+ Create Folder (புதிய Folder)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playRoboticTab();
+                          setActiveTab('publish');
+                          setPublishType('video');
+                        }}
+                        className="px-3.5 py-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Upload New Video</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* FOLDERS GRID SECTION */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+                        <Folder className="w-4 h-4 text-cyan-400" />
+                        <span>Video Lesson Folders ({videoFolders.length})</span>
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        Select a folder to view or click "Manage Videos" to assign/reorder
+                      </span>
+                    </div>
+
+                    {videoFolders.length === 0 ? (
+                      <div className="p-6 rounded-2xl bg-[#091228] border border-dashed border-slate-800 text-center space-y-2">
+                        <Folder className="w-8 h-8 text-slate-600 mx-auto" />
+                        <p className="text-xs text-slate-400 font-bold">No video folders created yet</p>
+                        <p className="text-[11px] text-slate-500">Create folders to organize your video lessons by syllabus unit or topic.</p>
+                        <button
+                          type="button"
+                          onClick={openCreateFolderModal}
+                          className="mt-2 px-3 py-1.5 bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-300 text-xs font-bold rounded-xl inline-flex items-center gap-1.5 border border-cyan-500/40 cursor-pointer"
+                        >
+                          <FolderPlus className="w-3.5 h-3.5" />
+                          <span>Create First Folder</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {videoFolders.map((folder) => {
+                          const vidsInFolder = videos.filter((v) => v.folderId === folder.id);
+                          const isCurrentFilter = videoFolderFilter === folder.id;
+                          return (
+                            <div
+                              key={folder.id}
+                              className={`p-3.5 rounded-2xl bg-[#091228] border transition-all flex flex-col justify-between gap-3 ${
+                                isCurrentFilter
+                                  ? 'border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)] ring-1 ring-cyan-400/50'
+                                  : 'border-slate-800 hover:border-slate-700'
+                              }`}
+                            >
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 font-mono text-[10px] font-bold border border-cyan-500/20">
+                                    {folder.subjectName || 'All Subjects'}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-mono text-[10px] font-bold">
+                                    {vidsInFolder.length} {vidsInFolder.length === 1 ? 'video' : 'videos'}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-start gap-2 pt-0.5">
+                                  <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 shrink-0">
+                                    <Folder className="w-4 h-4" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <h5 className="font-bold text-white text-xs truncate" title={folder.name}>
+                                      {folder.name}
+                                    </h5>
+                                    {folder.nameTa && (
+                                      <p className="text-[10px] text-slate-400 truncate font-sans">
+                                        {folder.nameTa}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {folder.description && (
+                                  <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed pt-0.5">
+                                    {folder.description}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-800/80">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playRoboticClick();
+                                    setVideoFolderFilter(isCurrentFilter ? 'all' : folder.id);
+                                  }}
+                                  className={`px-2.5 py-1.5 rounded-xl text-[11px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                                    isCurrentFilter
+                                      ? 'bg-cyan-500 text-slate-950 font-black'
+                                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                  }`}
+                                  title="Filter video list by this folder"
+                                >
+                                  <Filter className="w-3 h-3" />
+                                  <span>{isCurrentFilter ? 'Showing' : 'View'}</span>
+                                </button>
+
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      playRoboticClick();
+                                      openEditFolderModal(folder);
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-xl bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 text-[11px] font-mono font-bold flex items-center gap-1 border border-cyan-500/30 cursor-pointer"
+                                    title="Add or remove videos from this folder"
+                                  >
+                                    <FolderCheck className="w-3 h-3" />
+                                    <span>Manage Videos</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      playRoboticClick();
+                                      handleDeleteFolderClick(folder);
+                                    }}
+                                    className="p-1.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-500/30 cursor-pointer"
+                                    title="Delete Folder"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* FOLDER FILTER TABS */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
                     <button
+                      type="button"
                       onClick={() => {
-                        playRoboticTab();
-                        setActiveTab('publish');
-                        setPublishType('video');
+                        playRoboticClick();
+                        setVideoFolderFilter('all');
                       }}
-                      className="px-3.5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md"
+                      className={`px-3 py-1.5 rounded-xl font-mono text-[11px] font-bold whitespace-nowrap cursor-pointer transition-all ${
+                        videoFolderFilter === 'all'
+                          ? 'bg-rose-500 text-white shadow-xs'
+                          : 'bg-[#091228] text-slate-400 hover:text-white border border-slate-800'
+                      }`}
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Upload New Video</span>
+                      All Videos ({videos.length})
+                    </button>
+
+                    {videoFolders.map((f) => {
+                      const count = videos.filter((v) => v.folderId === f.id).length;
+                      return (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => {
+                            playRoboticClick();
+                            setVideoFolderFilter(f.id);
+                          }}
+                          className={`px-3 py-1.5 rounded-xl font-mono text-[11px] font-bold whitespace-nowrap cursor-pointer transition-all flex items-center gap-1.5 ${
+                            videoFolderFilter === f.id
+                              ? 'bg-cyan-500 text-slate-950 font-black shadow-xs'
+                              : 'bg-[#091228] text-slate-400 hover:text-white border border-slate-800'
+                          }`}
+                        >
+                          <Folder className="w-3 h-3" />
+                          <span>{f.name}</span>
+                          <span className={`px-1.5 py-0.2 rounded-full text-[9px] ${
+                            videoFolderFilter === f.id ? 'bg-slate-900 text-cyan-300' : 'bg-slate-800 text-slate-300'
+                          }`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playRoboticClick();
+                        setVideoFolderFilter('unorganized');
+                      }}
+                      className={`px-3 py-1.5 rounded-xl font-mono text-[11px] font-bold whitespace-nowrap cursor-pointer transition-all ${
+                        videoFolderFilter === 'unorganized'
+                          ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
+                          : 'bg-[#091228] text-slate-400 hover:text-white border border-slate-800'
+                      }`}
+                    >
+                      Unassigned ({videos.filter((v) => !v.folderId).length})
                     </button>
                   </div>
 
-                  <div className="space-y-2">
-                    {videos.map((v) => (
-                      <div key={v.id} className="p-3.5 rounded-2xl bg-[#091228] border border-slate-800 flex items-center justify-between gap-3 text-xs">
-                        <div className="space-y-1 truncate">
-                          <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 font-mono text-[10px] font-bold">
-                              {v.subjectNameEn}
-                            </span>
-                            <span className="text-slate-400 font-mono text-[10px]">Unit {v.unitNumber} · {v.durationMinutes} mins</span>
-                          </div>
-                          <h5 className="font-bold text-white truncate">{v.titleEn}</h5>
-                          <p className="text-[11px] text-slate-500 font-mono">Teacher: {v.teacherName} · ID: {v.youtubeId}</p>
+                  {/* BULK SELECTION ACTION BAR (when 1+ videos checked) */}
+                  {selectedVideoIds.length > 0 && (
+                    <div className="p-3 rounded-2xl bg-gradient-to-r from-indigo-950 via-[#0B1530] to-cyan-950 border border-cyan-500/50 flex flex-wrap items-center justify-between gap-3 text-xs animate-in fade-in duration-150">
+                      <div className="flex items-center gap-2 text-white font-mono font-bold">
+                        <CheckSquare className="w-4 h-4 text-cyan-400" />
+                        <span>{selectedVideoIds.length} video(s) selected</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                          <label className="text-slate-300 font-mono text-[11px]">Move to:</label>
+                          <select
+                            value={bulkTargetFolderId}
+                            onChange={(e) => setBulkTargetFolderId(e.target.value)}
+                            className="px-2.5 py-1.5 bg-[#050A17] border border-cyan-500/40 rounded-xl text-xs text-white"
+                          >
+                            <option value="none">-- Select Folder --</option>
+                            {videoFolders.map((f) => (
+                              <option key={f.id} value={f.id}>
+                                📁 {f.name}
+                              </option>
+                            ))}
+                            <option value="unassign">❌ Remove from Folder</option>
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (bulkTargetFolderId === 'none') {
+                                alert('Please select a target folder.');
+                                return;
+                              }
+                              playRoboticClick();
+                              if (bulkTargetFolderId === 'unassign') {
+                                handleBulkMoveSelectedVideos('none');
+                              } else {
+                                handleBulkMoveSelectedVideos(bulkTargetFolderId);
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl text-xs cursor-pointer shadow-xs"
+                          >
+                            Apply Move
+                          </button>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <a
-                            href={v.youtubeUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-rose-400"
-                            title="Open on YouTube"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                          {onDeleteVideo && (
-                            <button
-                              onClick={() => {
-                                if (confirm(`Remove video "${v.titleEn}"?`)) {
-                                  onDeleteVideo(v.id);
-                                  showSuccess('Video lesson removed from live database.');
-                                }
-                              }}
-                              className="p-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-500/30 cursor-pointer"
-                              title="Delete Video"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedVideoIds([])}
+                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs cursor-pointer"
+                        >
+                          Deselect All
+                        </button>
                       </div>
-                    ))}
+                    </div>
+                  )}
+
+                  {/* VIDEOS LIST */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between px-1 text-[11px] font-mono text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentFiltered = videos.filter((v) => {
+                              if (videoFolderFilter !== 'all') {
+                                if (videoFolderFilter === 'unorganized') return !v.folderId;
+                                return v.folderId === videoFolderFilter;
+                              }
+                              return true;
+                            });
+                            toggleSelectAllVideos(currentFiltered);
+                          }}
+                          className="text-cyan-400 hover:text-cyan-300 cursor-pointer flex items-center gap-1"
+                        >
+                          {selectedVideoIds.length > 0 ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
+                          <span>Select All in View</span>
+                        </button>
+                      </div>
+                      <span>
+                        Showing {
+                          videos.filter((v) => {
+                            if (videoFolderFilter !== 'all') {
+                              if (videoFolderFilter === 'unorganized') return !v.folderId;
+                              return v.folderId === videoFolderFilter;
+                            }
+                            return true;
+                          }).length
+                        } of {videos.length} videos
+                      </span>
+                    </div>
+
+                    {videos
+                      .filter((v) => {
+                        if (videoFolderFilter !== 'all') {
+                          if (videoFolderFilter === 'unorganized') return !v.folderId;
+                          return v.folderId === videoFolderFilter;
+                        }
+                        return true;
+                      })
+                      .map((v) => {
+                        const isSelected = selectedVideoIds.includes(v.id);
+                        return (
+                          <div 
+                            key={v.id} 
+                            className={`p-3.5 rounded-2xl bg-[#091228] border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
+                              isSelected ? 'border-cyan-400/80 bg-[#0c1836]' : 'border-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3 truncate">
+                              <button
+                                type="button"
+                                onClick={() => toggleSelectVideo(v.id)}
+                                className="mt-0.5 text-slate-400 hover:text-cyan-400 cursor-pointer shrink-0"
+                              >
+                                {isSelected ? (
+                                  <CheckSquare className="w-4 h-4 text-cyan-400" />
+                                ) : (
+                                  <Square className="w-4 h-4" />
+                                )}
+                              </button>
+
+                              <div className="space-y-1 truncate">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 font-mono text-[10px] font-bold">
+                                    {v.subjectNameEn}
+                                  </span>
+                                  <span className="text-slate-400 font-mono text-[10px]">
+                                    Unit {v.unitNumber} · {v.durationMinutes} mins
+                                  </span>
+
+                                  {/* Folder Assignment Badge / Selector */}
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-slate-500 font-mono text-[10px]">Folder:</span>
+                                    <select
+                                      value={v.folderId || 'none'}
+                                      onChange={(e) => {
+                                        playRoboticClick();
+                                        handleAssignSingleVideo(v.id, e.target.value);
+                                      }}
+                                      className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold border cursor-pointer outline-none ${
+                                        v.folderId
+                                          ? 'bg-purple-950/60 border-purple-500/40 text-purple-300'
+                                          : 'bg-slate-900 border-slate-700 text-slate-400'
+                                      }`}
+                                      title="Change assigned folder"
+                                    >
+                                      <option value="none">-- No Folder --</option>
+                                      {videoFolders.map((f) => (
+                                        <option key={f.id} value={f.id}>
+                                          📁 {f.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <h5 className="font-bold text-white truncate">{v.titleEn}</h5>
+                                <p className="text-[11px] text-slate-500 font-mono">
+                                  Teacher: {v.teacherName} · ID: {v.youtubeId}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                              <a
+                                href={v.youtubeUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-rose-400"
+                                title="Open on YouTube"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                              {onDeleteVideo && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (confirm(`Remove video "${v.titleEn}"?`)) {
+                                      onDeleteVideo(v.id);
+                                      showSuccess('Video lesson removed from live database.');
+                                    }
+                                  }}
+                                  className="p-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-500/30 cursor-pointer"
+                                  title="Delete Video"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
               )}
@@ -1755,6 +2280,37 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             placeholder="https://www.youtube.com/watch?v=... or 11-char ID"
                             className="w-full px-3 py-2 bg-[#050A17] border border-rose-500/40 rounded-xl text-xs text-white font-mono"
                           />
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-xs font-mono font-bold text-slate-300">
+                              Assign to Folder (கோப்புறை தெரிவு செய்க)
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                playRoboticClick();
+                                openCreateFolderModal();
+                              }}
+                              className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer font-bold"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Create New Folder</span>
+                            </button>
+                          </div>
+                          <select
+                            value={videoFolderSelect}
+                            onChange={(e) => setVideoFolderSelect(e.target.value)}
+                            className="w-full px-3 py-2 bg-[#050A17] border border-rose-500/30 rounded-xl text-xs text-white"
+                          >
+                            <option value="none">-- No Folder (Unassigned) --</option>
+                            {videoFolders.map((f) => (
+                              <option key={f.id} value={f.id}>
+                                📁 {f.name} {f.subjectName ? `(${f.subjectName})` : ''}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
                     ) : (
@@ -2503,6 +3059,240 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 </div>
               )}
 
+            </div>
+          </div>
+        )}
+
+        {/* Video Folder Create / Edit Modal */}
+        {isFolderModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
+            <div className="bg-[#091228] border border-cyan-500/40 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400">
+                    <FolderPlus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-bold text-white">
+                      {editingFolder ? 'Edit Video Folder (கோப்புறையை திருத்துக)' : 'Create Video Folder (புதிய Folder உருவாக்கு)'}
+                    </h4>
+                    <p className="text-xs text-slate-400">
+                      Organize specific videos into this folder for easy student learning
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsFolderModalOpen(false)}
+                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveFolderSubmit} className="space-y-4 overflow-y-auto pr-1 flex-1">
+                {/* Basic Metadata */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
+                      Folder Name (English) <span className="text-cyan-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={folderNameInput}
+                      onChange={(e) => setFolderNameInput(e.target.value)}
+                      placeholder="e.g. Physics Unit 02 — Hydrodynamics"
+                      className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
+                      Folder Name (Tamil - விருப்பத் தெரிவு)
+                    </label>
+                    <input
+                      type="text"
+                      value={folderNameTaInput}
+                      onChange={(e) => setFolderNameTaInput(e.target.value)}
+                      placeholder="e.g. பாய்ம இயக்கவியல் அலகு 02"
+                      className="w-full px-3 py-2 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Subject</label>
+                    <select
+                      value={folderSubjectInput}
+                      onChange={(e) => setFolderSubjectInput(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white outline-none focus:border-cyan-400"
+                    >
+                      <option value="Physics">Physics</option>
+                      <option value="Chemistry">Chemistry</option>
+                      <option value="Combined Mathematics">Combined Mathematics</option>
+                      <option value="Biology">Biology</option>
+                      <option value="All Subjects">All Subjects</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Theme Color</label>
+                    <select
+                      value={folderColorInput}
+                      onChange={(e) => setFolderColorInput(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white outline-none focus:border-cyan-400"
+                    >
+                      <option value="blue">Blue (நீலம்)</option>
+                      <option value="cyan">Cyan (இளநீலம்)</option>
+                      <option value="emerald">Emerald (பச்சை)</option>
+                      <option value="purple">Purple (ஊதா)</option>
+                      <option value="rose">Rose (ரோஸ்)</option>
+                      <option value="amber">Amber (மஞ்சள்)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Description (Optional)</label>
+                  <textarea
+                    rows={2}
+                    value={folderDescInput}
+                    onChange={(e) => setFolderDescInput(e.target.value)}
+                    placeholder="Brief description of lessons included in this folder..."
+                    className="w-full px-3 py-2 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white outline-none focus:border-cyan-400 resize-none"
+                  />
+                </div>
+
+                {/* SELECT VIDEOS FOR THIS FOLDER */}
+                <div className="space-y-2 pt-2 border-t border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block text-xs font-mono font-bold text-cyan-300">
+                        Assign Videos to this Folder (இந்த Folder-ல் சேர்க்க வேண்டிய வீடியோக்கள்)
+                      </label>
+                      <p className="text-[11px] text-slate-400">
+                        {folderSelectedVideoIds.length} of {videos.length} videos selected
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const searched = videos.filter((v) => {
+                            if (!folderVideoSearch.trim()) return true;
+                            const q = folderVideoSearch.toLowerCase();
+                            return (
+                              (v.titleEn || '').toLowerCase().includes(q) ||
+                              (v.subjectNameEn || '').toLowerCase().includes(q)
+                            );
+                          });
+                          setFolderSelectedVideoIds(Array.from(new Set([...folderSelectedVideoIds, ...searched.map((v) => v.id)])));
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 hover:text-white cursor-pointer"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFolderSelectedVideoIds([])}
+                        className="px-2 py-0.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Video Search input */}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={folderVideoSearch}
+                      onChange={(e) => setFolderVideoSearch(e.target.value)}
+                      placeholder="Search videos to include (e.g. Hydrodynamics, IUPAC)..."
+                      className="w-full pl-8 pr-3 py-1.5 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  {/* Videos Checklist */}
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                    {videos
+                      .filter((v) => {
+                        if (!folderVideoSearch.trim()) return true;
+                        const q = folderVideoSearch.toLowerCase();
+                        return (
+                          (v.titleEn || '').toLowerCase().includes(q) ||
+                          (v.subjectNameEn || '').toLowerCase().includes(q) ||
+                          (v.teacherName || '').toLowerCase().includes(q)
+                        );
+                      })
+                      .map((v) => {
+                        const isChecked = folderSelectedVideoIds.includes(v.id);
+                        return (
+                          <div
+                            key={v.id}
+                            onClick={() => {
+                              setFolderSelectedVideoIds((prev) =>
+                                prev.includes(v.id) ? prev.filter((id) => id !== v.id) : [...prev, v.id]
+                              );
+                            }}
+                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors ${
+                              isChecked
+                                ? 'bg-cyan-950/40 border-cyan-500/50 text-white'
+                                : 'bg-[#050A17] border-slate-800 text-slate-300 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="shrink-0">
+                                {isChecked ? (
+                                  <CheckSquare className="w-4 h-4 text-cyan-400" />
+                                ) : (
+                                  <Square className="w-4 h-4 text-slate-500" />
+                                )}
+                              </div>
+                              <div className="min-w-0 truncate">
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span className="px-1.5 py-0.2 rounded-md bg-slate-800 text-slate-300 font-mono text-[9px] font-bold">
+                                    {v.subjectNameEn} · Unit {v.unitNumber}
+                                  </span>
+                                  <span className="font-bold truncate text-xs">{v.titleEn}</span>
+                                </div>
+                                <p className="text-[10px] text-slate-400 font-mono">
+                                  {v.durationMinutes} mins · {v.teacherName}
+                                  {v.folderName && !editingFolder && (
+                                    <span className="text-amber-400 ml-1.5">
+                                      (Currently in: {v.folderName})
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsFolderModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-bold text-xs cursor-pointer shadow-md hover:from-cyan-400 hover:to-blue-500 transition-all"
+                  >
+                    {editingFolder ? 'Save Changes' : 'Create Folder & Assign Videos'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
