@@ -4,7 +4,7 @@ import {
   Maximize2, Minimize2, Zap, ShieldCheck, 
   RotateCw, RotateCcw, ListVideo, Volume2, VolumeX,
   Gauge, Sparkles, SlidersHorizontal, Tv, Check,
-  Loader2
+  Loader2, ExternalLink
 } from 'lucide-react';
 import { VideoLesson, User, UserNote } from '../types';
 import { getYoutubeEmbedUrl } from '../utils/drive';
@@ -84,15 +84,38 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const [showQualityModal, setShowQualityModal] = useState<boolean>(false);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const htmlVideoRef = useRef<HTMLVideoElement>(null);
   const modalContainerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<any>(null);
   const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
   const hudFlashTimeoutRef = useRef<any>(null);
   const touchHandledRef = useRef<boolean>(false);
   const loadingTimeoutRef = useRef<any>(null);
+  const [directStreamFallbackIframe, setDirectStreamFallbackIframe] = useState<boolean>(false);
+
+  // Check if current video is a direct stream link (e.g. Koyeb, custom MP4/HLS stream)
+  const isDirectStream = useMemo(() => {
+    if (!video) return false;
+    if (video.streamType === 'direct') return true;
+    if (video.directStreamUrl) return true;
+    if (video.youtubeId && video.youtubeId.startsWith('direct-')) return true;
+    if (video.youtubeUrl && !video.youtubeId.match(/^[a-zA-Z0-9_-]{11}$/)) return true;
+    return false;
+  }, [video]);
+
+  // Clean direct stream URL (guaranteeing https://)
+  const directStreamUrl = useMemo(() => {
+    if (!video) return '';
+    let raw = (video.directStreamUrl || video.youtubeUrl || '').trim();
+    if (raw && !raw.startsWith('http://') && !raw.startsWith('https://')) {
+      raw = `https://${raw}`;
+    }
+    return raw;
+  }, [video]);
 
   // Controlled embed URL with optional forced quality and seek start
   const embedUrl = useMemo(() => {
+    if (isDirectStream) return null;
     if (!video?.youtubeId) return null;
     return getYoutubeEmbedUrl(video.youtubeId, { 
       autoplay: true, 
@@ -100,7 +123,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       quality: embedQuality !== 'auto' ? embedQuality : undefined,
       startSeconds: streamStartTime > 0 ? streamStartTime : undefined,
     });
-  }, [video?.youtubeId, embedQuality, streamStartTime]);
+  }, [video?.youtubeId, embedQuality, streamStartTime, isDirectStream]);
 
   // Safe postMessage dispatcher to YouTube iframe
   const sendYtCommand = useCallback((func: string, args: any[] = []) => {
@@ -161,6 +184,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     setNoteText('');
     setShowMobileSpeedDrawer(false);
     setShowQualityModal(false);
+    setDirectStreamFallbackIframe(false);
     if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
     if (video?.durationMinutes) {
       setDuration(video.durationMinutes * 60);
@@ -169,6 +193,25 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
     };
   }, [video?.id, video?.durationMinutes]);
+
+  // Autoplay attempt for HTML5 direct stream video
+  useEffect(() => {
+    if (isDirectStream && htmlVideoRef.current && !directStreamFallbackIframe) {
+      htmlVideoRef.current.currentTime = 0;
+      htmlVideoRef.current.playbackRate = currentSpeed;
+      htmlVideoRef.current.muted = isMuted;
+      const p = htmlVideoRef.current.play();
+      if (p !== undefined) {
+        p.then(() => {
+          setIsPlaying(true);
+          setIsLoading(false);
+        }).catch(() => {
+          setIsPlaying(false);
+          setIsLoading(false);
+        });
+      }
+    }
+  }, [video?.id, isDirectStream, directStreamFallbackIframe]);
 
   // Handle postMessage events from YouTube iframe
   useEffect(() => {
@@ -288,6 +331,20 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
   // Play / Pause Toggle
   const handleTogglePlay = () => {
+    if (isDirectStream && htmlVideoRef.current && !directStreamFallbackIframe) {
+      if (htmlVideoRef.current.paused) {
+        htmlVideoRef.current.play().catch(() => {});
+        setIsPlaying(true);
+        flashGamingHud('▶ PLAYING');
+      } else {
+        htmlVideoRef.current.pause();
+        setIsPlaying(false);
+        flashGamingHud('⏸ PAUSED');
+      }
+      resetControlsTimeout();
+      return;
+    }
+
     if (isPlaying) {
       sendYtCommand('pauseVideo');
       setIsPlaying(false);
@@ -304,7 +361,11 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   // Speed Adjustment
   const handleSetSpeed = (rate: number) => {
     setCurrentSpeed(rate);
-    sendYtCommand('setPlaybackRate', [rate]);
+    if (isDirectStream && htmlVideoRef.current && !directStreamFallbackIframe) {
+      htmlVideoRef.current.playbackRate = rate;
+    } else {
+      sendYtCommand('setPlaybackRate', [rate]);
+    }
     
     const config = GAMING_SPEED_OPTIONS.find((s) => s.rate === rate);
     flashGamingHud(`⚡ SPEED: ${rate}x ${config?.badge || ''}`);
@@ -318,9 +379,11 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     setStreamStartTime(Math.floor(currentTime));
     setIsBuffering(true);
     
-    // Command YouTube API
-    sendYtCommand('setPlaybackQuality', [qualityId]);
-    sendYtCommand('setPlaybackQualityRange', [qualityId, qualityId]);
+    // Command YouTube API if youtube mode
+    if (!isDirectStream) {
+      sendYtCommand('setPlaybackQuality', [qualityId]);
+      sendYtCommand('setPlaybackQualityRange', [qualityId, qualityId]);
+    }
     
     const qConfig = QUALITY_OPTIONS.find((q) => q.id === qualityId);
     flashGamingHud(`📺 RESOLUTION: ${qConfig?.label || qualityId} [${qConfig?.tag || 'ENGAGED'}]`);
@@ -336,12 +399,16 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     const clamped = Math.max(0, Math.min(duration, newSeconds));
     setCurrentTime(clamped);
 
-    setIsBuffering(true);
-    sendYtCommand('seekTo', [clamped, true]);
+    if (isDirectStream && htmlVideoRef.current && !directStreamFallbackIframe) {
+      htmlVideoRef.current.currentTime = clamped;
+    } else {
+      setIsBuffering(true);
+      sendYtCommand('seekTo', [clamped, true]);
+      setTimeout(() => {
+        setIsBuffering(false);
+      }, 600);
+    }
     resetControlsTimeout();
-    setTimeout(() => {
-      setIsBuffering(false);
-    }, 600);
   };
 
   // Skip relative offset in seconds (e.g. -10s or +10s)
@@ -353,6 +420,14 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
   // Volume Mute / Unmute Toggle
   const handleToggleMute = () => {
+    if (isDirectStream && htmlVideoRef.current && !directStreamFallbackIframe) {
+      htmlVideoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+      flashGamingHud(!isMuted ? '🔇 AUDIO MUTED' : '🔊 AUDIO ACTIVE');
+      resetControlsTimeout();
+      return;
+    }
+
     if (isMuted) {
       sendYtCommand('unMute');
       setIsMuted(false);
@@ -512,6 +587,12 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   <span className="px-1.5 sm:px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 font-black text-[10px] sm:text-[11px] border border-cyan-500/30 shrink-0">
                     {video.subjectNameEn}
                   </span>
+                  {isDirectStream && (
+                    <span className="px-1.5 sm:px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-mono font-black text-[9px] sm:text-[10px] border border-purple-500/30 shrink-0 flex items-center gap-1">
+                      <Zap className="w-2.5 h-2.5 text-purple-400" />
+                      <span>DIRECT STREAM</span>
+                    </span>
+                  )}
                   <h3 className="text-xs sm:text-sm font-black text-white truncate">
                     {video.titleEn}
                   </h3>
@@ -526,6 +607,20 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
             {/* Top Right Actions */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {/* Direct Stream Source Link */}
+              {isDirectStream && directStreamUrl && (
+                <a
+                  href={directStreamUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2 py-1 rounded-xl bg-purple-950/60 text-purple-300 border border-purple-500/40 hover:bg-purple-900/60 text-[10px] font-bold font-mono flex items-center gap-1 cursor-pointer transition-all shadow-sm"
+                  title="Open direct video stream source in new tab"
+                >
+                  <ExternalLink className="w-3 h-3 text-purple-400" />
+                  <span className="hidden sm:inline">SOURCE</span>
+                </a>
+              )}
+
               {/* Fast Fullscreen Button */}
               <button
                 onClick={toggleFullscreen}
@@ -586,8 +681,55 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                 </div>
               )}
 
-              {/* Active Player: Clean Online YouTube iframe */}
-              {embedUrl ? (
+              {/* Active Player: Direct Stream HTML5 Player or YouTube iframe */}
+              {isDirectStream ? (
+                directStreamFallbackIframe ? (
+                  <iframe
+                    src={directStreamUrl}
+                    title={video.titleEn}
+                    className="w-full h-full border-0 select-none bg-black"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                    onLoad={() => setIsLoading(false)}
+                  />
+                ) : (
+                  <video
+                    ref={htmlVideoRef}
+                    src={directStreamUrl}
+                    className="w-full h-full object-contain bg-black"
+                    playsInline
+                    autoPlay
+                    controls={false}
+                    onLoadedMetadata={() => {
+                      if (htmlVideoRef.current && htmlVideoRef.current.duration) {
+                        setDuration(htmlVideoRef.current.duration);
+                      }
+                      setIsLoading(false);
+                    }}
+                    onTimeUpdate={() => {
+                      if (htmlVideoRef.current) {
+                        setCurrentTime(htmlVideoRef.current.currentTime);
+                      }
+                    }}
+                    onPlay={() => {
+                      setIsPlaying(true);
+                      setIsLoading(false);
+                      setIsBuffering(false);
+                    }}
+                    onPause={() => setIsPlaying(false)}
+                    onWaiting={() => setIsBuffering(true)}
+                    onPlaying={() => {
+                      setIsPlaying(true);
+                      setIsBuffering(false);
+                      setIsLoading(false);
+                    }}
+                    onError={() => {
+                      console.warn('Direct stream HTML5 video playback note, switching to embed iframe fallback');
+                      setDirectStreamFallbackIframe(true);
+                      setIsLoading(false);
+                    }}
+                  />
+                )
+              ) : embedUrl ? (
                 <iframe
                   ref={iframeRef}
                   src={embedUrl}

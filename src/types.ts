@@ -73,6 +73,9 @@ export interface VideoLesson {
   uploadedAt: string;
   folderId?: string;
   folderName?: string;
+  streamType?: 'youtube' | 'direct';
+  directStreamUrl?: string;
+  hideThumbnail?: boolean;
 }
 
 export interface VideoFolder {

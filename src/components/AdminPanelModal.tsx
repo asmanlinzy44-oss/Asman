@@ -146,6 +146,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [videoDuration, setVideoDuration] = useState<number>(45);
   const [videoYoutubeInput, setVideoYoutubeInput] = useState('');
   const [videoFolderSelect, setVideoFolderSelect] = useState<string>('none');
+  const [videoHideThumbnail, setVideoHideThumbnail] = useState<boolean>(false);
 
   // Video Folders & Video Organization State
   const [videoFolderFilter, setVideoFolderFilter] = useState<string>('all');
@@ -409,11 +410,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     };
 
     if (publishType === 'video') {
-      const cleanId = extractYoutubeId(videoYoutubeInput.trim());
-      if (!cleanId || cleanId.length < 5) {
-        alert('Please enter a valid YouTube Video URL or 11-character Video ID.');
+      const rawInput = videoYoutubeInput.trim();
+      if (!rawInput) {
+        alert('Please enter a video URL (YouTube URL or Direct Stream link).');
         return;
       }
+
+      const cleanId = extractYoutubeId(rawInput);
+      const isDirectStreamInput = !cleanId || cleanId.length < 5 || rawInput.includes('/stream/') || rawInput.includes('.koyeb.app') || rawInput.endsWith('.mp4');
+      const fullUrl = rawInput.startsWith('http://') || rawInput.startsWith('https://') ? rawInput : `https://${rawInput}`;
 
       const newVideo: VideoLesson = {
         id: 'custom_vid_' + Date.now(),
@@ -423,8 +428,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         subjectNameEn: itemSubject,
         unitNumber: Number(videoUnitNumber),
         unitNameEn: videoUnitName.trim() || `Unit ${videoUnitNumber}`,
-        youtubeUrl: `https://www.youtube.com/watch?v=${cleanId}`,
-        youtubeId: cleanId,
+        youtubeUrl: fullUrl,
+        youtubeId: cleanId && !isDirectStreamInput ? cleanId : `direct-${Date.now().toString().slice(-6)}`,
+        streamType: isDirectStreamInput ? 'direct' : 'youtube',
+        directStreamUrl: isDirectStreamInput ? fullUrl : undefined,
+        hideThumbnail: isDirectStreamInput || videoHideThumbnail,
         durationMinutes: Number(videoDuration) || 45,
         teacherName: videoTeacher.trim() || 'Asman Linzy',
         descriptionEn: 'Full syllabus masterclass with derivations and exam questions.',
@@ -444,6 +452,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       showSuccess(`Video lesson "${newVideo.titleEn}" published live to cloud database!`);
       setItemTitleEn('');
       setVideoYoutubeInput('');
+      setVideoHideThumbnail(false);
       setActiveTab('videos');
       return;
     }
@@ -1795,20 +1804,32 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                   </div>
                                 </div>
 
-                                <h5 className="font-bold text-white truncate">{v.titleEn}</h5>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h5 className="font-bold text-white truncate">{v.titleEn}</h5>
+                                  {(v.streamType === 'direct' || v.directStreamUrl) && (
+                                    <span className="px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-mono text-[9px] font-bold border border-purple-500/30 shrink-0">
+                                      Direct Stream
+                                    </span>
+                                  )}
+                                  {v.hideThumbnail && (
+                                    <span className="px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-300 font-mono text-[9px] font-bold border border-slate-700 shrink-0">
+                                      No Thumbnail
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-[11px] text-slate-500 font-mono">
-                                  Teacher: {v.teacherName} · ID: {v.youtubeId}
+                                  Teacher: {v.teacherName} {v.directStreamUrl ? '· Direct Stream' : `· ID: ${v.youtubeId}`}
                                 </p>
                               </div>
                             </div>
 
                             <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                               <a
-                                href={v.youtubeUrl}
+                                href={v.directStreamUrl || v.youtubeUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-rose-400"
-                                title="Open on YouTube"
+                                className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-cyan-400"
+                                title={v.streamType === 'direct' ? 'Open Direct Stream Source' : 'Open on YouTube'}
                               >
                                 <ExternalLink className="w-4 h-4" />
                               </a>
@@ -2270,16 +2291,33 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                         <div>
                           <label className="block text-xs font-mono font-bold text-rose-300 mb-1">
-                            YouTube URL or 11-Character Video ID <span className="text-rose-400">*</span>
+                            YouTube Video URL or Direct Stream Link <span className="text-rose-400">*</span>
                           </label>
                           <input
                             type="text"
                             required
                             value={videoYoutubeInput}
                             onChange={(e) => setVideoYoutubeInput(e.target.value)}
-                            placeholder="https://www.youtube.com/watch?v=... or 11-char ID"
+                            placeholder="https://www.youtube.com/... or royalfiletolink.koyeb.app/stream/..."
                             className="w-full px-3 py-2 bg-[#050A17] border border-rose-500/40 rounded-xl text-xs text-white font-mono"
                           />
+                          <p className="text-[10px] text-slate-400 mt-1 font-mono">
+                            Supports YouTube URLs and direct video stream links (e.g., Koyeb / Direct MP4 stream).
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-0.5">
+                          <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                            <input
+                              type="checkbox"
+                              checked={videoHideThumbnail}
+                              onChange={(e) => setVideoHideThumbnail(e.target.checked)}
+                              className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-0 cursor-pointer"
+                            />
+                            <span className="font-medium">
+                              Don't show image thumbnail (Sleek Workshop Direct Stream Poster Mode)
+                            </span>
+                          </label>
                         </div>
 
                         <div>

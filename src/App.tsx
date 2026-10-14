@@ -81,7 +81,7 @@ export default function App() {
   });
 
   const [videos, setVideos] = useState<VideoLesson[]>(() => {
-    const VIDEOS_CACHE_KEY = 'studypro_hydro_videos_unit2_v18';
+    const VIDEOS_CACHE_KEY = 'studypro_videos_workshop_v19';
     const isVideosLoaded = localStorage.getItem(VIDEOS_CACHE_KEY);
     if (!isVideosLoaded) {
       localStorage.setItem(VIDEOS_CACHE_KEY, 'true');
@@ -95,7 +95,7 @@ export default function App() {
       const existingIds = new Set(parsed.map((v) => v.id));
       const missingVideos = INITIAL_VIDEOS.filter((v) => !existingIds.has(v.id));
       if (missingVideos.length > 0) {
-        const merged = [...INITIAL_VIDEOS];
+        const merged = [...parsed, ...missingVideos];
         localStorage.setItem('studypro_videos_data', JSON.stringify(merged));
         return merged;
       }
@@ -841,6 +841,43 @@ export default function App() {
       unsubVideos();
       unsubFolders();
     };
+  }, []);
+
+  // One-time seed of Physics Practical workshop folder and direct stream videos to Cloud Firestore
+  useEffect(() => {
+    const seedWorkshopData = async () => {
+      try {
+        const folderRef = doc(db, 'video_folders', 'vf-phy-practical-workshop');
+        const folderSnap = await getDoc(folderRef);
+        if (!folderSnap.exists()) {
+          const workshopFolder = INITIAL_VIDEO_FOLDERS.find((f) => f.id === 'vf-phy-practical-workshop');
+          if (workshopFolder) {
+            await setDoc(folderRef, cleanFirestoreData({ ...workshopFolder, createdAt: new Date().toISOString() }));
+          }
+        }
+
+        const v1Ref = doc(db, 'videos', 'vid-phy-prac-workshop-01');
+        const v1Snap = await getDoc(v1Ref);
+        if (!v1Snap.exists()) {
+          const v1 = INITIAL_VIDEOS.find((v) => v.id === 'vid-phy-prac-workshop-01');
+          if (v1) {
+            await setDoc(v1Ref, cleanFirestoreData({ ...v1, uploadedAt: '2026-10-14' }));
+          }
+        }
+
+        const v2Ref = doc(db, 'videos', 'vid-phy-prac-workshop-02');
+        const v2Snap = await getDoc(v2Ref);
+        if (!v2Snap.exists()) {
+          const v2 = INITIAL_VIDEOS.find((v) => v.id === 'vid-phy-prac-workshop-02');
+          if (v2) {
+            await setDoc(v2Ref, cleanFirestoreData({ ...v2, uploadedAt: '2026-10-14' }));
+          }
+        }
+      } catch (err) {
+        console.warn('Workshop video Firestore seeding notice:', err);
+      }
+    };
+    seedWorkshopData();
   }, []);
 
   // Real-time synchronization of Site Announcement and Vault Drive Links
