@@ -87,6 +87,11 @@ export interface VideoFolder {
   subjectName?: string;
   color?: string; // 'rose' | 'blue' | 'emerald' | 'amber' | 'purple' | 'cyan'
   createdAt: string;
+  isLocked?: boolean;
+  accessPasscode?: string;
+  allowedEmails?: string[];
+  order?: number;
+  icon?: string;
 }
 
 export interface UserNote {
@@ -110,6 +115,7 @@ export interface User {
   role: 'student' | 'teacher' | 'admin';
   bookmarks: string[];
   watchedVideoIds: string[];
+  unlockedVideoFolderIds?: string[];
   notes: UserNote[];
   xp?: number;
   level?: number;

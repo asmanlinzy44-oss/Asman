@@ -7,7 +7,7 @@ import {
   RefreshCw, Database, Shield, BookOpen, Layers, ArrowLeft,
   Copy, Award, CheckCircle2, ChevronRight, MessageCircle, 
   Send, CheckCheck, Megaphone, FolderGit2, Sparkles, Folder, Bot,
-  Mail, UserCheck, FolderPlus, CheckSquare, Square, FolderCheck
+  Mail, UserCheck, FolderPlus, CheckSquare, Square, FolderCheck, Unlock
 } from 'lucide-react';
 import { collection, onSnapshot, deleteDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -163,6 +163,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [folderColorInput, setFolderColorInput] = useState<string>('blue');
   const [folderSelectedVideoIds, setFolderSelectedVideoIds] = useState<string[]>([]);
   const [folderVideoSearch, setFolderVideoSearch] = useState<string>('');
+  const [folderIsLockedInput, setFolderIsLockedInput] = useState<boolean>(false);
+  const [folderPasscodeInput, setFolderPasscodeInput] = useState<string>('');
+  const [folderIconInput, setFolderIconInput] = useState<string>('📁');
 
   // Resource Vault Drive Links Form State
   const [vaultPhysics, setVaultPhysics] = useState(vaultDriveLinks['physics'] || '');
@@ -532,6 +535,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setFolderDescInput('');
     setFolderSubjectInput('Physics');
     setFolderColorInput('blue');
+    setFolderIsLockedInput(false);
+    setFolderPasscodeInput('');
+    setFolderIconInput('📁');
     setFolderSelectedVideoIds([]);
     setFolderVideoSearch('');
     setIsFolderModalOpen(true);
@@ -544,6 +550,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setFolderDescInput(folder.description || '');
     setFolderSubjectInput(folder.subjectName || 'Physics');
     setFolderColorInput(folder.color || 'blue');
+    setFolderIsLockedInput(folder.isLocked || false);
+    setFolderPasscodeInput(folder.accessPasscode || '');
+    setFolderIconInput(folder.icon || '📁');
     const existingVideoIds = videos.filter((v) => v.folderId === folder.id).map((v) => v.id);
     setFolderSelectedVideoIds(existingVideoIds);
     setFolderVideoSearch('');
@@ -565,6 +574,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         description: folderDescInput.trim() || undefined,
         subjectName: folderSubjectInput,
         color: folderColorInput,
+        icon: folderIconInput,
+        isLocked: folderIsLockedInput,
+        accessPasscode: folderPasscodeInput.trim() || undefined,
       };
       if (onUpdateFolder) {
         onUpdateFolder(updated);
@@ -586,6 +598,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         description: folderDescInput.trim() || undefined,
         subjectName: folderSubjectInput,
         color: folderColorInput,
+        icon: folderIconInput,
+        isLocked: folderIsLockedInput,
+        accessPasscode: folderPasscodeInput.trim() || undefined,
         createdAt: new Date().toISOString(),
       };
       if (onAddFolder) {
@@ -1505,12 +1520,26 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             >
                               <div className="space-y-1.5">
                                 <div className="flex items-center justify-between gap-2">
-                                  <span className="px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 font-mono text-[10px] font-bold border border-cyan-500/20">
-                                    {folder.subjectName || 'All Subjects'}
+                                  <span className="px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 font-mono text-[10px] font-bold border border-cyan-500/20 flex items-center gap-1">
+                                    <span>{folder.icon || '📁'}</span>
+                                    <span>{folder.subjectName || 'All Subjects'}</span>
                                   </span>
-                                  <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-mono text-[10px] font-bold">
-                                    {vidsInFolder.length} {vidsInFolder.length === 1 ? 'video' : 'videos'}
-                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    {folder.isLocked ? (
+                                      <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-mono font-bold flex items-center gap-0.5" title={`Passcode: ${folder.accessPasscode || 'None'}`}>
+                                        <Lock className="w-2.5 h-2.5" />
+                                        <span>Locked</span>
+                                      </span>
+                                    ) : (
+                                      <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-mono font-bold flex items-center gap-0.5">
+                                        <Unlock className="w-2.5 h-2.5" />
+                                        <span>Open</span>
+                                      </span>
+                                    )}
+                                    <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-mono text-[10px] font-bold">
+                                      {vidsInFolder.length} vids
+                                    </span>
+                                  </div>
                                 </div>
 
                                 <div className="flex items-start gap-2 pt-0.5">
@@ -3189,6 +3218,53 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       <option value="rose">Rose (ரோஸ்)</option>
                       <option value="amber">Amber (மஞ்சள்)</option>
                     </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Folder Icon</label>
+                    <select
+                      value={folderIconInput}
+                      onChange={(e) => setFolderIconInput(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white outline-none focus:border-cyan-400"
+                    >
+                      <option value="🔬">🔬 Practical Workshop</option>
+                      <option value="⚛️">⚛️ Physics</option>
+                      <option value="🧪">🧪 Chemistry</option>
+                      <option value="📐">📐 Combined Mathematics</option>
+                      <option value="🧬">🧬 Biology</option>
+                      <option value="📁">📁 Standard Folder</option>
+                      <option value="🎯">🎯 Revision / Papers</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Session Access Lock</label>
+                    <select
+                      value={folderIsLockedInput ? 'locked' : 'open'}
+                      onChange={(e) => setFolderIsLockedInput(e.target.value === 'locked')}
+                      className={`w-full px-3 py-2 bg-[#050A17] border rounded-xl text-xs outline-none focus:border-cyan-400 font-bold ${
+                        folderIsLockedInput ? 'border-amber-500/50 text-amber-300' : 'border-emerald-500/50 text-emerald-300'
+                      }`}
+                    >
+                      <option value="open">🟢 Open / Public Access</option>
+                      <option value="locked">🔒 Locked Session (Passcode Required)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
+                      Access Passcode {folderIsLockedInput && <span className="text-amber-400">*</span>}
+                    </label>
+                    <input
+                      type="text"
+                      disabled={!folderIsLockedInput}
+                      value={folderPasscodeInput}
+                      onChange={(e) => setFolderPasscodeInput(e.target.value)}
+                      placeholder={folderIsLockedInput ? "e.g. PRAC2026" : "Not locked"}
+                      className="w-full px-3 py-2 bg-[#050A17] border border-slate-700 disabled:opacity-50 rounded-xl text-xs text-white outline-none focus:border-cyan-400 font-mono"
+                    />
                   </div>
                 </div>
 

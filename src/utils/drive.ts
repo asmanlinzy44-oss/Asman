@@ -136,3 +136,19 @@ export function getYoutubeEmbedUrl(
   
   return `https://www.youtube-nocookie.com/embed/${cleanId}?autoplay=${autoplay}&rel=0&modestbranding=1&controls=${controls}&playsinline=1&enablejsapi=1&iv_load_policy=3&fs=0${origin}${vq}${start}`;
 }
+
+/**
+ * Format video duration in hours and minutes (e.g. 75 min -> '1h 15m', 45 min -> '45m')
+ */
+export function formatVideoDuration(minutes: number): string {
+  if (!minutes || minutes <= 0) return '0m';
+  const hrs = Math.floor(minutes / 60);
+  const mins = Math.floor(minutes % 60);
+  if (hrs > 0 && mins > 0) {
+    return `${hrs}h ${mins < 10 ? '0' : ''}${mins}m`;
+  }
+  if (hrs > 0) {
+    return `${hrs}h 00m`;
+  }
+  return `${mins}m`;
+}

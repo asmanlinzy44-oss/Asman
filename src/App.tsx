@@ -22,6 +22,7 @@ import { ResourceCard } from './components/ResourceCard';
 import { VideoCard } from './components/VideoCard';
 import { BookmarksModal } from './components/BookmarksModal';
 import { StudyTimerModal } from './components/StudyTimerModal';
+import { VideoFoldersView } from './components/VideoFoldersView';
 import { TermFoldersView } from './components/TermFoldersView';
 import { PastPaperFoldersView } from './components/PastPaperFoldersView';
 import { ContactUsModal } from './components/ContactUsModal';
@@ -206,12 +207,102 @@ export default function App() {
     return paidAccessList.find((item) => item.email.toLowerCase().trim() === currentEmail) || null;
   }, [user, paidAccessList]);
 
+  // Video Folders Unlock & Enrolled Sessions State
+  const [unlockedFolderIds, setUnlockedFolderIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('studypro_unlocked_folders');
+      return saved ? JSON.parse(saved) : ['vf-physics', 'vf-chemistry'];
+    } catch {
+      return ['vf-physics', 'vf-chemistry'];
+    }
+  });
+
+  const [isVideoUnlocked, setIsVideoUnlocked] = useState<boolean>(() => {
+    return localStorage.getItem('studypro_video_unlocked') === 'true';
+  });
+
+  const hasVideoAccess = useMemo(() => {
+    if (isAdminLoggedIn) return true;
+    if (!user || !user.email) return false;
+    const currentEmail = user.email.toLowerCase().trim();
+    if (currentEmail === 'asmanlinzy44@gmail.com') return true;
+    return videoAccessEmails.some((e) => e.toLowerCase().trim() === currentEmail);
+  }, [user, videoAccessEmails, isAdminLoggedIn]);
+
+  const isEffectiveVideoUnlocked = hasVideoAccess || isVideoUnlocked;
+
+  // Granular check if a specific VideoFolder is unlocked for this student
+  const isFolderUnlocked = useCallback((folder: VideoFolder): boolean => {
+    if (isAdminLoggedIn) return true;
+    if (user?.email && user.email.toLowerCase().trim() === 'asmanlinzy44@gmail.com') return true;
+    if (folder.isLocked === false) return true;
+    if (unlockedFolderIds.includes(folder.id)) return true;
+    if (folder.allowedEmails && user?.email && folder.allowedEmails.some((e) => e.toLowerCase().trim() === user.email.toLowerCase().trim())) {
+      return true;
+    }
+    if (user?.unlockedVideoFolderIds && user.unlockedVideoFolderIds.includes(folder.id)) {
+      return true;
+    }
+    if (isEffectiveVideoUnlocked) return true;
+    return false;
+  }, [isAdminLoggedIn, user, unlockedFolderIds, isEffectiveVideoUnlocked]);
+
+  // Handle Passcode Unlock for a specific folder or all folders
+  const handleUnlockFolderWithCode = useCallback(async (passcode: string, targetFolderId?: string): Promise<{ success: boolean; message: string }> => {
+    const code = passcode.trim().toUpperCase();
+    if (!code) return { success: false, message: 'Please enter a valid passcode.' };
+
+    // 1. Check if matching specific target folder passcode
+    if (targetFolderId) {
+      const folder = videoFolders.find((f) => f.id === targetFolderId);
+      if (folder && folder.accessPasscode && folder.accessPasscode.toUpperCase() === code) {
+        setUnlockedFolderIds((prev) => {
+          const next = Array.from(new Set([...prev, folder.id]));
+          try { localStorage.setItem('studypro_unlocked_folders', JSON.stringify(next)); } catch {}
+          return next;
+        });
+        return { success: true, message: `Access granted! "${folder.name}" is now fully unlocked.` };
+      }
+    }
+
+    // 2. Check if code matches any folder in videoFolders
+    const matchedFolder = videoFolders.find((f) => f.accessPasscode && f.accessPasscode.toUpperCase() === code);
+    if (matchedFolder) {
+      setUnlockedFolderIds((prev) => {
+        const next = Array.from(new Set([...prev, matchedFolder.id]));
+        try { localStorage.setItem('studypro_unlocked_folders', JSON.stringify(next)); } catch {}
+        return next;
+      });
+      return { success: true, message: `Access granted! "${matchedFolder.name}" is now fully unlocked.` };
+    }
+
+    // 3. Universal unlock codes (e.g., PRAC2026, STUDYPRO, STUDYPRO2026, PHYSICS2026, ASMAN2026)
+    if (['PRAC2026', 'STUDYPRO', 'STUDYPRO2026', 'PHYSICS2026', 'ASMAN2026'].includes(code)) {
+      const allIds = videoFolders.map((f) => f.id);
+      setUnlockedFolderIds(allIds);
+      try { localStorage.setItem('studypro_unlocked_folders', JSON.stringify(allIds)); } catch {}
+      setIsVideoUnlocked(true);
+      localStorage.setItem('studypro_video_unlocked', 'true');
+      return { success: true, message: 'All Theory Masterclass & Workshop folders have been successfully unlocked!' };
+    }
+
+    return { success: false, message: 'Invalid access passcode. Please contact your educator or admin.' };
+  }, [videoFolders]);
+
   // Granular check if a specific VideoLesson is unlocked for this student
   const isVideoLessonUnlocked = useCallback((video: VideoLesson): boolean => {
     if (isAdminLoggedIn) return true;
     if (!user || !user.email) return false;
     const currentEmail = user.email.toLowerCase().trim();
     if (currentEmail === 'asmanlinzy44@gmail.com') return true;
+
+    // Check if video parent folder is unlocked
+    if (video.folderId) {
+      const parentFolder = videoFolders.find((f) => f.id === video.folderId);
+      if (parentFolder && isFolderUnlocked(parentFolder)) {
+        return true;
+      }
+    }
 
     // Check detailed student access record
     if (currentUserAccess) {
@@ -249,21 +340,7 @@ export default function App() {
 
     // Fallback: check email whitelist
     return videoAccessEmails.some((e) => e.toLowerCase().trim() === currentEmail);
-  }, [isAdminLoggedIn, user, currentUserAccess, videoAccessEmails]);
-
-  const hasVideoAccess = useMemo(() => {
-    if (isAdminLoggedIn) return true;
-    if (!user || !user.email) return false;
-    const currentEmail = user.email.toLowerCase().trim();
-    if (currentEmail === 'asmanlinzy44@gmail.com') return true;
-    return videoAccessEmails.some((e) => e.toLowerCase().trim() === currentEmail);
-  }, [user, videoAccessEmails, isAdminLoggedIn]);
-
-  const [isVideoUnlocked, setIsVideoUnlocked] = useState<boolean>(() => {
-    return localStorage.getItem('studypro_video_unlocked') === 'true';
-  });
-
-  const isEffectiveVideoUnlocked = hasVideoAccess || isVideoUnlocked;
+  }, [isAdminLoggedIn, user, currentUserAccess, videoAccessEmails, videoFolders, isFolderUnlocked]);
 
   const [isVideoLockOpen, setIsVideoLockOpen] = useState(false);
   const [targetUnlockVideo, setTargetUnlockVideo] = useState<VideoLesson | null>(null);
@@ -847,12 +924,11 @@ export default function App() {
   useEffect(() => {
     const seedWorkshopData = async () => {
       try {
-        const folderRef = doc(db, 'video_folders', 'vf-phy-practical-workshop');
-        const folderSnap = await getDoc(folderRef);
-        if (!folderSnap.exists()) {
-          const workshopFolder = INITIAL_VIDEO_FOLDERS.find((f) => f.id === 'vf-phy-practical-workshop');
-          if (workshopFolder) {
-            await setDoc(folderRef, cleanFirestoreData({ ...workshopFolder, createdAt: new Date().toISOString() }));
+        for (const folder of INITIAL_VIDEO_FOLDERS) {
+          const folderRef = doc(db, 'video_folders', folder.id);
+          const folderSnap = await getDoc(folderRef);
+          if (!folderSnap.exists()) {
+            await setDoc(folderRef, cleanFirestoreData({ ...folder, createdAt: new Date().toISOString() }));
           }
         }
 
@@ -2165,126 +2241,27 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Masterclass Video Cards Grid */}
+                {/* Masterclass Video Folders System (Document-like Folder Navigation & My Videos) */}
                 <div className="space-y-4">
-                  <div className="text-center">
-                    <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
-                      Masterclass Video Lessons · விரிவுரைகள்
-                    </span>
-                    <h4 className="text-lg font-black text-slate-900 dark:text-white mt-0.5">
-                      Browse Masterclass Lectures
-                    </h4>
-                  </div>
-
-                  {/* Video Folders Navigation Ribbon */}
-                  {videoFolders.length > 0 && (
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-3 sm:p-4 shadow-xs space-y-2.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-mono text-[11px]">
-                          <Folder className="w-3.5 h-3.5 text-blue-600 dark:text-cyan-400" />
-                          <span>Lecture Folders · பாட அலகுக் கோப்புறைகள்:</span>
-                        </span>
-                        {selectedVideoFolder !== 'all' && (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedVideoFolder('all')}
-                            className="text-[11px] text-blue-600 dark:text-cyan-400 hover:underline cursor-pointer font-bold"
-                          >
-                            Show All Folders
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedVideoFolder('all')}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-all ${
-                            selectedVideoFolder === 'all'
-                              ? 'bg-blue-600 text-white shadow-xs'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                          }`}
-                        >
-                          All Videos ({videos.length})
-                        </button>
-
-                        {videoFolders.map((f) => {
-                          const count = videos.filter((v) => v.folderId === f.id).length;
-                          const isSelected = selectedVideoFolder === f.id;
-                          return (
-                            <button
-                              key={f.id}
-                              type="button"
-                              onClick={() => setSelectedVideoFolder(f.id)}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-all flex items-center gap-1.5 ${
-                                isSelected
-                                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-black'
-                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                              }`}
-                            >
-                              <Folder className="w-3.5 h-3.5" />
-                              <span>{f.name}</span>
-                              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                                isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                              }`}>
-                                {count}
-                              </span>
-                            </button>
-                          );
-                        })}
-
-                        {videos.some((v) => !v.folderId) && (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedVideoFolder('unorganized')}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-all ${
-                              selectedVideoFolder === 'unorganized'
-                                ? 'bg-amber-500 text-slate-950 shadow-xs font-black'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                            }`}
-                          >
-                            Unorganized ({videos.filter((v) => !v.folderId).length})
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {filteredVideos.length === 0 ? (
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-12 text-center text-slate-500 shadow-xs max-w-md mx-auto my-8">
-                      <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mx-auto mb-4 border border-rose-100 shadow-2xs">
-                        <Video className="w-7 h-7" />
-                      </div>
-                      <p className="font-extrabold text-base text-slate-900 dark:text-white mb-1">No Video Lessons in This Category</p>
-                      <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-                        Video lessons are curated directly by educators. Check back soon for new additions.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                      {filteredVideos.map((video) => {
-                        const isUnlocked = isVideoLessonUnlocked(video);
-                        return (
-                          <VideoCard
-                            key={video.id}
-                            video={video}
-                            user={user}
-                            onPlay={handlePlayVideo}
-                            onRequireLogin={() => {
-                              setTargetUnlockVideo(video);
-                              setIsVideoLockOpen(true);
-                            }}
-                            isWatched={user?.watchedVideoIds?.includes(video.id) || false}
-                            isUnlocked={isUnlocked}
-                            onRequireUnlock={() => {
-                              setTargetUnlockVideo(video);
-                              setIsVideoLockOpen(true);
-                            }}
-                          />
-                        );
-                      })}
-                    </div>
-                  )}
+                  <VideoFoldersView
+                    videos={videos}
+                    folders={videoFolders}
+                    selectedFolderId={selectedVideoFolder === 'all' ? null : selectedVideoFolder}
+                    onSelectFolder={(folderId) => setSelectedVideoFolder(folderId || 'all')}
+                    user={user}
+                    onPlayVideo={handlePlayVideo}
+                    onRequireLogin={() => setIsVideoLockOpen(true)}
+                    isEffectiveVideoUnlocked={isEffectiveVideoUnlocked}
+                    isVideoLessonUnlocked={isVideoLessonUnlocked}
+                    isFolderUnlocked={isFolderUnlocked}
+                    onUnlockFolderWithCode={handleUnlockFolderWithCode}
+                    onRequireUnlock={(video) => {
+                      setTargetUnlockVideo(video);
+                      setIsVideoLockOpen(true);
+                    }}
+                    isAdmin={isAdminLoggedIn}
+                    onOpenAdminFolders={() => setIsAdminPanelOpen(true)}
+                  />
                 </div>
               </div>
             ) : (

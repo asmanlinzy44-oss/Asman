@@ -7,7 +7,7 @@ import {
   Loader2, ExternalLink
 } from 'lucide-react';
 import { VideoLesson, User, UserNote } from '../types';
-import { getYoutubeEmbedUrl } from '../utils/drive';
+import { getYoutubeEmbedUrl, formatVideoDuration } from '../utils/drive';
 import { playRoboticClick, playRoboticUnlock } from '../utils/audio';
 
 interface VideoPlayerModalProps {
@@ -599,6 +599,8 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                 </div>
                 <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-slate-400 truncate">
                   <span className="text-slate-300 font-mono">Unit {video.unitNumber}</span>
+                  <span className="text-slate-600">·</span>
+                  <span className="text-slate-300 font-mono">{formatVideoDuration(video.durationMinutes)}</span>
                   <span className="text-slate-600">·</span>
                   <span className="text-cyan-300/80 font-medium truncate">{video.teacherName}</span>
                 </div>
