@@ -301,61 +301,52 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
             </div>
           </div>
 
-          {/* Folder Hero Header Banner */}
-          <div className={`p-6 sm:p-7 rounded-3xl border relative overflow-hidden shadow-xs transition-all ${
-            currentFolder.color === 'cyan'
-              ? 'bg-gradient-to-br from-cyan-950/40 via-slate-900 to-[#050D20] border-cyan-500/40 text-white'
-              : currentFolder.color === 'emerald'
-              ? 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-[#051515] border-emerald-500/40 text-white'
-              : 'bg-gradient-to-br from-blue-950/40 via-slate-900 to-[#070D24] border-blue-500/40 text-white'
-          }`}>
-            {/* Ambient background glow */}
-            <div className="absolute top-0 right-0 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-
+          {/* Folder Hero Header Banner (Consistent, clean styling across all folders) */}
+          <div className="p-6 sm:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 relative overflow-hidden shadow-xs transition-all text-slate-900 dark:text-white">
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
               <div className="space-y-2 max-w-2xl">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-2xl">{currentFolder.icon || '📁'}</span>
-                  <span className="px-2.5 py-0.5 rounded-lg bg-white/10 backdrop-blur-xs border border-white/20 text-xs font-black font-mono uppercase tracking-wider text-cyan-300">
+                  <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black font-mono uppercase tracking-wider text-blue-600 dark:text-cyan-400">
                     {currentFolder.subjectName || 'Theory Module'}
                   </span>
                   
                   {isFolderUnlocked(currentFolder) ? (
-                    <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-[11px] font-bold text-emerald-300 flex items-center gap-1 font-mono">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-mono">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                       <span>Access Granted · Session Active</span>
                     </span>
                   ) : (
-                    <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/20 border border-amber-400/40 text-[11px] font-black text-amber-300 flex items-center gap-1 font-mono">
-                      <Lock className="w-3 h-3 text-amber-400" />
+                    <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] font-black text-amber-600 dark:text-amber-400 flex items-center gap-1 font-mono">
+                      <Lock className="w-3 h-3 text-amber-500" />
                       <span>Locked Session · Passcode Required</span>
                     </span>
                   )}
                 </div>
 
-                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                   {currentFolder.name}
                 </h2>
                 {currentFolder.nameTa && (
-                  <p className="text-sm font-sans text-cyan-200/90 font-medium">
+                  <p className="text-sm font-sans text-slate-600 dark:text-slate-400 font-medium">
                     {currentFolder.nameTa}
                   </p>
                 )}
                 {currentFolder.description && (
-                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed pt-1">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed pt-1">
                     {currentFolder.description}
                   </p>
                 )}
 
                 {/* Meta stats: lessons and total duration */}
-                <div className="flex items-center gap-4 text-xs font-mono text-slate-300 pt-2 flex-wrap">
-                  <span className="flex items-center gap-1.5 bg-black/40 px-3 py-1 rounded-xl border border-white/10">
-                    <Film className="w-3.5 h-3.5 text-cyan-400" />
+                <div className="flex items-center gap-4 text-xs font-mono text-slate-600 dark:text-slate-300 pt-2 flex-wrap">
+                  <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <Film className="w-3.5 h-3.5 text-blue-600 dark:text-cyan-400" />
                     <strong>{currentFolderVideos.length}</strong> Video Lessons
                   </span>
 
-                  <span className="flex items-center gap-1.5 bg-black/40 px-3 py-1 rounded-xl border border-white/10">
-                    <Clock className="w-3.5 h-3.5 text-sky-400" />
+                  <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <Clock className="w-3.5 h-3.5 text-blue-500 dark:text-sky-400" />
                     Total Duration:{' '}
                     <strong>
                       {formatVideoDuration(
@@ -426,7 +417,8 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {currentFolderVideos.map((video) => {
-                  const isUnlocked = isVideoLessonUnlocked(video) || isFolderUnlocked(currentFolder);
+                  const isFolderAccess = isFolderUnlocked(currentFolder);
+                  const isUnlocked = isFolderAccess && isVideoLessonUnlocked(video);
                   return (
                     <VideoCard
                       key={video.id}
@@ -444,7 +436,7 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                         }
                       }}
                       accessStatusText={
-                        isFolderUnlocked(currentFolder)
+                        isFolderAccess
                           ? 'Enrolled Session'
                           : 'Locked Workshop • Passcode Required'
                       }
@@ -539,21 +531,26 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                   <div
                     key={folder.id}
                     onClick={() => handleFolderClick(folder.id)}
-                    className="group bg-white dark:bg-slate-900/95 rounded-3xl border border-emerald-500/30 hover:border-emerald-500 p-5 shadow-xs hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between transform hover:-translate-y-1 relative overflow-hidden"
+                    className="group rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-500 hover:shadow-xl p-5 sm:p-6 shadow-xs transition-all duration-300 cursor-pointer flex flex-col justify-between transform hover:-translate-y-1 relative overflow-hidden"
                   >
-                    <div className="space-y-3">
+                    <div className="space-y-3 relative z-10">
                       <div className="flex items-center justify-between">
-                        <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-2xl shadow-inner group-hover:scale-105 transition-transform">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-500/10 dark:bg-slate-800 border border-blue-500/20 dark:border-slate-700 flex items-center justify-center text-2xl shadow-inner group-hover:scale-105 transition-transform text-blue-600 dark:text-cyan-400">
                           {folder.icon || '📁'}
                         </div>
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold font-mono flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold font-mono flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                           <span>Active Access</span>
                         </span>
                       </div>
 
                       <div>
-                        <h4 className="text-base font-black text-slate-900 dark:text-white group-hover:text-emerald-500 transition-colors">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
+                            {folder.subjectName || 'Theory Module'}
+                          </span>
+                        </div>
+                        <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-cyan-400 transition-colors">
                           {folder.name}
                         </h4>
                         {folder.nameTa && (
@@ -569,10 +566,10 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                      <span className="font-mono flex items-center gap-1 font-bold text-slate-700 dark:text-slate-300">
-                        <Film className="w-3.5 h-3.5 text-cyan-500" />
-                        {stats.count} Videos
+                    <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 relative z-10">
+                      <span className="font-mono flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
+                        <Film className="w-3.5 h-3.5 text-blue-500 dark:text-cyan-400" />
+                        {stats.count} Lessons
                       </span>
 
                       <span className="font-mono flex items-center gap-1">
@@ -580,7 +577,7 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                         {formatVideoDuration(stats.totalMinutes)}
                       </span>
 
-                      <span className="text-emerald-600 dark:text-emerald-400 font-bold group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
+                      <span className="text-blue-600 dark:text-cyan-400 font-bold group-hover:translate-x-1 transition-transform flex items-center gap-0.5 font-mono text-[11px]">
                         Open ➜
                       </span>
                     </div>
@@ -664,47 +661,29 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
             {filteredFolders.map((folder) => {
               const stats = folderStats[folder.id] || { count: 0, totalMinutes: 0, videos: [] };
               const isUnlocked = isFolderUnlocked(folder);
-              const isSpecialWorkshop = folder.id === 'vf-phy-practical-workshop';
 
               return (
                 <div
                   key={folder.id}
                   onClick={() => handleFolderClick(folder.id)}
-                  className={`group rounded-3xl border p-5 sm:p-6 shadow-xs hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between transform hover:-translate-y-1 relative overflow-hidden ${
-                    isSpecialWorkshop
-                      ? 'bg-gradient-to-br from-[#060F25] via-slate-900 to-[#040817] border-cyan-500/40 hover:border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.15)]'
-                      : folder.color === 'emerald'
-                      ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-500'
-                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-blue-500'
-                  }`}
+                  className="group rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-500 hover:shadow-xl p-5 sm:p-6 shadow-xs transition-all duration-300 cursor-pointer flex flex-col justify-between transform hover:-translate-y-1 relative overflow-hidden"
                 >
-                  {/* Neon aura for practical workshop */}
-                  {isSpecialWorkshop && (
-                    <div className="absolute top-0 right-0 w-44 h-44 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
-                  )}
-
                   <div className="space-y-3 relative z-10">
                     {/* Top Row: Icon, Subject Tag & Status */}
                     <div className="flex items-center justify-between gap-2">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner group-hover:scale-105 transition-transform ${
-                        isSpecialWorkshop
-                          ? 'bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.3)]'
-                          : folder.color === 'emerald'
-                          ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
-                          : 'bg-blue-500/10 border border-blue-500/30 text-blue-400'
-                      }`}>
+                      <div className="w-12 h-12 rounded-2xl bg-blue-500/10 dark:bg-slate-800 border border-blue-500/20 dark:border-slate-700 flex items-center justify-center text-2xl shadow-inner group-hover:scale-105 transition-transform text-blue-600 dark:text-cyan-400">
                         {folder.icon || '📁'}
                       </div>
 
                       <div className="flex items-center gap-1.5">
                         {isUnlocked ? (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold font-mono flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold font-mono flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                             <span>Access Granted</span>
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-black font-mono flex items-center gap-1">
-                            <Lock className="w-3 h-3 text-amber-400" />
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-[10px] font-black font-mono flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-amber-500" />
                             <span>Locked Session</span>
                           </span>
                         )}
@@ -714,14 +693,9 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                     {/* Folder Title & Subject */}
                     <div>
                       <div className="flex items-center gap-1.5 mb-1">
-                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
                           {folder.subjectName || 'Theory Module'}
                         </span>
-                        {isSpecialWorkshop && (
-                          <span className="px-1.5 py-0.2 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] font-mono font-bold">
-                            Direct Stream
-                          </span>
-                        )}
                       </div>
 
                       <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-cyan-400 transition-colors">

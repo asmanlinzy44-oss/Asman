@@ -112,14 +112,17 @@ export default function App() {
       try {
         const parsed: VideoFolder[] = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const existingIds = new Set(parsed.map((f) => f.id));
+          const normalized = parsed.map((f) => {
+            if (f.id === 'vf-phy-practical-workshop') {
+              return { ...f, color: 'blue', icon: '📁' };
+            }
+            return f;
+          });
+          const existingIds = new Set(normalized.map((f) => f.id));
           const missing = INITIAL_VIDEO_FOLDERS.filter((f) => !existingIds.has(f.id));
-          if (missing.length > 0) {
-            const merged = [...parsed, ...missing];
-            localStorage.setItem('studypro_video_folders', JSON.stringify(merged));
-            return merged;
-          }
-          return parsed;
+          const result = missing.length > 0 ? [...normalized, ...missing] : normalized;
+          localStorage.setItem('studypro_video_folders', JSON.stringify(result));
+          return result;
         }
       } catch {}
     }
@@ -211,9 +214,9 @@ export default function App() {
   const [unlockedFolderIds, setUnlockedFolderIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('studypro_unlocked_folders');
-      return saved ? JSON.parse(saved) : ['vf-physics', 'vf-chemistry'];
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return ['vf-physics', 'vf-chemistry'];
+      return [];
     }
   });
 
@@ -235,7 +238,6 @@ export default function App() {
   const isFolderUnlocked = useCallback((folder: VideoFolder): boolean => {
     if (isAdminLoggedIn) return true;
     if (user?.email && user.email.toLowerCase().trim() === 'asmanlinzy44@gmail.com') return true;
-    if (folder.isLocked === false) return true;
     if (unlockedFolderIds.includes(folder.id)) return true;
     if (folder.allowedEmails && user?.email && folder.allowedEmails.some((e) => e.toLowerCase().trim() === user.email.toLowerCase().trim())) {
       return true;
@@ -244,6 +246,7 @@ export default function App() {
       return true;
     }
     if (isEffectiveVideoUnlocked) return true;
+    if (folder.isLocked === false) return true;
     return false;
   }, [isAdminLoggedIn, user, unlockedFolderIds, isEffectiveVideoUnlocked]);
 
@@ -292,17 +295,23 @@ export default function App() {
   // Granular check if a specific VideoLesson is unlocked for this student
   const isVideoLessonUnlocked = useCallback((video: VideoLesson): boolean => {
     if (isAdminLoggedIn) return true;
-    if (!user || !user.email) return false;
-    const currentEmail = user.email.toLowerCase().trim();
-    if (currentEmail === 'asmanlinzy44@gmail.com') return true;
 
-    // Check if video parent folder is unlocked
+    // Check if video parent folder is unlocked for this user / device session
     if (video.folderId) {
       const parentFolder = videoFolders.find((f) => f.id === video.folderId);
-      if (parentFolder && isFolderUnlocked(parentFolder)) {
+      if (parentFolder) {
+        // If parent folder is locked and user hasn't unlocked it, video is strictly locked!
+        if (!isFolderUnlocked(parentFolder)) {
+          return false;
+        }
+        // If parent folder has been unlocked, the video is accessible!
         return true;
       }
     }
+
+    if (!user || !user.email) return false;
+    const currentEmail = user.email.toLowerCase().trim();
+    if (currentEmail === 'asmanlinzy44@gmail.com') return true;
 
     // Check detailed student access record
     if (currentUserAccess) {

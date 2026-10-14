@@ -46,19 +46,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         >
           {isUnlocked ? (
             <>
-              {/* Video Preview: If hideThumbnail or direct stream, show sleek dark cyber laboratory poster (no image thumbnail) */}
-              {video.hideThumbnail || video.streamType === 'direct' || !video.youtubeId || video.youtubeId.startsWith('direct-') ? (
+              {/* Video Preview: If hideThumbnail or direct stream without custom thumb, show sleek tech poster */}
+              {video.hideThumbnail ? (
                 <div className="w-full h-full bg-gradient-to-br from-[#060C1F] via-[#091536] to-[#0D204E] flex flex-col items-center justify-center p-4 relative overflow-hidden group-hover/thumb:scale-105 transition-transform duration-300">
-                  {/* Subtle neon grid background aura */}
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-cyan-500/15 via-blue-600/10 to-transparent pointer-events-none" />
                   
-                  {/* Top Direct Stream Badge */}
                   <div className="absolute top-2.5 left-3 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-950/80 border border-cyan-500/40 text-cyan-300 text-[9px] font-mono font-bold tracking-wider uppercase backdrop-blur-xs">
                     <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                    <span>Direct Stream</span>
+                    <span>{video.streamType === 'direct' ? 'Direct Stream' : 'Masterclass Lecture'}</span>
                   </div>
 
-                  {/* Central Laboratory / Workshop Badge */}
                   <div className="flex flex-col items-center text-center z-5 my-auto">
                     <div className="w-11 h-11 rounded-2xl bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.25)] mb-1.5 group-hover/thumb:scale-110 transition-transform">
                       <Film className="w-5 h-5 text-cyan-300" />
@@ -67,11 +64,21 @@ export const VideoCard: React.FC<VideoCardProps> = ({
                       {video.titleEn}
                     </span>
                     <span className="text-[10px] text-cyan-200/80 font-sans mt-0.5 line-clamp-1">
-                      {video.titleTa || video.unitNameTa || 'செய்முறை செயலமர்வு'}
+                      {video.titleTa || video.unitNameTa || video.folderName || 'Masterclass Lecture'}
                     </span>
                   </div>
                 </div>
-              ) : video.youtubeId ? (
+              ) : video.customThumbnailUrl ? (
+                <img
+                  src={video.customThumbnailUrl}
+                  alt={video.titleEn}
+                  className="w-full h-full object-cover opacity-90 group-hover/thumb:opacity-100 group-hover/thumb:scale-105 transition-all duration-300"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              ) : video.youtubeId && !video.youtubeId.startsWith('direct-') ? (
                 <img
                   src={`https://img.youtube.com/vi/${video.youtubeId}/hqdefault.jpg`}
                   alt={video.titleEn}
@@ -82,8 +89,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({
                   }}
                 />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex items-center justify-center">
-                  <Play className="w-10 h-10 text-cyan-400 opacity-60" />
+                <div className="w-full h-full bg-gradient-to-br from-[#060C1F] via-[#091536] to-[#0D204E] flex flex-col items-center justify-center p-4 relative overflow-hidden group-hover/thumb:scale-105 transition-transform duration-300">
+                  <Film className="w-8 h-8 text-cyan-400 mb-1" />
+                  <span className="text-xs font-bold text-white px-2 truncate">{video.titleEn}</span>
                 </div>
               )}
 
@@ -96,13 +104,19 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               </div>
             </>
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 flex flex-col items-center justify-center p-4 text-center select-none relative">
-              <div className="w-12 h-12 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center mb-2 shadow-inner group-hover/thumb:scale-110 transition-transform">
-                <Lock className="w-6 h-6 text-amber-300" />
+            /* STRICT LOCKED SCREEN: Under NO circumstances is thumbnail visible without access */
+            <div className="w-full h-full bg-[#050A17] flex flex-col items-center justify-center p-4 text-center select-none relative">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mb-2 shadow-inner group-hover/thumb:scale-110 transition-transform">
+                <Lock className="w-6 h-6 text-amber-400" />
               </div>
-              <span className="text-xs font-bold text-slate-200">Thumbnail Locked</span>
-              <span className="text-[10px] text-amber-200/80 mt-0.5 font-medium">
-                {accessStatusText || 'Unlock to View Video'}
+              <span className="text-xs font-black text-amber-300 font-mono uppercase tracking-wider">
+                Thumbnail Locked 🔒
+              </span>
+              <span className="text-[10px] text-slate-400 mt-0.5 font-medium max-w-[200px] truncate">
+                {accessStatusText || 'Private Lesson • Access Required'}
+              </span>
+              <span className="text-[9px] text-cyan-400/80 mt-1 font-mono">
+                Click to enter unlock passcode ▶
               </span>
             </div>
           )}
@@ -143,8 +157,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             </span>
             <span className="text-slate-400 font-mono text-[11px]">· Unit {video.unitNumber}</span>
             {video.folderName && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-200/60 truncate max-w-[170px]" title={`Folder: ${video.folderName}`}>
-                <Folder className="w-2.5 h-2.5 shrink-0 text-purple-600" />
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-200/60 truncate max-w-[170px]" title={`Folder: ${video.folderName}`}>
+                <Folder className="w-2.5 h-2.5 shrink-0 text-blue-600" />
                 <span className="truncate">{video.folderName}</span>
               </span>
             )}

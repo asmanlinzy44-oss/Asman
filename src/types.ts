@@ -76,6 +76,7 @@ export interface VideoLesson {
   streamType?: 'youtube' | 'direct';
   directStreamUrl?: string;
   hideThumbnail?: boolean;
+  customThumbnailUrl?: string;
 }
 
 export interface VideoFolder {
