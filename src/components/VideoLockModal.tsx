@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
-import { Lock, Unlock, KeyRound, AlertCircle, X, CheckCircle2, Shield, Sparkles, MessageCircle, LogIn, ChevronDown } from 'lucide-react';
+import { Lock, Unlock, KeyRound, AlertCircle, X, CheckCircle2, Shield, Sparkles, MessageCircle, LogIn, ChevronDown, Send, Clock, UserCheck } from 'lucide-react';
 import { playRoboticUnlock, playRoboticError, playRoboticClick } from '../utils/audio';
-import { User } from '../types';
+import { User, VideoLesson, VideoAccessRequest } from '../types';
 
 interface VideoLockModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUnlock: () => void;
   targetVideoTitle?: string;
+  targetVideo?: VideoLesson | null;
   currentUser?: User | null;
   userAccessScopeLabel?: string;
   onGoogleLogin?: () => void;
   onLogoutAndSwitch?: () => void;
   onOpenContactUs?: () => void;
+  accessRequests?: VideoAccessRequest[];
+  onRequestAccess?: (params: { folderId?: string; folderName?: string; videoId?: string; videoTitle?: string; message?: string }) => Promise<{ success: boolean; message: string }> | { success: boolean; message: string };
 }
 
 export const VideoLockModal: React.FC<VideoLockModalProps> = ({
@@ -20,19 +23,48 @@ export const VideoLockModal: React.FC<VideoLockModalProps> = ({
   onClose,
   onUnlock,
   targetVideoTitle,
+  targetVideo,
   currentUser,
   userAccessScopeLabel,
   onGoogleLogin,
   onLogoutAndSwitch,
   onOpenContactUs,
+  accessRequests = [],
+  onRequestAccess,
 }) => {
   const [indexNumber, setIndexNumber] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
   const [showOverride, setShowOverride] = useState(false);
+  const [isRequesting, setIsRequesting] = useState(false);
+  const [requestStatus, setRequestStatus] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  // Check if current user has an active pending request
+  const currentEmail = currentUser?.email?.toLowerCase().trim();
+  const existingPending = currentEmail
+    ? accessRequests.find((r) => r.status === 'pending' && r.userEmail.toLowerCase().trim() === currentEmail)
+    : null;
+
+  const handleSendRequest = async () => {
+    if (!onRequestAccess) return;
+    setIsRequesting(true);
+    try {
+      const res = await onRequestAccess({
+        folderId: targetVideo?.folderId,
+        folderName: targetVideo?.folderName,
+        videoId: targetVideo?.id,
+        videoTitle: targetVideoTitle || targetVideo?.titleEn,
+      });
+      setRequestStatus(res.message);
+    } catch (err: any) {
+      setRequestStatus('Failed to send request. Please contact Asman Linzy directly.');
+    } finally {
+      setIsRequesting(false);
+    }
+  };
 
   const handleOverrideSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,6 +178,38 @@ export const VideoLockModal: React.FC<VideoLockModalProps> = ({
                   <p className="text-[11px] text-slate-300">
                     This Gmail has not been granted video access by the administrator yet. If you have completed payment, please contact Asman Linzy to add your email in the Admin Panel.
                   </p>
+                </div>
+              )}
+
+              {/* 1-Click Request Access Action */}
+              {existingPending ? (
+                <div className="p-3 bg-amber-950/50 border border-amber-500/40 rounded-xl text-left space-y-1 shadow-inner">
+                  <div className="flex items-center gap-1.5 text-amber-300 font-bold text-xs">
+                    <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
+                    <span>Access Request Pending (அனுமதி கோரிக்கை சமர்ப்பிக்கப்பட்டது)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Your access request has been sent to Admin Asman Linzy. As soon as the admin accepts it in the Admin Panel, your videos will immediately unlock!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSendRequest}
+                    disabled={isRequesting}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-black text-xs sm:text-sm rounded-xl transition-all shadow-[0_0_20px_rgba(6,182,212,0.4)] flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>{isRequesting ? 'Submitting Request...' : 'Request Access from Admin (அனுமதி கோர)'}</span>
+                  </button>
+
+                  {requestStatus && (
+                    <div className="p-2.5 bg-emerald-950/70 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-2 text-left">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{requestStatus}</span>
+                    </div>
+                  )}
                 </div>
               )}
 

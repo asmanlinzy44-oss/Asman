@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { 
   PaperResource, VideoLesson, VideoFolder, User, ResourceCategory, 
-  StreamId, UserNote, PaidStudentAccess 
+  StreamId, UserNote, PaidStudentAccess, VideoAccessRequest 
 } from './types';
 import { INITIAL_PAPERS, INITIAL_VIDEOS, INITIAL_VIDEO_FOLDERS, SUBJECTS, STREAMS, CATEGORIES } from './data/mockData';
 import { Header } from './components/Header';
@@ -210,6 +210,35 @@ export default function App() {
     return paidAccessList.find((item) => item.email.toLowerCase().trim() === currentEmail) || null;
   }, [user, paidAccessList]);
 
+  // Student Access Requests State
+  const [accessRequests, setAccessRequests] = useState<VideoAccessRequest[]>(() => {
+    try {
+      const saved = localStorage.getItem('studypro_access_requests');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+
+  // Real-time synchronization of Video Access Requests from Firestore
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'video_access_requests'), (snapshot) => {
+      if (!snapshot.empty) {
+        const list: VideoAccessRequest[] = [];
+        snapshot.forEach((d) => {
+          list.push({ id: d.id, ...d.data() } as VideoAccessRequest);
+        });
+        list.sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+        setAccessRequests(list);
+        try {
+          localStorage.setItem('studypro_access_requests', JSON.stringify(list));
+        } catch {}
+      }
+    }, (err) => {
+      console.warn('Access requests live sync notice:', err);
+    });
+    return () => unsub();
+  }, []);
+
   // Video Folders Unlock & Enrolled Sessions State
   const [unlockedFolderIds, setUnlockedFolderIds] = useState<string[]>(() => {
     try {
@@ -246,9 +275,36 @@ export default function App() {
       return true;
     }
     if (isEffectiveVideoUnlocked) return true;
+
+    // Check approved access requests
+    if (user?.email && accessRequests.some((r) => 
+      r.status === 'approved' && 
+      r.userEmail.toLowerCase().trim() === user.email.toLowerCase().trim() && 
+      (!r.folderId || r.folderId === folder.id)
+    )) {
+      return true;
+    }
+
+    // Check paid student access record
+    if (currentUserAccess) {
+      if (!currentUserAccess.accessScope || currentUserAccess.accessScope === 'all') {
+        return true;
+      }
+      if (currentUserAccess.accessScope === 'custom') {
+        const label = (currentUserAccess.accessLabel || '').toLowerCase();
+        const folderText = `${folder.name} ${folder.nameTa || ''} ${folder.subjectName || ''} ${folder.id}`.toLowerCase();
+        if (label.includes('prac') && (folderText.includes('prac') || folder.id.includes('prac'))) return true;
+        if (label.includes('hydro') && folderText.includes('hydro')) return true;
+        if (label.includes('chem') && folderText.includes('chem')) return true;
+        if (currentUserAccess.allowedSubjectIds && folder.subjectName && currentUserAccess.allowedSubjectIds.some(s => folder.subjectName?.toLowerCase().includes(s))) {
+          return true;
+        }
+      }
+    }
+
     if (folder.isLocked === false) return true;
     return false;
-  }, [isAdminLoggedIn, user, unlockedFolderIds, isEffectiveVideoUnlocked]);
+  }, [isAdminLoggedIn, user, unlockedFolderIds, isEffectiveVideoUnlocked, accessRequests, currentUserAccess]);
 
   // Handle Passcode Unlock for a specific folder or all folders
   const handleUnlockFolderWithCode = useCallback(async (passcode: string, targetFolderId?: string): Promise<{ success: boolean; message: string }> => {
@@ -295,46 +351,53 @@ export default function App() {
   // Granular check if a specific VideoLesson is unlocked for this student
   const isVideoLessonUnlocked = useCallback((video: VideoLesson): boolean => {
     if (isAdminLoggedIn) return true;
+    if (user?.email && user.email.toLowerCase().trim() === 'asmanlinzy44@gmail.com') return true;
 
-    // Check if video parent folder is unlocked for this user / device session
+    // 1. Check if parent folder is unlocked for this student
     if (video.folderId) {
       const parentFolder = videoFolders.find((f) => f.id === video.folderId);
-      if (parentFolder) {
-        // If parent folder is locked and user hasn't unlocked it, video is strictly locked!
-        if (!isFolderUnlocked(parentFolder)) {
-          return false;
-        }
-        // If parent folder has been unlocked, the video is accessible!
+      if (parentFolder && isFolderUnlocked(parentFolder)) {
         return true;
       }
     }
 
+    // 2. Check general video unlock
+    if (isEffectiveVideoUnlocked) return true;
+
     if (!user || !user.email) return false;
     const currentEmail = user.email.toLowerCase().trim();
-    if (currentEmail === 'asmanlinzy44@gmail.com') return true;
 
-    // Check detailed student access record
+    // 3. Check approved access requests
+    const hasApprovedReq = accessRequests.some((r) => 
+      r.status === 'approved' && 
+      r.userEmail.toLowerCase().trim() === currentEmail &&
+      (!r.videoId || r.videoId === video.id) &&
+      (!r.folderId || r.folderId === video.folderId)
+    );
+    if (hasApprovedReq) return true;
+
+    // 4. Check detailed student access record
     if (currentUserAccess) {
       if (!currentUserAccess.accessScope || currentUserAccess.accessScope === 'all') {
         return true;
       }
       if (currentUserAccess.accessScope === 'custom') {
-        // 1. Specific Video ID match
+        // Specific Video ID match
         if (currentUserAccess.allowedVideoIds && currentUserAccess.allowedVideoIds.includes(video.id)) {
           return true;
         }
-        // 2. Allowed Subject match
+        // Allowed Subject match
         if (currentUserAccess.allowedSubjectIds && currentUserAccess.allowedSubjectIds.includes(video.subjectId)) {
           if (currentUserAccess.allowedUnits && currentUserAccess.allowedUnits.length > 0) {
             return currentUserAccess.allowedUnits.includes(video.unitNumber);
           }
           return true;
         }
-        // 3. Allowed Unit Number match
+        // Allowed Unit Number match
         if (currentUserAccess.allowedUnits && currentUserAccess.allowedUnits.includes(video.unitNumber)) {
           return true;
         }
-        // 4. Topic / Keyword match (e.g. "hydro" for Hydrodynamics)
+        // Topic / Keyword match (e.g. "hydro" for Hydrodynamics)
         const label = (currentUserAccess.accessLabel || '').toLowerCase();
         const vidText = `${video.titleEn} ${video.unitNameEn} ${video.subjectNameEn}`.toLowerCase();
         if (label.includes('hydro') && (vidText.includes('hydro') || video.unitNumber === 2)) {
@@ -343,13 +406,16 @@ export default function App() {
         if (label.includes('chem') && (video.subjectId.includes('chem') || vidText.includes('chem') || video.unitNumber === 6)) {
           return true;
         }
+        if (label.includes('prac') && (video.subjectId.includes('phy') || vidText.includes('prac') || video.folderId?.includes('prac'))) {
+          return true;
+        }
         return false;
       }
     }
 
-    // Fallback: check email whitelist
+    // 5. Fallback: check email whitelist
     return videoAccessEmails.some((e) => e.toLowerCase().trim() === currentEmail);
-  }, [isAdminLoggedIn, user, currentUserAccess, videoAccessEmails, videoFolders, isFolderUnlocked]);
+  }, [isAdminLoggedIn, user, currentUserAccess, videoAccessEmails, videoFolders, isFolderUnlocked, isEffectiveVideoUnlocked, accessRequests]);
 
   const [isVideoLockOpen, setIsVideoLockOpen] = useState(false);
   const [targetUnlockVideo, setTargetUnlockVideo] = useState<VideoLesson | null>(null);
@@ -617,6 +683,40 @@ export default function App() {
       } catch {}
     } catch (err) {
       console.warn('Firestore video add notice:', err);
+    }
+  };
+
+  const handleAddVideos = async (newVideos: VideoLesson[]) => {
+    if (!newVideos || newVideos.length === 0) return;
+    setVideos((prev) => [...newVideos, ...prev]);
+    const rawDeleted = localStorage.getItem('studypro_deleted_video_ids');
+    if (rawDeleted) {
+      try {
+        const deletedIds: string[] = JSON.parse(rawDeleted);
+        const newIds = new Set(newVideos.map((v) => v.id));
+        const filtered = deletedIds.filter((id) => !newIds.has(id));
+        localStorage.setItem('studypro_deleted_video_ids', JSON.stringify(filtered));
+      } catch {}
+    }
+
+    try {
+      localStorage.setItem('studypro_videos_data', JSON.stringify([...newVideos, ...videos]));
+    } catch {}
+
+    for (const v of newVideos) {
+      try {
+        const cleaned = cleanFirestoreData({
+          ...v,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        await setDoc(doc(db, 'videos', v.id), cleaned);
+        try {
+          await deleteDoc(doc(db, 'deleted_videos', v.id));
+        } catch {}
+      } catch (err) {
+        console.warn('Firestore batch video add notice:', err);
+      }
     }
   };
 
@@ -1121,7 +1221,131 @@ export default function App() {
     return true;
   };
 
-  // Sync with Firebase Auth state
+  const handleCreateAccessRequest = async (params: {
+    folderId?: string;
+    folderName?: string;
+    videoId?: string;
+    videoTitle?: string;
+    message?: string;
+  }): Promise<{ success: boolean; message: string }> => {
+    if (!user || !user.email) {
+      handleDirectGoogleLogin();
+      return { success: false, message: 'Please sign in with your Google account first so we can verify your student email.' };
+    }
+
+    const cleanEmail = user.email.toLowerCase().trim();
+    // Check if duplicate pending
+    const existing = accessRequests.find(
+      (r) => r.userEmail.toLowerCase().trim() === cleanEmail && 
+             r.status === 'pending' &&
+             (r.folderId === params.folderId || (!params.folderId && !r.folderId))
+    );
+    if (existing) {
+      return { success: true, message: 'Your access request is already submitted and pending admin approval! Asman Linzy will verify shortly.' };
+    }
+
+    const reqId = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    const newReq: VideoAccessRequest = {
+      id: reqId,
+      userEmail: cleanEmail,
+      userName: user.name || cleanEmail.split('@')[0],
+      userPhoto: user.photoURL,
+      folderId: params.folderId,
+      folderName: params.folderName,
+      videoId: params.videoId,
+      videoTitle: params.videoTitle,
+      message: params.message || 'Student requested access to private video masterclasses.',
+      status: 'pending',
+      requestedAt: new Date().toISOString(),
+    };
+
+    setAccessRequests((prev) => [newReq, ...prev]);
+    try {
+      localStorage.setItem('studypro_access_requests', JSON.stringify([newReq, ...accessRequests]));
+      await setDoc(doc(db, 'video_access_requests', reqId), cleanFirestoreData(newReq));
+    } catch (err) {
+      console.warn('Failed to save access request to Firestore:', err);
+    }
+
+    playRoboticClick();
+    return { success: true, message: 'Access request successfully sent to Admin Asman Linzy! Your access will be approved shortly.' };
+  };
+
+  const handleApproveAccessRequest = async (requestId: string): Promise<boolean> => {
+    const target = accessRequests.find((r) => r.id === requestId);
+    if (!target) return false;
+
+    // 1. Grant global video access to this student's email
+    await handleGrantVideoAccess(
+      target.userEmail,
+      target.userName,
+      `Approved via Student Request for ${target.folderName || target.videoTitle || 'Masterclasses'}`,
+      { accessScope: 'all', accessLabel: 'All Masterclass & Practical Videos' }
+    );
+
+    // 2. If folderId is specified, also add to that folder's allowedEmails
+    if (target.folderId) {
+      const folder = videoFolders.find((f) => f.id === target.folderId);
+      if (folder) {
+        const currentAllowed = folder.allowedEmails || [];
+        if (!currentAllowed.some((e) => e.toLowerCase().trim() === target.userEmail.toLowerCase().trim())) {
+          const nextAllowed = [...currentAllowed, target.userEmail.toLowerCase().trim()];
+          await handleUpdateFolder({ ...folder, allowedEmails: nextAllowed });
+        }
+      }
+    } else {
+      // If no folderId specified, grant to all folders
+      for (const f of videoFolders) {
+        const currentAllowed = f.allowedEmails || [];
+        if (!currentAllowed.some((e) => e.toLowerCase().trim() === target.userEmail.toLowerCase().trim())) {
+          const nextAllowed = [...currentAllowed, target.userEmail.toLowerCase().trim()];
+          await handleUpdateFolder({ ...f, allowedEmails: nextAllowed });
+        }
+      }
+    }
+
+    // 3. Mark request as approved
+    const updatedReq: VideoAccessRequest = {
+      ...target,
+      status: 'approved',
+      resolvedAt: new Date().toISOString(),
+      resolvedBy: user?.email || 'asmanlinzy44@gmail.com',
+    };
+
+    setAccessRequests((prev) => prev.map((r) => (r.id === requestId ? updatedReq : r)));
+    try {
+      const updatedList = accessRequests.map((r) => (r.id === requestId ? updatedReq : r));
+      localStorage.setItem('studypro_access_requests', JSON.stringify(updatedList));
+      await setDoc(doc(db, 'video_access_requests', requestId), cleanFirestoreData(updatedReq), { merge: true });
+    } catch (err) {
+      console.warn('Update request error:', err);
+    }
+
+    playRoboticUnlock();
+    return true;
+  };
+
+  const handleRejectAccessRequest = async (requestId: string): Promise<boolean> => {
+    const target = accessRequests.find((r) => r.id === requestId);
+    if (!target) return false;
+
+    const updatedReq: VideoAccessRequest = {
+      ...target,
+      status: 'rejected',
+      resolvedAt: new Date().toISOString(),
+      resolvedBy: user?.email || 'asmanlinzy44@gmail.com',
+    };
+
+    setAccessRequests((prev) => prev.map((r) => (r.id === requestId ? updatedReq : r)));
+    try {
+      const updatedList = accessRequests.map((r) => (r.id === requestId ? updatedReq : r));
+      localStorage.setItem('studypro_access_requests', JSON.stringify(updatedList));
+      await setDoc(doc(db, 'video_access_requests', requestId), cleanFirestoreData(updatedReq), { merge: true });
+    } catch (err) {
+      console.warn('Reject request error:', err);
+    }
+    return true;
+  };
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
@@ -2270,6 +2494,9 @@ export default function App() {
                     }}
                     isAdmin={isAdminLoggedIn}
                     onOpenAdminFolders={() => setIsAdminPanelOpen(true)}
+                    accessRequests={accessRequests}
+                    onRequestAccess={handleCreateAccessRequest}
+                    onApproveAccessRequest={handleApproveAccessRequest}
                   />
                 </div>
               </div>
@@ -2406,6 +2633,7 @@ export default function App() {
           }
         }}
         targetVideoTitle={targetUnlockVideo?.titleEn}
+        targetVideo={targetUnlockVideo}
         currentUser={user}
         userAccessScopeLabel={
           currentUserAccess?.accessScope === 'custom'
@@ -2423,6 +2651,8 @@ export default function App() {
         onOpenContactUs={() => {
           setIsContactOpen(true);
         }}
+        accessRequests={accessRequests}
+        onRequestAccess={handleCreateAccessRequest}
       />
       {/* Focus Timer Modal (Pomodoro) */}
       <StudyTimerModal
@@ -2515,6 +2745,10 @@ export default function App() {
         paidAccessList={paidAccessList}
         onGrantVideoAccess={handleGrantVideoAccess}
         onRevokeVideoAccess={handleRevokeVideoAccess}
+        onAddVideos={handleAddVideos}
+        accessRequests={accessRequests}
+        onApproveAccessRequest={handleApproveAccessRequest}
+        onRejectAccessRequest={handleRejectAccessRequest}
       />
 
       {/* Vercel Firebase Domain Authorization Guide Modal */}

@@ -18,9 +18,10 @@ import {
   BookOpen,
   Filter,
   Eye,
-  AlertCircle
+  AlertCircle,
+  Send
 } from 'lucide-react';
-import { VideoLesson, VideoFolder, User } from '../types';
+import { VideoLesson, VideoFolder, User, VideoAccessRequest } from '../types';
 import { VideoCard } from './VideoCard';
 import { formatVideoDuration } from '../utils/drive';
 import { playRoboticFolder, playRoboticClick } from '../utils/audio';
@@ -40,6 +41,9 @@ interface VideoFoldersViewProps {
   onRequireUnlock?: (video: VideoLesson) => void;
   isAdmin?: boolean;
   onOpenAdminFolders?: () => void;
+  accessRequests?: VideoAccessRequest[];
+  onRequestAccess?: (params: { folderId?: string; folderName?: string; videoId?: string; videoTitle?: string; message?: string }) => Promise<{ success: boolean; message: string }> | { success: boolean; message: string };
+  onApproveAccessRequest?: (requestId: string) => Promise<boolean> | boolean;
 }
 
 export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
@@ -57,11 +61,15 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
   onRequireUnlock,
   isAdmin = false,
   onOpenAdminFolders,
+  accessRequests = [],
+  onRequestAccess,
+  onApproveAccessRequest,
 }) => {
   // Navigation tabs: 'folders' | 'my-videos' | 'all-videos'
   const [activeTab, setActiveTab] = useState<'folders' | 'my-videos' | 'all-videos'>('folders');
   const [searchQuery, setSearchQuery] = useState('');
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
+  const [folderRequestNotice, setFolderRequestNotice] = useState<{ id: string; msg: string } | null>(null);
   
   // Passcode unlock form state for locked folders
   const [passcodeInput, setPasscodeInput] = useState('');
@@ -88,13 +96,39 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
     return folders.find((f) => f.id === selectedFolderId) || null;
   }, [selectedFolderId, folders]);
 
-  // Current folder videos
+  // Current folder videos - strictly ordered 1, 2, 3, 4, 5... (Part 01, Part 02, etc.)
   const currentFolderVideos = useMemo(() => {
     if (!selectedFolderId) return [];
-    if (selectedFolderId === 'unorganized') {
-      return videos.filter((v) => !v.folderId);
-    }
-    return videos.filter((v) => v.folderId === selectedFolderId);
+    const list = selectedFolderId === 'unorganized'
+      ? videos.filter((v) => !v.folderId)
+      : videos.filter((v) => v.folderId === selectedFolderId);
+
+    const extractNum = (v: VideoLesson): number => {
+      // 0. Explicit order property if set
+      if (v.order !== undefined && typeof v.order === 'number') return v.order;
+
+      // 1. Check title for "Part X" or "பகுதி X"
+      const partM = v.titleEn.match(/part\s*0*(\d+)/i) || (v.titleTa && v.titleTa.match(/பகுதி\s*0*(\d+)/));
+      if (partM) return parseInt(partM[1], 10);
+
+      // 2. Check title for "Lesson X" / "Lecture X" / "Class X"
+      const lecM = v.titleEn.match(/(?:lesson|lecture|class)\s*0*(\d+)/i) || (v.titleTa && v.titleTa.match(/(?:வகுப்பு|விரிவுரை)\s*0*(\d+)/));
+      if (lecM) return parseInt(lecM[1], 10);
+
+      // 3. Check for standalone #01 or leading 01
+      const numM = v.titleEn.match(/(?:^|\b|#)0*(\d+)(?:\b|$)/);
+      if (numM) return parseInt(numM[1], 10);
+
+      // 4. Fallback to unitNumber
+      return v.unitNumber || 999;
+    };
+
+    return [...list].sort((a, b) => {
+      const numA = extractNum(a);
+      const numB = extractNum(b);
+      if (numA !== numB) return numA - numB;
+      return a.titleEn.localeCompare(b.titleEn);
+    });
   }, [selectedFolderId, videos]);
 
   // Accessible (unlocked) folders for the current user
@@ -164,6 +198,24 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
     onSelectFolder(null);
   };
 
+  // User's pending folder requests
+  const userCleanEmail = user?.email?.toLowerCase().trim();
+  const pendingFolderReqIds = useMemo(() => {
+    if (!userCleanEmail) return new Set<string>();
+    const set = new Set<string>();
+    for (const r of accessRequests) {
+      if (r.status === 'pending' && r.userEmail.toLowerCase().trim() === userCleanEmail) {
+        if (r.folderId) set.add(r.folderId);
+        else set.add('all');
+      }
+    }
+    return set;
+  }, [accessRequests, userCleanEmail]);
+
+  const pendingRequestsCount = useMemo(() => {
+    return accessRequests.filter((r) => r.status === 'pending').length;
+  }, [accessRequests]);
+
   return (
     <div className="space-y-6">
       {/* TOP NAVIGATION & TABS RIBBON */}
@@ -192,10 +244,19 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                   playRoboticClick();
                   onOpenAdminFolders();
                 }}
-                className="px-3 py-1.5 rounded-xl bg-purple-600/10 text-purple-600 dark:text-purple-400 border border-purple-500/30 hover:bg-purple-600/20 text-xs font-bold font-mono flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold font-mono flex items-center gap-1.5 cursor-pointer transition-all shadow-xs ${
+                  pendingRequestsCount > 0
+                    ? 'bg-amber-500/20 text-amber-500 dark:text-amber-300 border-amber-500/50 animate-pulse'
+                    : 'bg-purple-600/10 text-purple-600 dark:text-purple-400 border-purple-500/30 hover:bg-purple-600/20'
+                }`}
               >
                 <Folder className="w-3.5 h-3.5" />
                 <span>Admin Folders</span>
+                {pendingRequestsCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 font-black text-[10px]">
+                    {pendingRequestsCount} Pending
+                  </span>
+                )}
               </button>
             )}
 
@@ -396,6 +457,47 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                       {unlockStatus.message}
                     </div>
                   )}
+
+                  {/* 1-Click Access Request for this Folder */}
+                  <div className="pt-2.5 border-t border-slate-800 space-y-2">
+                    <p className="text-[10px] text-slate-400">
+                      Don't have a passcode? Send a request to Admin:
+                    </p>
+                    {pendingFolderReqIds.has(currentFolder.id) || pendingFolderReqIds.has('all') ? (
+                      <div className="p-2 bg-amber-500/15 border border-amber-500/30 rounded-xl text-amber-300 text-[11px] font-bold flex items-center justify-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                        <span>Access Request Pending Admin Approval</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          playRoboticClick();
+                          if (!user) {
+                            onRequireLogin();
+                            return;
+                          }
+                          if (onRequestAccess) {
+                            const res = await onRequestAccess({
+                              folderId: currentFolder.id,
+                              folderName: currentFolder.name,
+                            });
+                            setFolderRequestNotice({ id: currentFolder.id, msg: res.message });
+                          }
+                        }}
+                        className="w-full py-2 px-3 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/40 text-sky-200 hover:text-white font-bold text-xs cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <Send className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Request Access from Admin (அனுமதி கோர)</span>
+                      </button>
+                    )}
+
+                    {folderRequestNotice && folderRequestNotice.id === currentFolder.id && (
+                      <div className="p-2 rounded-xl text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-center">
+                        {folderRequestNotice.msg}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -675,17 +777,45 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                         {folder.icon || '📁'}
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
                         {isUnlocked ? (
                           <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold font-mono flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                             <span>Access Granted</span>
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-[10px] font-black font-mono flex items-center gap-1">
-                            <Lock className="w-3 h-3 text-amber-500" />
-                            <span>Locked Session</span>
-                          </span>
+                          <>
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-[10px] font-black font-mono flex items-center gap-1">
+                              <Lock className="w-3 h-3 text-amber-500" />
+                              <span>Locked</span>
+                            </span>
+                            {pendingFolderReqIds.has(folder.id) || pendingFolderReqIds.has('all') ? (
+                              <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30 text-[10px] font-bold font-mono flex items-center gap-1">
+                                <Clock className="w-2.5 h-2.5 animate-pulse" />
+                                <span>Pending ⏳</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  playRoboticClick();
+                                  if (onRequestAccess) {
+                                    const res = await onRequestAccess({
+                                      folderId: folder.id,
+                                      folderName: folder.name,
+                                    });
+                                    setFolderRequestNotice({ id: folder.id, msg: res.message });
+                                  }
+                                }}
+                                className="px-2 py-0.5 rounded-full bg-blue-600/15 hover:bg-blue-600/30 text-blue-600 dark:text-cyan-400 border border-blue-500/30 text-[10px] font-bold font-mono flex items-center gap-1 cursor-pointer transition-colors"
+                                title="Request Access from Admin"
+                              >
+                                <Send className="w-2.5 h-2.5" />
+                                <span>Request Access</span>
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>

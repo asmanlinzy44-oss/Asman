@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { collection, onSnapshot, deleteDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { PaperResource, VideoLesson, VideoFolder, UserReport, StreamId, ResourceCategory, User, PaidStudentAccess } from '../types';
+import { PaperResource, VideoLesson, VideoFolder, UserReport, StreamId, ResourceCategory, User, PaidStudentAccess, VideoAccessRequest } from '../types';
 import { extractYoutubeId } from '../utils/drive';
 import { cleanFirestoreData } from '../utils/firestoreClean';
 import { playRoboticClick, playRoboticTab, playRoboticUnlock } from '../utils/audio';
@@ -25,6 +25,7 @@ interface AdminPanelModalProps {
   onUpdatePaper?: (paper: PaperResource) => void;
   onDeletePaper?: (paperId: string) => void;
   onAddVideo: (video: VideoLesson) => void;
+  onAddVideos?: (videos: VideoLesson[]) => void;
   onUpdateVideo?: (video: VideoLesson) => void;
   onDeleteVideo?: (videoId: string) => void;
   papers: PaperResource[];
@@ -47,6 +48,9 @@ interface AdminPanelModalProps {
   paidAccessList?: PaidStudentAccess[];
   onGrantVideoAccess?: (email: string, studentName?: string, note?: string, extra?: Partial<PaidStudentAccess>) => Promise<boolean> | boolean;
   onRevokeVideoAccess?: (email: string) => Promise<boolean> | boolean;
+  accessRequests?: VideoAccessRequest[];
+  onApproveAccessRequest?: (requestId: string) => Promise<boolean> | boolean;
+  onRejectAccessRequest?: (requestId: string) => Promise<boolean> | boolean;
 }
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
@@ -60,6 +64,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   onUpdatePaper,
   onDeletePaper,
   onAddVideo,
+  onAddVideos,
   onUpdateVideo,
   onDeleteVideo,
   papers,
@@ -82,6 +87,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   paidAccessList = [],
   onGrantVideoAccess,
   onRevokeVideoAccess,
+  accessRequests = [],
+  onApproveAccessRequest,
+  onRejectAccessRequest,
 }) => {
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<'papers' | 'resources' | 'videos' | 'reports' | 'announcement' | 'publish' | 'security' | 'ai-copilot' | 'video-access'>('papers');
@@ -216,6 +224,96 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [videoFolderSelect, setVideoFolderSelect] = useState<string>('none');
   const [videoHideThumbnail, setVideoHideThumbnail] = useState<boolean>(false);
   const [videoCustomThumbInput, setVideoCustomThumbInput] = useState<string>('');
+
+  // Video Upload Mode: 'single' | 'batch' (Bulk 1-Click Upload)
+  const [videoUploadMode, setVideoUploadMode] = useState<'single' | 'batch'>('single');
+  const [batchLinksInput, setBatchLinksInput] = useState<string>('');
+  const [batchBaseTitle, setBatchBaseTitle] = useState<string>('Physics Practical Workshop — Part 06');
+  const [batchTeacher, setBatchTeacher] = useState<string>('A/L Practical Specialist');
+  const [batchStartNum, setBatchStartNum] = useState<number>(6);
+  const [isBatchPublishing, setIsBatchPublishing] = useState<boolean>(false);
+
+  // Student Access Requests Filter: 'pending' | 'approved' | 'all'
+  const [accessRequestFilter, setAccessRequestFilter] = useState<'pending' | 'approved' | 'all'>('pending');
+
+  // Smart Title Number Incrementer (e.g. "Lesson 6" -> "Lesson 7", "Part 06" -> "Part 07")
+  const incrementTitle = (title: string): string => {
+    if (!title || !title.trim()) return '';
+    const trimmed = title.trim();
+    const match = trimmed.match(/^(.*?)(\d+)(\D*)$/);
+    if (match) {
+      const prefix = match[1];
+      const numStr = match[2];
+      const suffix = match[3];
+      const nextNum = parseInt(numStr, 10) + 1;
+      const padded = nextNum.toString().padStart(numStr.length, '0');
+      return `${prefix}${padded}${suffix}`;
+    }
+    return `${trimmed} (Part 2)`;
+  };
+
+  const updateBatchBaseTitle = (val: string) => {
+    setBatchBaseTitle(val);
+    const m = val.match(/\d+/);
+    if (m) {
+      setBatchStartNum(parseInt(m[0], 10));
+    }
+  };
+
+  const batchLinksParsed = useMemo(() => {
+    return batchLinksInput
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.startsWith('#'));
+  }, [batchLinksInput]);
+
+  const batchPreviewVideos = useMemo(() => {
+    if (batchLinksParsed.length === 0) return [];
+    const baseTitle = batchBaseTitle.trim() || itemTitleEn.trim() || `${itemSubject} Masterclass`;
+    const match = baseTitle.match(/^(.*?)(\d+)(\D*)$/);
+    let titlePrefix = baseTitle;
+    let titleSuffix = '';
+    let padLength = 1;
+    let startNum = batchStartNum;
+
+    if (match) {
+      titlePrefix = match[1];
+      startNum = parseInt(match[2], 10);
+      padLength = match[2].length;
+      titleSuffix = match[3];
+    } else {
+      titlePrefix = `${baseTitle} — Part `;
+    }
+
+    return batchLinksParsed.map((rawUrl, idx) => {
+      const currentNum = startNum + idx;
+      const numFormatted = currentNum.toString().padStart(padLength, '0');
+      const title = match 
+        ? `${titlePrefix}${numFormatted}${titleSuffix}`
+        : `${titlePrefix}${numFormatted}`;
+      return {
+        index: idx + 1,
+        title,
+        order: currentNum,
+        url: rawUrl,
+      };
+    });
+  }, [batchLinksParsed, batchBaseTitle, itemTitleEn, itemSubject, batchStartNum]);
+
+  // Access Requests stats & filtering
+  const pendingRequests = useMemo(() => {
+    return accessRequests.filter((r) => r.status === 'pending');
+  }, [accessRequests]);
+
+  const approvedRequests = useMemo(() => {
+    return accessRequests.filter((r) => r.status === 'approved');
+  }, [accessRequests]);
+
+  const filteredAccessRequests = useMemo(() => {
+    if (accessRequestFilter === 'pending') return pendingRequests;
+    if (accessRequestFilter === 'approved') return approvedRequests;
+    return accessRequests;
+  }, [accessRequestFilter, accessRequests, pendingRequests, approvedRequests]);
 
   // Video Thumbnail Editor Modal State (Add, remove, change thumbnail for any video)
   const [isThumbModalOpen, setIsThumbModalOpen] = useState<boolean>(false);
@@ -476,6 +574,108 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     );
   }, [paidAccessList, searchEmailQuery]);
 
+  // Handle Multiple / Batch Video Publish (1-Click)
+  const handleBatchPublishVideos = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const rawLines = batchLinksInput
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.startsWith('#'));
+
+    if (rawLines.length === 0) {
+      alert('Please paste at least one video link (one per line).');
+      return;
+    }
+
+    const subjectIdMap: Record<string, string> = {
+      'Physics': 'sub-physics',
+      'Chemistry': 'sub-chemistry',
+      'Combined Mathematics': 'sub-combined-maths',
+      'Biology': 'sub-biology',
+    };
+
+    const baseTitle = batchBaseTitle.trim() || itemTitleEn.trim() || `${itemSubject} Masterclass`;
+    const match = baseTitle.match(/^(.*?)(\d+)(\D*)$/);
+    let titlePrefix = baseTitle;
+    let titleSuffix = '';
+    let padLength = 1;
+    let startNum = batchStartNum;
+
+    if (match) {
+      titlePrefix = match[1];
+      startNum = parseInt(match[2], 10);
+      padLength = match[2].length;
+      titleSuffix = match[3];
+    } else {
+      titlePrefix = `${baseTitle} — Part `;
+    }
+
+    const targetFolder = videoFolders.find((f) => f.id === videoFolderSelect);
+    const folderName = videoFolderSelect !== 'none' ? targetFolder?.name : undefined;
+
+    setIsBatchPublishing(true);
+
+    const generatedVideos: VideoLesson[] = rawLines.map((rawUrl, idx) => {
+      const currentNum = startNum + idx;
+      const numFormatted = currentNum.toString().padStart(padLength, '0');
+      const title = match 
+        ? `${titlePrefix}${numFormatted}${titleSuffix}`
+        : `${titlePrefix}${numFormatted}`;
+
+      const cleanId = extractYoutubeId(rawUrl);
+      const isDirectStreamInput = !cleanId || cleanId.length < 5 || rawUrl.includes('/stream/') || rawUrl.includes('.koyeb.app') || rawUrl.endsWith('.mp4');
+      const fullUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://') ? rawUrl : `https://${rawUrl}`;
+
+      return {
+        id: 'custom_vid_' + Date.now() + '_' + idx,
+        titleEn: title,
+        order: currentNum,
+        stream: itemStream,
+        subjectId: subjectIdMap[itemSubject] || 'sub-physics',
+        subjectNameEn: itemSubject,
+        unitNumber: Number(videoUnitNumber),
+        unitNameEn: videoUnitName.trim() || `Unit ${videoUnitNumber}`,
+        youtubeUrl: fullUrl,
+        youtubeId: cleanId && !isDirectStreamInput ? cleanId : `direct-${Date.now().toString().slice(-6)}-${idx}`,
+        streamType: isDirectStreamInput ? 'direct' : 'youtube',
+        directStreamUrl: isDirectStreamInput ? fullUrl : undefined,
+        hideThumbnail: true,
+        durationMinutes: 65,
+        teacherName: videoTeacher.trim() || batchTeacher.trim() || 'A/L Practical Specialist',
+        descriptionEn: `A/L Practical Masterclass ${title} experimental demonstration and analysis.`,
+        isUnlisted: false,
+        folderId: videoFolderSelect !== 'none' ? videoFolderSelect : undefined,
+        folderName: folderName,
+        chapters: [
+          { time: '00:00', seconds: 0, title: 'Introduction & Experimental Apparatus' },
+          { time: '20:00', seconds: 1200, title: 'Readings, Calibration & Data Collection' },
+          { time: '45:00', seconds: 2700, title: 'Graph Plotting & Error Analysis' },
+        ],
+        viewsCount: 1,
+        uploadedAt: 'Today',
+      };
+    });
+
+    if (onAddVideos) {
+      await onAddVideos(generatedVideos);
+    } else {
+      for (const v of generatedVideos) {
+        onAddVideo(v);
+      }
+    }
+
+    setIsBatchPublishing(false);
+    playRoboticUnlock();
+    // Only clear the links textarea! Keep folder & settings preserved!
+    setBatchLinksInput('');
+    setBatchStartNum(startNum + rawLines.length);
+    if (match) {
+      const nextBatchStart = (startNum + rawLines.length).toString().padStart(padLength, '0');
+      setBatchBaseTitle(`${titlePrefix}${nextBatchStart}${titleSuffix}`);
+    }
+    showSuccess(`🎉 Successfully published ${generatedVideos.length} videos live! Links cleared. Folder "${folderName || 'Selected'}" & settings preserved.`);
+  };
+
   // Handle Publish Submit
   const handlePublishSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -488,6 +688,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     };
 
     if (publishType === 'video') {
+      if (videoUploadMode === 'batch') {
+        handleBatchPublishVideos(e);
+        return;
+      }
+
       const rawInput = videoYoutubeInput.trim();
       if (!rawInput) {
         alert('Please enter a video URL (YouTube URL or Direct Stream link).');
@@ -501,6 +706,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       const newVideo: VideoLesson = {
         id: 'custom_vid_' + Date.now(),
         titleEn: itemTitleEn.trim() || `${itemSubject} Unit ${videoUnitNumber} Masterclass`,
+        order: (itemTitleEn.match(/\d+/) ? parseInt(itemTitleEn.match(/\d+/)![0], 10) : undefined) || Number(videoUnitNumber) || 1,
         stream: itemStream,
         subjectId: subjectIdMap[itemSubject] || 'sub-physics',
         subjectNameEn: itemSubject,
@@ -527,11 +733,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       };
 
       onAddVideo(newVideo);
-      showSuccess(`Video lesson "${newVideo.titleEn}" published live to cloud database!`);
-      setItemTitleEn('');
+      playRoboticUnlock();
+      const nextTitle = incrementTitle(itemTitleEn.trim());
+      setItemTitleEn(nextTitle);
       setVideoYoutubeInput('');
-      setVideoHideThumbnail(false);
-      setActiveTab('videos');
+      setVideoDuration(65);
+      setDurationAnalysisStatus('✓ Ready for next stream link');
+      showSuccess(`✓ Published "${newVideo.titleEn}"! Link cleared — Folder "${newVideo.folderName || 'Selected'}" & settings preserved for next upload.`);
+      // Admin stays on the publish tab so next links can be published without re-entering folder or teacher!
       return;
     }
 
@@ -1084,9 +1293,16 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 >
                   <Lock className="w-4 h-4 text-amber-400" />
                   <span>Paid Video Access ({paidAccessList.length})</span>
-                  <span className="px-1.5 py-0.2 rounded-md bg-amber-500/20 text-[9px] text-amber-300 font-bold border border-amber-400/30">
-                    Students
-                  </span>
+                  {pendingRequests.length > 0 ? (
+                    <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black animate-pulse flex items-center gap-1 shadow-md">
+                      <Send className="w-2.5 h-2.5" />
+                      <span>{pendingRequests.length} Pending</span>
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.2 rounded-md bg-amber-500/20 text-[9px] text-amber-300 font-bold border border-amber-400/30">
+                      Students
+                    </span>
+                  )}
                 </button>
 
                 <button
@@ -2485,123 +2701,343 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     )}
 
                     {publishType === 'video' ? (
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Unit Number</label>
-                            <input
-                              type="number"
-                              min={1}
-                              max={20}
-                              value={videoUnitNumber}
-                              onChange={(e) => setVideoUnitNumber(Number(e.target.value))}
-                              className="w-full px-3 py-2 bg-[#050A17] border border-rose-500/30 rounded-xl text-xs text-white font-mono"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Teacher Name</label>
-                            <input
-                              type="text"
-                              value={videoTeacher}
-                              onChange={(e) => setVideoTeacher(e.target.value)}
-                              className="w-full px-3 py-2 bg-[#050A17] border border-rose-500/30 rounded-xl text-xs text-white"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-mono font-bold text-rose-300 mb-1">
-                            YouTube Video URL or Direct Stream Link <span className="text-rose-400">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={videoYoutubeInput}
-                            onChange={(e) => {
-                              setVideoYoutubeInput(e.target.value);
-                              autoAnalyzeDuration(e.target.value);
+                      <div className="space-y-4">
+                        {/* Video Upload Mode Switcher */}
+                        <div className="flex items-center gap-2 p-1.5 bg-[#050A17] rounded-2xl border border-rose-500/40">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              playRoboticClick();
+                              setVideoUploadMode('single');
                             }}
-                            onBlur={(e) => autoAnalyzeDuration(e.target.value)}
-                            placeholder="https://www.youtube.com/... or royalfiletolink.koyeb.app/stream/..."
-                            className="w-full px-3 py-2 bg-[#050A17] border border-rose-500/40 rounded-xl text-xs text-white font-mono"
-                          />
-                          <p className="text-[10px] text-slate-400 mt-1 font-mono">
-                            Supports YouTube URLs and direct video stream links (e.g., Koyeb / Direct MP4 stream).
-                          </p>
-                        </div>
-
-                        {/* Automated Duration Analysis Card (Admin duration kekkama automatic analyze) */}
-                        <div className="p-3 bg-cyan-950/30 border border-cyan-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-inner">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-300 shrink-0">
-                              <Clock className="w-4 h-4 text-cyan-400" />
-                            </div>
-                            <div>
-                              <span className="text-xs font-mono font-bold text-white block">
-                                Auto-Analyzed Duration:{' '}
-                                <strong className="text-cyan-300">
-                                  {Math.floor(videoDuration / 60) > 0
-                                    ? `${Math.floor(videoDuration / 60)}h ${(videoDuration % 60).toString().padStart(2, '0')}m`
-                                    : `${videoDuration}m`}
-                                </strong>
-                              </span>
-                              <span className="text-[10px] text-slate-400 font-mono">
-                                {durationAnalysisStatus || 'Paste video stream link above to automatically analyze duration'}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
-                            <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 text-[10px] font-mono font-bold">
-                              {isAnalyzingDuration ? 'Analyzing Stream...' : 'Auto-Calculated ✓'}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 pt-0.5">
-                          <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
-                            <input
-                              type="checkbox"
-                              checked={videoHideThumbnail}
-                              onChange={(e) => setVideoHideThumbnail(e.target.checked)}
-                              className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-0 cursor-pointer"
-                            />
-                            <span className="font-medium">
-                              Don't show image thumbnail (Sleek Workshop Direct Stream Poster Mode)
-                            </span>
-                          </label>
-                        </div>
-
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="block text-xs font-mono font-bold text-slate-300">
-                              Assign to Folder (கோப்புறை தெரிவு செய்க)
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                playRoboticClick();
-                                openCreateFolderModal();
-                              }}
-                              className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer font-bold"
-                            >
-                              <Plus className="w-3 h-3" />
-                              <span>Create New Folder</span>
-                            </button>
-                          </div>
-                          <select
-                            value={videoFolderSelect}
-                            onChange={(e) => setVideoFolderSelect(e.target.value)}
-                            className="w-full px-3 py-2 bg-[#050A17] border border-rose-500/30 rounded-xl text-xs text-white"
+                            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                              videoUploadMode === 'single'
+                                ? 'bg-rose-500 text-white shadow-md'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
                           >
-                            <option value="none">-- No Folder (Unassigned) --</option>
-                            {videoFolders.map((f) => (
-                              <option key={f.id} value={f.id}>
-                                📁 {f.name} {f.subjectName ? `(${f.subjectName})` : ''}
-                              </option>
-                            ))}
-                          </select>
+                            <Video className="w-3.5 h-3.5" />
+                            <span>Single Video Upload</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              playRoboticClick();
+                              setVideoUploadMode('batch');
+                            }}
+                            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                              videoUploadMode === 'batch'
+                                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 font-black shadow-md'
+                                : 'text-cyan-400 hover:text-white'
+                            }`}
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-slate-900" />
+                            <span>Multiple Video Upload (1-Click Batch)</span>
+                            <span className="px-1.5 py-0.2 rounded-full bg-cyan-400/20 text-[9px] font-mono uppercase font-bold">
+                              Auto-Number
+                            </span>
+                          </button>
                         </div>
+
+                        {videoUploadMode === 'single' ? (
+                          /* SINGLE VIDEO UPLOAD MODE */
+                          <div className="space-y-3 p-4 rounded-2xl bg-[#050A17]/70 border border-slate-800 space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Unit Number</label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={20}
+                                  value={videoUnitNumber}
+                                  onChange={(e) => setVideoUnitNumber(Number(e.target.value))}
+                                  className="w-full px-3 py-2 bg-[#091228] border border-rose-500/30 rounded-xl text-xs text-white font-mono"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-mono font-bold text-slate-300 mb-1">Teacher Name</label>
+                                <input
+                                  type="text"
+                                  value={videoTeacher}
+                                  onChange={(e) => setVideoTeacher(e.target.value)}
+                                  className="w-full px-3 py-2 bg-[#091228] border border-rose-500/30 rounded-xl text-xs text-white"
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-mono font-bold text-rose-300 mb-1">
+                                YouTube Video URL or Direct Stream Link <span className="text-rose-400">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                required={videoUploadMode === 'single'}
+                                value={videoYoutubeInput}
+                                onChange={(e) => {
+                                  setVideoYoutubeInput(e.target.value);
+                                  autoAnalyzeDuration(e.target.value);
+                                }}
+                                onBlur={(e) => autoAnalyzeDuration(e.target.value)}
+                                placeholder="https://www.youtube.com/... or royalfiletolink.koyeb.app/stream/..."
+                                className="w-full px-3 py-2 bg-[#091228] border border-rose-500/40 rounded-xl text-xs text-white font-mono"
+                              />
+                              <p className="text-[10px] text-slate-400 mt-1 font-mono">
+                                Supports YouTube URLs and direct video stream links (e.g., Koyeb / Direct MP4 stream).
+                              </p>
+                            </div>
+
+                            {/* Automated Duration Analysis Card */}
+                            <div className="p-3 bg-cyan-950/30 border border-cyan-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-inner">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-300 shrink-0">
+                                  <Clock className="w-4 h-4 text-cyan-400" />
+                                </div>
+                                <div>
+                                  <span className="text-xs font-mono font-bold text-white block">
+                                    Auto-Analyzed Duration:{' '}
+                                    <strong className="text-cyan-300">
+                                      {Math.floor(videoDuration / 60) > 0
+                                        ? `${Math.floor(videoDuration / 60)}h ${(videoDuration % 60).toString().padStart(2, '0')}m`
+                                        : `${videoDuration}m`}
+                                    </strong>
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-mono">
+                                    {durationAnalysisStatus || 'Paste video stream link above to automatically analyze duration'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+                                <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 text-[10px] font-mono font-bold">
+                                  {isAnalyzingDuration ? 'Analyzing Stream...' : 'Auto-Calculated ✓'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-0.5">
+                              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                                <input
+                                  type="checkbox"
+                                  checked={videoHideThumbnail}
+                                  onChange={(e) => setVideoHideThumbnail(e.target.checked)}
+                                  className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-0 cursor-pointer"
+                                />
+                                <span className="font-medium">
+                                  Don't show image thumbnail (Sleek Workshop Direct Stream Poster Mode)
+                                </span>
+                              </label>
+                            </div>
+
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="block text-xs font-mono font-bold text-slate-300">
+                                  Assign to Folder (கோப்புறை தெரிவு செய்க)
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playRoboticClick();
+                                    openCreateFolderModal();
+                                  }}
+                                  className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer font-bold"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  <span>Create New Folder</span>
+                                </button>
+                              </div>
+                              <select
+                                value={videoFolderSelect}
+                                onChange={(e) => setVideoFolderSelect(e.target.value)}
+                                className="w-full px-3 py-2 bg-[#091228] border border-rose-500/30 rounded-xl text-xs text-white"
+                              >
+                                <option value="none">-- No Folder (Unassigned) --</option>
+                                {videoFolders.map((f) => (
+                                  <option key={f.id} value={f.id}>
+                                    📁 {f.name} {f.subjectName ? `(${f.subjectName})` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Preservation Note */}
+                            <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center gap-2 text-emerald-300 text-[11px] font-mono">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                              <span>
+                                <strong>Fast Upload Protected:</strong> Publishing clears <em>only</em> the link! Folder, Teacher, Subject & Unit are kept, and Title number automatically advances (e.g. Lesson 6 → Lesson 7).
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          /* MULTIPLE / BATCH VIDEO UPLOAD MODE (1-CLICK) */
+                          <div className="space-y-4 p-5 rounded-2xl bg-gradient-to-br from-[#060D1E] via-[#09142E] to-[#0A1633] border-2 border-cyan-500/40 shadow-xl">
+                            <div className="flex items-center justify-between border-b border-cyan-500/20 pb-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-300 flex items-center justify-center">
+                                  <Sparkles className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                                    Bulk Upload Masterclass Links (1-Click Sequential)
+                                  </h4>
+                                  <p className="text-[11px] text-slate-400">
+                                    Paste multiple stream links. Titles and order will auto-increment (e.g. Lesson 6, Lesson 7, Lesson 8...)
+                                  </p>
+                                </div>
+                              </div>
+
+                              <span className="px-2.5 py-1 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 font-mono text-[11px] font-bold">
+                                {batchLinksParsed.length} Links Detected
+                              </span>
+                            </div>
+
+                            {/* Base Title & Start Number */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div className="sm:col-span-2">
+                                <label className="block text-xs font-mono font-bold text-cyan-300 mb-1 flex items-center justify-between">
+                                  <span>Starting Lesson Title / முதல் தலைப்பு <span className="text-cyan-400">*</span></span>
+                                  <span className="text-[10px] text-slate-400 font-normal">e.g. Lesson 6 or Part 06</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  value={batchBaseTitle}
+                                  onChange={(e) => updateBatchBaseTitle(e.target.value)}
+                                  placeholder="e.g. Lesson 6 or Physics Practical Workshop — Part 06"
+                                  className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/40 focus:border-cyan-400 rounded-xl text-xs text-white font-mono outline-none"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-mono font-bold text-cyan-300 mb-1">
+                                  Starting Number
+                                </label>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={batchStartNum}
+                                  onChange={(e) => setBatchStartNum(Number(e.target.value))}
+                                  className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/40 rounded-xl text-xs text-white font-mono outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Folder & Teacher Selectors */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="block text-xs font-mono font-bold text-slate-300">
+                                    Assign All to Folder
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      playRoboticClick();
+                                      openCreateFolderModal();
+                                    }}
+                                    className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer font-bold"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                    <span>New Folder</span>
+                                  </button>
+                                </div>
+                                <select
+                                  value={videoFolderSelect}
+                                  onChange={(e) => setVideoFolderSelect(e.target.value)}
+                                  className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white"
+                                >
+                                  <option value="none">-- No Folder (Unassigned) --</option>
+                                  {videoFolders.map((f) => (
+                                    <option key={f.id} value={f.id}>
+                                      📁 {f.name} {f.subjectName ? `(${f.subjectName})` : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
+                                  Teacher / Educator Name
+                                </label>
+                                <input
+                                  type="text"
+                                  value={videoTeacher}
+                                  onChange={(e) => setVideoTeacher(e.target.value)}
+                                  placeholder="e.g. Asman Linzy / A/L Practical Specialist"
+                                  className="w-full px-3 py-2 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Multi-line Links Textarea */}
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="block text-xs font-mono font-bold text-cyan-300">
+                                  Paste Stream Links (One link per line) <span className="text-cyan-400">*</span>
+                                </label>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  Koyeb stream links or YouTube links
+                                </span>
+                              </div>
+                              <textarea
+                                rows={6}
+                                value={batchLinksInput}
+                                onChange={(e) => setBatchLinksInput(e.target.value)}
+                                placeholder="royalfiletolink.koyeb.app/stream/47087?hash=5b5dcb0a47f8c790&#10;royalfiletolink.koyeb.app/stream/47082?hash=6dac8c068e05a006&#10;royalfiletolink.koyeb.app/stream/47107?hash=aa6e8c13803a7f20&#10;royalfiletolink.koyeb.app/stream/47109?hash=6eb51c835a05b9bf"
+                                className="w-full px-3.5 py-2.5 bg-[#050A17] border border-cyan-500/40 focus:border-cyan-400 rounded-xl text-xs text-white font-mono placeholder-slate-600 outline-none leading-relaxed"
+                              />
+                            </div>
+
+                            {/* Live Preview Table of Generated Lessons */}
+                            {batchPreviewVideos.length > 0 && (
+                              <div className="p-3 bg-[#050A17] rounded-xl border border-cyan-500/20 space-y-2">
+                                <span className="text-[11px] font-mono font-bold text-cyan-300 block">
+                                  Live Generated Order & Titles Preview ({batchPreviewVideos.length} Videos):
+                                </span>
+                                <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
+                                  {batchPreviewVideos.map((item) => (
+                                    <div
+                                      key={item.index}
+                                      className="p-2 rounded-lg bg-[#091228] border border-slate-800 flex items-center justify-between gap-2 text-xs font-mono"
+                                    >
+                                      <div className="flex items-center gap-2 truncate">
+                                        <span className="w-5 h-5 rounded-md bg-cyan-500/20 text-cyan-300 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                          #{item.order}
+                                        </span>
+                                        <span className="text-white font-bold truncate">
+                                          {item.title}
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] text-slate-500 truncate max-w-[200px] shrink-0">
+                                        {item.url}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 1-Click Action Button */}
+                            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <span className="text-[11px] text-slate-400">
+                                💡 Links textarea will clear on publish, keeping folder & teacher for the next batch!
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={handleBatchPublishVideos}
+                                disabled={isBatchPublishing || batchLinksParsed.length === 0}
+                                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 hover:from-cyan-300 hover:to-blue-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 shrink-0"
+                              >
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span>
+                                  {isBatchPublishing
+                                    ? 'Publishing Batch...'
+                                    : `Batch Publish ${batchLinksParsed.length} Videos Live (1-Click)`}
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       /* Drive Links for Paper / Resource / Pilot */
@@ -2640,7 +3076,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all cursor-pointer flex items-center gap-2"
                       >
                         <Plus className="w-4 h-4" />
-                        <span>Publish Live to All Website Visitors</span>
+                        <span>
+                          {publishType === 'video'
+                            ? videoUploadMode === 'batch'
+                              ? `Batch Publish (${batchLinksParsed.length}) Videos Live 🚀`
+                              : 'Publish Video Lesson Live'
+                            : 'Publish Live to All Website Visitors'}
+                        </span>
                       </button>
                     </div>
                   </form>
@@ -2780,6 +3222,236 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           <span className="text-amber-300 font-bold">Locked 🔐 for all others</span>
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* INCOMING STUDENT ACCESS REQUESTS MANAGER */}
+                  <div className="p-6 rounded-3xl bg-[#091228] border-2 border-cyan-500/40 shadow-xl space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/20 pb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center justify-center shrink-0">
+                          <Send className="w-5 h-5 text-cyan-400" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-base font-black text-white">
+                              Student Access Requests (அனுமதி கோரிக்கைகள்)
+                            </h4>
+                            {pendingRequests.length > 0 && (
+                              <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black animate-pulse">
+                                {pendingRequests.length} Pending
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-400">
+                            Students who requested access from locked videos / folders. Accept with 1-click!
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Filter Tabs */}
+                      <div className="flex items-center gap-1 bg-[#050A17] p-1 rounded-xl border border-slate-800 self-start sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playRoboticClick();
+                            setAccessRequestFilter('pending');
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                            accessRequestFilter === 'pending'
+                              ? 'bg-amber-500 text-black shadow-md'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          Pending ({pendingRequests.length})
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playRoboticClick();
+                            setAccessRequestFilter('approved');
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                            accessRequestFilter === 'approved'
+                              ? 'bg-emerald-500 text-black shadow-md'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          Approved ({approvedRequests.length})
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playRoboticClick();
+                            setAccessRequestFilter('all');
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                            accessRequestFilter === 'all'
+                              ? 'bg-cyan-500 text-black shadow-md'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          All ({accessRequests.length})
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Requests List */}
+                    <div className="space-y-2.5">
+                      {filteredAccessRequests.map((req) => {
+                        const isPending = req.status === 'pending';
+                        const isApproved = req.status === 'approved';
+
+                        return (
+                          <div
+                            key={req.id}
+                            className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                              isPending
+                                ? 'bg-[#050A17] border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.1)]'
+                                : isApproved
+                                ? 'bg-emerald-950/20 border-emerald-500/30'
+                                : 'bg-[#050A17] border-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-start sm:items-center gap-3 min-w-0">
+                              <div
+                                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                  isPending
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                    : isApproved
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-slate-800 text-slate-400'
+                                }`}
+                              >
+                                {isPending ? (
+                                  <Clock className="w-5 h-5 text-amber-400 animate-pulse" />
+                                ) : isApproved ? (
+                                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                                ) : (
+                                  <X className="w-5 h-5 text-rose-400" />
+                                )}
+                              </div>
+
+                              <div className="min-w-0 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-mono text-sm font-bold text-white">
+                                    {req.userEmail}
+                                  </span>
+
+                                  {isPending && (
+                                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40 flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                                      Needs Admin Approval
+                                    </span>
+                                  )}
+
+                                  {isApproved && (
+                                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1">
+                                      <Check className="w-3 h-3 text-emerald-400" />
+                                      Access Active
+                                    </span>
+                                  )}
+
+                                  {req.status === 'rejected' && (
+                                    <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-bold border border-rose-500/30">
+                                      Declined
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="text-xs text-slate-300 flex items-center gap-2 flex-wrap">
+                                  {req.userName && (
+                                    <span className="text-cyan-300 font-medium">
+                                      👤 {req.userName}
+                                    </span>
+                                  )}
+                                  {req.folderName && (
+                                    <span className="text-amber-200">
+                                      📁 Requested Folder: <strong>{req.folderName}</strong>
+                                    </span>
+                                  )}
+                                  {req.videoTitle && (
+                                    <span className="text-sky-200">
+                                      🎥 Requested Video: <strong>{req.videoTitle}</strong>
+                                    </span>
+                                  )}
+                                  <span className="text-slate-500 font-mono text-[11px]">
+                                    · {new Date(req.requestedAt).toLocaleString()}
+                                  </span>
+                                </div>
+
+                                {req.message && (
+                                  <p className="text-[11px] text-slate-400 italic bg-black/30 px-2.5 py-1 rounded-lg border border-slate-800">
+                                    "{req.message}"
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
+                              {isPending ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      playRoboticUnlock();
+                                      if (onApproveAccessRequest) {
+                                        const success = await onApproveAccessRequest(req.id);
+                                        if (success) {
+                                          showSuccess(
+                                            `✓ Access granted to ${req.userEmail}! All videos & folders unlocked for this student.`
+                                          );
+                                        }
+                                      }
+                                    }}
+                                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-[0_0_15px_rgba(16,185,129,0.35)] transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                                  >
+                                    <Check className="w-4 h-4 stroke-[3]" />
+                                    <span>Accept & Grant Access (அனுமதி வழங்கு)</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      playRoboticClick();
+                                      if (onRejectAccessRequest) {
+                                        await onRejectAccessRequest(req.id);
+                                        showSuccess(`Access request from ${req.userEmail} declined.`);
+                                      }
+                                    }}
+                                    className="px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                    <span>Decline</span>
+                                  </button>
+                                </>
+                              ) : (
+                                <span className="text-[11px] font-mono text-slate-400">
+                                  {isApproved
+                                    ? `✓ Approved by ${req.resolvedBy || 'Admin'}`
+                                    : '✕ Request Declined'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {filteredAccessRequests.length === 0 && (
+                        <div className="p-8 text-center bg-[#050A17] rounded-2xl border border-slate-800 text-slate-400 text-xs space-y-1">
+                          <p className="font-bold text-slate-300">
+                            {accessRequestFilter === 'pending'
+                              ? 'No pending student access requests right now.'
+                              : `No ${accessRequestFilter} access requests found.`}
+                          </p>
+                          <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+                            When students click "Request Access from Admin (அனுமதி கோர)" in locked lectures or folders, their request will appear here for instant 1-click acceptance!
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
 

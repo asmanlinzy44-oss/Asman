@@ -73,6 +73,7 @@ export interface VideoLesson {
   uploadedAt: string;
   folderId?: string;
   folderName?: string;
+  order?: number;
   streamType?: 'youtube' | 'direct';
   directStreamUrl?: string;
   hideThumbnail?: boolean;
@@ -165,5 +166,21 @@ export interface PaidStudentAccess {
   allowedVideoIds?: string[]; // specific video IDs e.g. ['vid-phy-hydro-class1']
   allowedUnits?: number[]; // e.g. [2] for Hydrodynamics, [6] for IUPAC
   accessLabel?: string; // e.g. 'All Videos', 'Physics Hydrodynamics Only', 'Chemistry IUPAC Only'
+}
+
+export interface VideoAccessRequest {
+  id: string;
+  userEmail: string;
+  userName: string;
+  userPhoto?: string;
+  folderId?: string;
+  folderName?: string;
+  videoId?: string;
+  videoTitle?: string;
+  message?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
 }
 
