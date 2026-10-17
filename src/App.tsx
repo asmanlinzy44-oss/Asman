@@ -239,20 +239,17 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Video Folders Unlock & Enrolled Sessions State
+  // State to track folders unlocked in current user session
   const [unlockedFolderIds, setUnlockedFolderIds] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('studypro_unlocked_folders');
+      const saved = sessionStorage.getItem('studypro_unlocked_folders');
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
   });
 
-  const [isVideoUnlocked, setIsVideoUnlocked] = useState<boolean>(() => {
-    return localStorage.getItem('studypro_video_unlocked') === 'true';
-  });
-
+  // Strict check if current user has verified paid video access
   const hasVideoAccess = useMemo(() => {
     if (isAdminLoggedIn) return true;
     if (!user || !user.email) return false;
@@ -261,50 +258,76 @@ export default function App() {
     return videoAccessEmails.some((e) => e.toLowerCase().trim() === currentEmail);
   }, [user, videoAccessEmails, isAdminLoggedIn]);
 
-  const isEffectiveVideoUnlocked = hasVideoAccess || isVideoUnlocked;
+  // Session-level unlock for active user override
+  const [sessionUnlocked, setSessionUnlocked] = useState(false);
+  const isEffectiveVideoUnlocked = hasVideoAccess || sessionUnlocked;
+  const setIsVideoUnlocked = setSessionUnlocked;
 
   // Granular check if a specific VideoFolder is unlocked for this student
+  // STRICT: Unknown / unauthorized emails will NEVER have access
   const isFolderUnlocked = useCallback((folder: VideoFolder): boolean => {
     if (isAdminLoggedIn) return true;
     if (user?.email && user.email.toLowerCase().trim() === 'asmanlinzy44@gmail.com') return true;
-    if (unlockedFolderIds.includes(folder.id)) return true;
-    if (folder.allowedEmails && user?.email && folder.allowedEmails.some((e) => e.toLowerCase().trim() === user.email.toLowerCase().trim())) {
-      return true;
-    }
-    if (user?.unlockedVideoFolderIds && user.unlockedVideoFolderIds.includes(folder.id)) {
-      return true;
-    }
-    if (isEffectiveVideoUnlocked) return true;
 
-    // Check approved access requests
-    if (user?.email && accessRequests.some((r) => 
-      r.status === 'approved' && 
-      r.userEmail.toLowerCase().trim() === user.email.toLowerCase().trim() && 
-      (!r.folderId || r.folderId === folder.id)
-    )) {
+    const currentEmail = user?.email?.toLowerCase().trim();
+
+    // 1. If student has universal video access via email whitelist
+    if (currentEmail && videoAccessEmails.some((e) => e.toLowerCase().trim() === currentEmail)) {
       return true;
     }
 
-    // Check paid student access record
-    if (currentUserAccess) {
-      if (!currentUserAccess.accessScope || currentUserAccess.accessScope === 'all') {
+    // 2. Check if student unlocked this specific folder via passcode in current session
+    if (unlockedFolderIds.includes(folder.id)) {
+      return true;
+    }
+
+    // 3. Authenticated checks for logged in user
+    if (currentEmail) {
+      // Check folder allowed emails
+      if (folder.allowedEmails && folder.allowedEmails.some((e) => e.toLowerCase().trim() === currentEmail)) {
         return true;
       }
-      if (currentUserAccess.accessScope === 'custom') {
-        const label = (currentUserAccess.accessLabel || '').toLowerCase();
-        const folderText = `${folder.name} ${folder.nameTa || ''} ${folder.subjectName || ''} ${folder.id}`.toLowerCase();
-        if (label.includes('prac') && (folderText.includes('prac') || folder.id.includes('prac'))) return true;
-        if (label.includes('hydro') && folderText.includes('hydro')) return true;
-        if (label.includes('chem') && folderText.includes('chem')) return true;
-        if (currentUserAccess.allowedSubjectIds && folder.subjectName && currentUserAccess.allowedSubjectIds.some(s => folder.subjectName?.toLowerCase().includes(s))) {
+
+      // Check user unlockedVideoFolderIds
+      if (user?.unlockedVideoFolderIds && user.unlockedVideoFolderIds.includes(folder.id)) {
+        return true;
+      }
+
+      // Check approved access requests
+      if (accessRequests.some((r) => 
+        r.status === 'approved' && 
+        r.userEmail.toLowerCase().trim() === currentEmail && 
+        (!r.folderId || r.folderId === folder.id)
+      )) {
+        return true;
+      }
+
+      // Check paid student access record
+      if (currentUserAccess) {
+        if (!currentUserAccess.accessScope || currentUserAccess.accessScope === 'all') {
           return true;
+        }
+        if (currentUserAccess.accessScope === 'custom') {
+          const label = (currentUserAccess.accessLabel || '').toLowerCase();
+          const folderText = `${folder.name} ${folder.nameTa || ''} ${folder.subjectName || ''} ${folder.id}`.toLowerCase();
+          if (label.includes('prac') && (folderText.includes('prac') || folder.id.includes('prac'))) return true;
+          if (label.includes('hydro') && folderText.includes('hydro')) return true;
+          if (label.includes('chem') && folderText.includes('chem')) return true;
+          if (currentUserAccess.allowedSubjectIds && folder.subjectName && currentUserAccess.allowedSubjectIds.some(s => folder.subjectName?.toLowerCase().includes(s))) {
+            return true;
+          }
         }
       }
     }
 
-    if (folder.isLocked === false) return true;
+    // 4. If folder is explicitly public (not locked) AND has no passcode
+    if (folder.isLocked === false && !folder.accessPasscode) {
+      return true;
+    }
+
+    // STRICT: Unknown gmails or unauthorized visitors are LOCKED!
     return false;
-  }, [isAdminLoggedIn, user, unlockedFolderIds, isEffectiveVideoUnlocked, accessRequests, currentUserAccess]);
+  }, [isAdminLoggedIn, user, unlockedFolderIds, videoAccessEmails, accessRequests, currentUserAccess]);
 
   // Handle Passcode Unlock for a specific folder or all folders
   const handleUnlockFolderWithCode = useCallback(async (passcode: string, targetFolderId?: string): Promise<{ success: boolean; message: string }> => {
@@ -317,7 +340,7 @@ export default function App() {
       if (folder && folder.accessPasscode && folder.accessPasscode.toUpperCase() === code) {
         setUnlockedFolderIds((prev) => {
           const next = Array.from(new Set([...prev, folder.id]));
-          try { localStorage.setItem('studypro_unlocked_folders', JSON.stringify(next)); } catch {}
+          try { sessionStorage.setItem('studypro_unlocked_folders', JSON.stringify(next)); } catch {}
           return next;
         });
         return { success: true, message: `Access granted! "${folder.name}" is now fully unlocked.` };
@@ -329,7 +352,7 @@ export default function App() {
     if (matchedFolder) {
       setUnlockedFolderIds((prev) => {
         const next = Array.from(new Set([...prev, matchedFolder.id]));
-        try { localStorage.setItem('studypro_unlocked_folders', JSON.stringify(next)); } catch {}
+        try { sessionStorage.setItem('studypro_unlocked_folders', JSON.stringify(next)); } catch {}
         return next;
       });
       return { success: true, message: `Access granted! "${matchedFolder.name}" is now fully unlocked.` };
@@ -339,9 +362,7 @@ export default function App() {
     if (['PRAC2026', 'STUDYPRO', 'STUDYPRO2026', 'PHYSICS2026', 'ASMAN2026'].includes(code)) {
       const allIds = videoFolders.map((f) => f.id);
       setUnlockedFolderIds(allIds);
-      try { localStorage.setItem('studypro_unlocked_folders', JSON.stringify(allIds)); } catch {}
-      setIsVideoUnlocked(true);
-      localStorage.setItem('studypro_video_unlocked', 'true');
+      try { sessionStorage.setItem('studypro_unlocked_folders', JSON.stringify(allIds)); } catch {}
       return { success: true, message: 'All Theory Masterclass & Workshop folders have been successfully unlocked!' };
     }
 
@@ -349,11 +370,19 @@ export default function App() {
   }, [videoFolders]);
 
   // Granular check if a specific VideoLesson is unlocked for this student
+  // STRICT: Unknown gmails will NEVER have access unless authorized
   const isVideoLessonUnlocked = useCallback((video: VideoLesson): boolean => {
     if (isAdminLoggedIn) return true;
     if (user?.email && user.email.toLowerCase().trim() === 'asmanlinzy44@gmail.com') return true;
 
-    // 1. Check if parent folder is unlocked for this student
+    const currentEmail = user?.email?.toLowerCase().trim();
+
+    // 1. Check if student has universal video access via email whitelist
+    if (currentEmail && videoAccessEmails.some((e) => e.toLowerCase().trim() === currentEmail)) {
+      return true;
+    }
+
+    // 2. Check if parent folder is unlocked for this student
     if (video.folderId) {
       const parentFolder = videoFolders.find((f) => f.id === video.folderId);
       if (parentFolder && isFolderUnlocked(parentFolder)) {
@@ -361,61 +390,80 @@ export default function App() {
       }
     }
 
-    // 2. Check general video unlock
-    if (isEffectiveVideoUnlocked) return true;
+    // 3. If user is logged in, check approved requests and paid student record
+    if (currentEmail) {
+      // Check approved access requests
+      const hasApprovedReq = accessRequests.some((r) => 
+        r.status === 'approved' && 
+        r.userEmail.toLowerCase().trim() === currentEmail &&
+        (!r.videoId || r.videoId === video.id) &&
+        (!r.folderId || r.folderId === video.folderId)
+      );
+      if (hasApprovedReq) return true;
 
-    if (!user || !user.email) return false;
-    const currentEmail = user.email.toLowerCase().trim();
-
-    // 3. Check approved access requests
-    const hasApprovedReq = accessRequests.some((r) => 
-      r.status === 'approved' && 
-      r.userEmail.toLowerCase().trim() === currentEmail &&
-      (!r.videoId || r.videoId === video.id) &&
-      (!r.folderId || r.folderId === video.folderId)
-    );
-    if (hasApprovedReq) return true;
-
-    // 4. Check detailed student access record
-    if (currentUserAccess) {
-      if (!currentUserAccess.accessScope || currentUserAccess.accessScope === 'all') {
-        return true;
-      }
-      if (currentUserAccess.accessScope === 'custom') {
-        // Specific Video ID match
-        if (currentUserAccess.allowedVideoIds && currentUserAccess.allowedVideoIds.includes(video.id)) {
+      // Check detailed student access record
+      if (currentUserAccess) {
+        if (!currentUserAccess.accessScope || currentUserAccess.accessScope === 'all') {
           return true;
         }
-        // Allowed Subject match
-        if (currentUserAccess.allowedSubjectIds && currentUserAccess.allowedSubjectIds.includes(video.subjectId)) {
-          if (currentUserAccess.allowedUnits && currentUserAccess.allowedUnits.length > 0) {
-            return currentUserAccess.allowedUnits.includes(video.unitNumber);
+        if (currentUserAccess.accessScope === 'custom') {
+          if (currentUserAccess.allowedVideoIds && currentUserAccess.allowedVideoIds.includes(video.id)) {
+            return true;
           }
-          return true;
+          if (currentUserAccess.allowedSubjectIds && currentUserAccess.allowedSubjectIds.includes(video.subjectId)) {
+            if (currentUserAccess.allowedUnits && currentUserAccess.allowedUnits.length > 0) {
+              return currentUserAccess.allowedUnits.includes(video.unitNumber);
+            }
+            return true;
+          }
+          if (currentUserAccess.allowedUnits && currentUserAccess.allowedUnits.includes(video.unitNumber)) {
+            return true;
+          }
+          const label = (currentUserAccess.accessLabel || '').toLowerCase();
+          const vidText = `${video.titleEn} ${video.unitNameEn} ${video.subjectNameEn}`.toLowerCase();
+          if (label.includes('hydro') && (vidText.includes('hydro') || video.unitNumber === 2)) {
+            return true;
+          }
+          if (label.includes('chem') && (video.subjectId.includes('chem') || vidText.includes('chem') || video.unitNumber === 6)) {
+            return true;
+          }
+          if (label.includes('prac') && (video.subjectId.includes('phy') || vidText.includes('prac') || video.folderId?.includes('prac'))) {
+            return true;
+          }
+          return false;
         }
-        // Allowed Unit Number match
-        if (currentUserAccess.allowedUnits && currentUserAccess.allowedUnits.includes(video.unitNumber)) {
-          return true;
-        }
-        // Topic / Keyword match (e.g. "hydro" for Hydrodynamics)
-        const label = (currentUserAccess.accessLabel || '').toLowerCase();
-        const vidText = `${video.titleEn} ${video.unitNameEn} ${video.subjectNameEn}`.toLowerCase();
-        if (label.includes('hydro') && (vidText.includes('hydro') || video.unitNumber === 2)) {
-          return true;
-        }
-        if (label.includes('chem') && (video.subjectId.includes('chem') || vidText.includes('chem') || video.unitNumber === 6)) {
-          return true;
-        }
-        if (label.includes('prac') && (video.subjectId.includes('phy') || vidText.includes('prac') || video.folderId?.includes('prac'))) {
-          return true;
-        }
-        return false;
       }
     }
 
-    // 5. Fallback: check email whitelist
-    return videoAccessEmails.some((e) => e.toLowerCase().trim() === currentEmail);
-  }, [isAdminLoggedIn, user, currentUserAccess, videoAccessEmails, videoFolders, isFolderUnlocked, isEffectiveVideoUnlocked, accessRequests]);
+    // STRICT: Unknown gmails or visitors are strictly locked
+    return false;
+  }, [isAdminLoggedIn, user, currentUserAccess, videoAccessEmails, videoFolders, isFolderUnlocked, accessRequests]);
+
+  // Real-time auto-update video duration from player playback (analyzed with 100% precision)
+  const handleUpdateVideoDuration = useCallback(async (videoId: string, durationSeconds: number) => {
+    if (!videoId || durationSeconds <= 0) return;
+    const durationMinutes = Math.max(1, Math.round(durationSeconds / 60));
+
+    // Update in-memory state so cards & folders instantly show exact duration
+    setVideos((prev) =>
+      prev.map((v) =>
+        v.id === videoId && (v.durationMinutes !== durationMinutes || v.durationSeconds !== durationSeconds)
+          ? { ...v, durationMinutes, durationSeconds }
+          : v
+      )
+    );
+
+    // Persist to Firestore videos collection
+    try {
+      await updateDoc(doc(db, 'videos', videoId), {
+        durationMinutes,
+        durationSeconds,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      // Non-fatal if offline
+    }
+  }, []);
 
   const [isVideoLockOpen, setIsVideoLockOpen] = useState(false);
   const [targetUnlockVideo, setTargetUnlockVideo] = useState<VideoLesson | null>(null);
@@ -2693,6 +2741,7 @@ export default function App() {
         onToggleWatched={handleToggleWatchedVideo}
         isWatched={activeVideo ? user?.watchedVideoIds?.includes(activeVideo.id) : false}
         onOpenPdfPreview={handleOpenPdfPreview}
+        onUpdateVideoDuration={handleUpdateVideoDuration}
       />
 
       {/* Student Contact Us & Help Desk Modal */}

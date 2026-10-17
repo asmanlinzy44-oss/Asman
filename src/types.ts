@@ -62,6 +62,7 @@ export interface VideoLesson {
   youtubeUrl: string;
   youtubeId: string;
   durationMinutes: number;
+  durationSeconds?: number;
   teacherName: string;
   teacherTitleTa?: string;
   descriptionEn: string;

@@ -125,7 +125,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-xs text-white z-10">
             <span className="font-mono bg-black/70 px-2 py-0.5 rounded-md text-[11px] backdrop-blur-xs flex items-center gap-1 border border-white/10">
               <Clock className="w-3 h-3 text-sky-400" />
-              {formatVideoDuration(video.durationMinutes)}
+              {video.durationMinutes && video.durationMinutes > 0 ? formatVideoDuration(video.durationMinutes) : 'HD Lecture'}
             </span>
 
             <div className="flex items-center gap-1.5">
@@ -162,10 +162,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({
                 <span className="truncate">{video.folderName}</span>
               </span>
             )}
-            <span className="text-slate-400 font-mono text-[11px] flex items-center gap-1">
-              <Clock className="w-3 h-3 text-sky-500" />
-              <span>{formatVideoDuration(video.durationMinutes)}</span>
-            </span>
+            {video.durationMinutes && video.durationMinutes > 0 ? (
+              <span className="text-slate-400 font-mono text-[11px] flex items-center gap-1">
+                <Clock className="w-3 h-3 text-sky-500" />
+                <span>{formatVideoDuration(video.durationMinutes)}</span>
+              </span>
+            ) : null}
             <span className="text-slate-400 font-mono text-[11px]">· {video.chapters.length} Chapters</span>
           </div>
 

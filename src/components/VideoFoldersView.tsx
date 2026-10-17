@@ -426,7 +426,7 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                     <span>Enter Folder Access Passcode</span>
                   </div>
                   <p className="text-[11px] text-slate-400 leading-normal">
-                    This folder is restricted to enrolled students. Enter your passcode (e.g., <code className="text-amber-300 font-mono">PRAC2026</code>) to unlock all sessions.
+                    This folder is restricted to enrolled students. Enter your designated access passcode to unlock all sessions.
                   </p>
 
                   <form onSubmit={(e) => handlePasscodeSubmit(e, currentFolder.id)} className="space-y-2">
@@ -503,25 +503,128 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
             </div>
           </div>
 
-          {/* Videos List within this Folder */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-400 px-1">
-              <span>Lectures in this Workshop ({currentFolderVideos.length})</span>
-              <span className="font-mono text-[11px]">Click any video to play directly</span>
-            </div>
-
-            {currentFolderVideos.length === 0 ? (
-              <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-                <Film className="w-8 h-8 text-slate-400 mx-auto" />
-                <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">No Videos in this Folder Yet</h4>
-                <p className="text-xs text-slate-400">Educators will publish lectures here shortly.</p>
+          {/* If Folder is LOCKED: Strict Privacy Gate - ZERO VIDEOS SHOWN! */}
+          {!isFolderUnlocked(currentFolder) ? (
+            <div className="p-8 sm:p-14 text-center bg-gradient-to-b from-[#060D20] via-[#091536] to-[#040815] rounded-3xl border-2 border-amber-500/40 shadow-2xl space-y-6 max-w-2xl mx-auto my-4 text-white">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-400/40 text-amber-400 flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(245,158,11,0.25)]">
+                <Lock className="w-8 h-8" />
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {currentFolderVideos.map((video) => {
-                  const isFolderAccess = isFolderUnlocked(currentFolder);
-                  const isUnlocked = isFolderAccess && isVideoLessonUnlocked(video);
-                  return (
+
+              <div className="space-y-2 max-w-lg mx-auto">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-mono font-bold uppercase tracking-wider">
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Workshop Content Locked 🔐</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-white">
+                  {currentFolder.name} - விரிவுரைகள் பூட்டப்பட்டுள்ளன
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  இந்தக் கோப்புறையில் உள்ள <strong>{currentFolderVideos.length} விரிவுரைகளும்</strong> கட்டணம் செலுத்திய பதிவு செய்யப்பட்ட மாணவர்களுக்காக மட்டுமே ஒதுக்கப்பட்டுள்ளன. அணுகல் குறியீட்டைப் பயன்படுத்தி அல்லது ஆசிரியரின் அனுமதியுடன் திறக்கலாம்.
+                </p>
+              </div>
+
+              {/* Passcode Unlock Form */}
+              <div className="max-w-md mx-auto space-y-3 pt-2">
+                <form onSubmit={(e) => handlePasscodeSubmit(e, currentFolder.id)} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={passcodeInput}
+                    onChange={(e) => setPasscodeInput(e.target.value)}
+                    placeholder="Enter access passcode..."
+                    className="flex-1 px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono tracking-wider"
+                  />
+                  <button
+                    type="submit"
+                    disabled={unlockStatus.type === 'loading' || !passcodeInput.trim()}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs sm:text-sm cursor-pointer transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+                  >
+                    <Unlock className="w-4 h-4" />
+                    <span>{unlockStatus.type === 'loading' ? 'Verifying...' : 'Unlock'}</span>
+                  </button>
+                </form>
+
+                {unlockStatus.message && (
+                  <div className={`p-2.5 rounded-xl text-xs font-bold ${
+                    unlockStatus.type === 'success'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                  }`}>
+                    {unlockStatus.message}
+                  </div>
+                )}
+
+                {/* 1-Click Request Access or Sign In */}
+                {user?.email ? (
+                  <div className="pt-2 space-y-2">
+                    {accessRequests?.some((r) => 
+                      r.status === 'pending' && 
+                      r.userEmail.toLowerCase().trim() === user.email.toLowerCase().trim() && 
+                      (!r.folderId || r.folderId === currentFolder.id)
+                    ) ? (
+                      <div className="p-3 bg-amber-950/60 border border-amber-500/40 rounded-xl text-amber-300 text-xs font-bold flex items-center justify-center gap-2">
+                        <Clock className="w-4 h-4 animate-pulse text-amber-400" />
+                        <span>Access Request Pending (அனுமதி கோரிக்கை சமர்ப்பிக்கப்பட்டது)</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          playRoboticClick();
+                          if (onRequestAccess) {
+                            const res = await onRequestAccess({
+                              folderId: currentFolder.id,
+                              folderName: currentFolder.name,
+                            });
+                            setFolderRequestNotice({ id: currentFolder.id, msg: res.message });
+                          }
+                        }}
+                        className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-xs transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                      >
+                        <Send className="w-4 h-4" />
+                        <span>Request Access from Admin (அனுமதி கோர)</span>
+                      </button>
+                    )}
+
+                    {folderRequestNotice && folderRequestNotice.id === currentFolder.id && (
+                      <div className="p-2 rounded-xl text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-center">
+                        {folderRequestNotice.msg}
+                      </div>
+                    )}
+
+                    <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400">
+                      Logged in as: <strong className="font-mono text-cyan-300">{user.email}</strong> (Access Not Activated)
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={onRequireLogin}
+                      className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                    >
+                      <span>Sign In with Google to Request Access</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Videos List within this Folder (ONLY rendered when unlocked!) */
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-400 px-1">
+                <span>Lectures in this Workshop ({currentFolderVideos.length})</span>
+                <span className="font-mono text-[11px]">Click any video to play directly</span>
+              </div>
+
+              {currentFolderVideos.length === 0 ? (
+                <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                  <Film className="w-8 h-8 text-slate-400 mx-auto" />
+                  <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">No Videos in this Folder Yet</h4>
+                  <p className="text-xs text-slate-400">Educators will publish lectures here shortly.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {currentFolderVideos.map((video) => (
                     <VideoCard
                       key={video.id}
                       video={video}
@@ -529,25 +632,18 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                       onPlay={onPlayVideo}
                       onRequireLogin={onRequireLogin}
                       isWatched={user?.watchedVideoIds?.includes(video.id) || false}
-                      isUnlocked={isUnlocked}
+                      isUnlocked={true}
                       onRequireUnlock={() => {
-                        if (onRequireUnlock) {
-                          onRequireUnlock(video);
-                        } else {
-                          onRequireLogin();
-                        }
+                        if (onRequireUnlock) onRequireUnlock(video);
+                        else onRequireLogin();
                       }}
-                      accessStatusText={
-                        isFolderAccess
-                          ? 'Enrolled Session'
-                          : 'Locked Workshop • Passcode Required'
-                      }
+                      accessStatusText="Enrolled Session"
                     />
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ) : activeTab === 'my-videos' ? (
         /* VIEW 2: "MY VIDEOS" (Accessible / Enrolled Sessions) */
@@ -612,7 +708,7 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                 No Unlocked Folders Yet
               </h4>
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                You have not unlocked any private theory folders yet. Enter your student passcode (e.g. <span className="font-mono font-bold text-cyan-500">PRAC2026</span>) in the box above or click on any folder to unlock it.
+                You have not unlocked any private theory folders yet. Enter your student passcode in the box above or click on any folder to unlock it.
               </p>
               <button
                 type="button"
@@ -690,17 +786,44 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
           )}
         </div>
       ) : activeTab === 'all-videos' ? (
-        /* VIEW 3: "ALL VIDEOS" FLAT LIST */
+        /* VIEW 3: "ALL VIDEOS" FLAT LIST (Only shows videos unlocked for this student) */
         <div className="space-y-4 animate-in fade-in duration-200">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
-            <span>Showing All Masterclass Lectures ({videos.length})</span>
-            <span className="font-mono text-[11px]">Direct Stream & Masterclasses</span>
+            <span>Accessible Masterclass Lectures ({accessibleVideos.length})</span>
+            <span className="font-mono text-[11px]">Enrolled Video Streams</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {videos.map((video) => {
-              const isUnlocked = isVideoLessonUnlocked(video);
-              return (
+          {accessibleVideos.length === 0 ? (
+            <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4 max-w-lg mx-auto">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mx-auto shadow-inner">
+                <Lock className="w-7 h-7" />
+              </div>
+              <div className="space-y-1.5">
+                <h4 className="text-base font-black text-slate-800 dark:text-white">
+                  All Masterclass Lectures are Locked 🔐
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  {user?.email ? (
+                    <>Your Google account (<strong className="font-mono text-cyan-600 dark:text-cyan-400">{user.email}</strong>) is not enrolled in video lectures yet. Browse the folders below to unlock with a passcode or request access from Admin Asman Linzy.</>
+                  ) : (
+                    <>Private masterclasses are restricted to enrolled students. Please browse folders to enter your passcode or sign in with your authorized Google account.</>
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  playRoboticClick();
+                  setActiveTab('folders');
+                }}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs cursor-pointer transition-all shadow-md"
+              >
+                Browse Folders to Unlock
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {accessibleVideos.map((video) => (
                 <VideoCard
                   key={video.id}
                   video={video}
@@ -708,18 +831,16 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                   onPlay={onPlayVideo}
                   onRequireLogin={onRequireLogin}
                   isWatched={user?.watchedVideoIds?.includes(video.id) || false}
-                  isUnlocked={isUnlocked}
+                  isUnlocked={true}
                   onRequireUnlock={() => {
-                    if (onRequireUnlock) {
-                      onRequireUnlock(video);
-                    } else {
-                      onRequireLogin();
-                    }
+                    if (onRequireUnlock) onRequireUnlock(video);
+                    else onRequireLogin();
                   }}
+                  accessStatusText="Enrolled Session"
                 />
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         /* VIEW 4: ALL FOLDERS GRID (DOCUMENT LE VAARE FOLDER MAARI) */

@@ -18,6 +18,7 @@ interface VideoPlayerModalProps {
   onToggleWatched?: (videoId: string) => void;
   isWatched?: boolean;
   onOpenPdfPreview?: (driveUrl: string, title: string) => void;
+  onUpdateVideoDuration?: (videoId: string, durationSeconds: number) => void;
 }
 
 interface SpeedConfig {
@@ -62,12 +63,16 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   onSaveNote,
   onToggleWatched,
   isWatched = false,
+  onUpdateVideoDuration,
 }) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isBuffering, setIsBuffering] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
-  const [duration, setDuration] = useState<number>((video?.durationMinutes || 45) * 60);
+  // Never default to a fake 45-min duration; use actual video duration or 0 until verified
+  const [duration, setDuration] = useState<number>(() => {
+    return video?.durationMinutes && video.durationMinutes > 0 ? video.durationMinutes * 60 : 0;
+  });
   const [currentSpeed, setCurrentSpeed] = useState<number>(1);
   const [currentQuality, setCurrentQuality] = useState<string>('auto');
   const [embedQuality, setEmbedQuality] = useState<string>('auto');
@@ -186,9 +191,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     setShowQualityModal(false);
     setDirectStreamFallbackIframe(false);
     if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
-    if (video?.durationMinutes) {
-      setDuration(video.durationMinutes * 60);
-    }
+    setDuration(video?.durationMinutes && video.durationMinutes > 0 ? video.durationMinutes * 60 : 0);
     return () => {
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
     };
@@ -223,7 +226,11 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
             setCurrentTime(data.info.currentTime);
           }
           if (typeof data.info.duration === 'number' && data.info.duration > 0) {
-            setDuration(data.info.duration);
+            const realDur = Math.round(data.info.duration);
+            setDuration(realDur);
+            if (video?.id && onUpdateVideoDuration) {
+              onUpdateVideoDuration(video.id, realDur);
+            }
           }
           if (typeof data.info.playerState === 'number') {
             if (data.info.playerState === 1) {
@@ -550,9 +557,14 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   };
 
   const formatTime = (secs: number) => {
+    if (!secs || isNaN(secs) || secs <= 0) return '00:00';
     const totalSecs = Math.max(0, Math.floor(secs));
-    const m = Math.floor(totalSecs / 60);
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
     const s = totalSecs % 60;
+    if (h > 0) {
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
@@ -702,8 +714,12 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                     autoPlay
                     controls={false}
                     onLoadedMetadata={() => {
-                      if (htmlVideoRef.current && htmlVideoRef.current.duration) {
-                        setDuration(htmlVideoRef.current.duration);
+                      if (htmlVideoRef.current && htmlVideoRef.current.duration && !isNaN(htmlVideoRef.current.duration)) {
+                        const realDur = Math.round(htmlVideoRef.current.duration);
+                        setDuration(realDur);
+                        if (video?.id && onUpdateVideoDuration) {
+                          onUpdateVideoDuration(video.id, realDur);
+                        }
                       }
                       setIsLoading(false);
                     }}
@@ -947,7 +963,9 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                       <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-300 px-1 whitespace-nowrap shrink-0">
                         <span className="text-white">{formatTime(currentTime)}</span>
                         <span className="text-slate-500 mx-0.5">/</span>
-                        <span className="text-slate-400 hidden xs:inline">{formatTime(duration)}</span>
+                        <span className="text-slate-400 hidden xs:inline">
+                          {isLoading && duration === 0 ? '--:--' : formatTime(duration)}
+                        </span>
                       </span>
 
                       {/* Mute Toggle */}
