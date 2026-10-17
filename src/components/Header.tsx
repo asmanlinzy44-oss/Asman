@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User as UserIcon, LogOut, BookmarkCheck, ShieldCheck, Search, Sun, Moon, FlaskConical } from 'lucide-react';
+import { User as UserIcon, LogOut, BookmarkCheck, ShieldCheck, Search, Sun, Moon, FlaskConical, Lock } from 'lucide-react';
 import { User, ResourceCategory } from '../types';
 import { PaperExpressLogo } from './PaperExpressLogo';
 import { playRoboticTab, playRoboticClick } from '../utils/audio';
@@ -15,6 +15,7 @@ interface HeaderProps {
   onOpenProfile?: () => void;
   onOpenAdminPanel?: () => void;
   isAdminLoggedIn?: boolean;
+  isPaidStudent?: boolean;
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
 }
@@ -51,6 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenProfile,
   onOpenAdminPanel,
   isAdminLoggedIn = false,
+  isPaidStudent = false,
   isDarkMode = false,
   onToggleDarkMode,
 }) => {
