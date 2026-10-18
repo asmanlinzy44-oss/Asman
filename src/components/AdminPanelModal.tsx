@@ -49,7 +49,7 @@ interface AdminPanelModalProps {
   onGrantVideoAccess?: (email: string, studentName?: string, note?: string, extra?: Partial<PaidStudentAccess>) => Promise<boolean> | boolean;
   onRevokeVideoAccess?: (email: string) => Promise<boolean> | boolean;
   accessRequests?: VideoAccessRequest[];
-  onApproveAccessRequest?: (requestId: string) => Promise<boolean> | boolean;
+  onApproveAccessRequest?: (requestId: string, extra?: { durationPreset?: string; expiresAt?: string }) => Promise<boolean> | boolean;
   onRejectAccessRequest?: (requestId: string) => Promise<boolean> | boolean;
 }
 
@@ -108,6 +108,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
 
+  // Time Limit & Expiration State
+  const [durationPreset, setDurationPreset] = useState<'7days' | '30days' | '90days' | '180days' | '365days' | 'lifetime' | 'custom'>('30days');
+  const [customExpiryDate, setCustomExpiryDate] = useState<string>('');
+  const [requestDurations, setRequestDurations] = useState<Record<string, string>>({});
+
   // Edit Existing Student Access Modal State
   const [editingStudent, setEditingStudent] = useState<PaidStudentAccess | null>(null);
   const [editScope, setEditScope] = useState<'all' | 'custom'>('all');
@@ -116,6 +121,74 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [editLabel, setEditLabel] = useState<string>('');
   const [editName, setEditName] = useState<string>('');
   const [editNote, setEditNote] = useState<string>('');
+  const [editDurationPreset, setEditDurationPreset] = useState<'7days' | '30days' | '90days' | '180days' | '365days' | 'lifetime' | 'custom'>('30days');
+  const [editCustomExpiryDate, setEditCustomExpiryDate] = useState<string>('');
+
+  // Calculate Expiry ISO Timestamp
+  const calculateExpiresAt = (preset: string, customDate?: string): string | undefined => {
+    if (preset === 'lifetime') return undefined;
+    if (preset === 'custom') {
+      if (!customDate) return undefined;
+      const d = new Date(customDate);
+      return !isNaN(d.getTime()) ? d.toISOString() : undefined;
+    }
+    const now = Date.now();
+    if (preset === '7days') return new Date(now + 7 * 86400000).toISOString();
+    if (preset === '30days') return new Date(now + 30 * 86400000).toISOString();
+    if (preset === '90days') return new Date(now + 90 * 86400000).toISOString();
+    if (preset === '180days') return new Date(now + 180 * 86400000).toISOString();
+    if (preset === '365days') return new Date(now + 365 * 86400000).toISOString();
+    return undefined;
+  };
+
+  // Helper to format remaining time / expiration status for students
+  const formatExpiryStatus = (expiresAt?: string) => {
+    if (!expiresAt) {
+      return {
+        status: 'lifetime',
+        label: '♾️ Lifetime Access',
+        isExpired: false,
+        colorClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+      };
+    }
+    const exp = new Date(expiresAt).getTime();
+    if (isNaN(exp)) {
+      return { status: 'lifetime', label: '♾️ Lifetime Access', isExpired: false, colorClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' };
+    }
+    const diff = exp - Date.now();
+    if (diff <= 0) {
+      return {
+        status: 'expired',
+        label: `🔴 Expired (${new Date(expiresAt).toLocaleDateString()})`,
+        isExpired: true,
+        colorClass: 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+      };
+    }
+    const days = Math.floor(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
+    if (days === 0) {
+      return {
+        status: 'urgent',
+        label: `⚠️ ${hours}h left (Expires Today)`,
+        isExpired: false,
+        colorClass: 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+      };
+    }
+    if (days <= 3) {
+      return {
+        status: 'warning',
+        label: `⚠️ ${days}d ${hours}h left`,
+        isExpired: false,
+        colorClass: 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+      };
+    }
+    return {
+      status: 'active',
+      label: `⏳ ${days} days left (${new Date(expiresAt).toLocaleDateString()})`,
+      isExpired: false,
+      colorClass: 'bg-sky-500/20 text-sky-300 border-sky-500/30'
+    };
+  };
 
   // Authentication Gate State
   const [passcodeInput, setPasscodeInput] = useState('');
@@ -478,28 +551,34 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       return;
     }
 
-    if (videoAccessEmails.some((e) => e.toLowerCase().trim() === email)) {
-      setAccessError(`Access already granted: ${email} already has video access. You can click "Edit Scope" below to modify permissions.`);
-      return;
-    }
+    const isExisting = videoAccessEmails.some((e) => e.toLowerCase().trim() === email);
 
     const isCustom = accessScopeInput === 'custom';
     const label = isCustom 
       ? (customScopeLabel.trim() || 'Custom Modules') 
       : 'All Videos';
 
+    const calculatedExpiry = calculateExpiresAt(durationPreset, customExpiryDate);
+
     const extra: Partial<PaidStudentAccess> = {
       accessScope: accessScopeInput,
       allowedSubjectIds: isCustom ? selectedScopeSubjects : undefined,
       allowedUnits: isCustom ? selectedScopeUnits : undefined,
       accessLabel: label,
+      expiresAt: calculatedExpiry,
+      durationPreset: durationPreset,
     };
 
     if (onGrantVideoAccess) {
       try {
         await onGrantVideoAccess(email, studentNameInput.trim(), studentNoteInput.trim(), extra);
         playRoboticUnlock();
-        showSuccess(`🎉 Video masterclass access (${label}) granted to ${email}!`);
+        const expiryText = calculatedExpiry ? ` (Expires: ${new Date(calculatedExpiry).toLocaleDateString()})` : ' (Lifetime)';
+        showSuccess(
+          isExisting
+            ? `🔄 Video masterclass access renewed/updated for ${email} (${label})${expiryText}!`
+            : `🎉 Video masterclass access (${label}) granted to ${email}${expiryText}!`
+        );
         setStudentEmailInput('');
         setStudentNameInput('');
         setStudentNoteInput('');
@@ -517,6 +596,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setEditLabel(student.accessLabel || (student.accessScope === 'custom' ? 'Physics Hydrodynamics Only' : 'All Videos'));
     setEditName(student.studentName || '');
     setEditNote(student.note || '');
+    setEditDurationPreset((student.durationPreset as any) || (student.expiresAt ? 'custom' : 'lifetime'));
+    if (student.expiresAt) {
+      try {
+        const d = new Date(student.expiresAt);
+        const isoLocal = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        setEditCustomExpiryDate(isoLocal);
+      } catch {
+        setEditCustomExpiryDate('');
+      }
+    } else {
+      setEditCustomExpiryDate('');
+    }
   };
 
   const handleSaveStudentEdit = async (e: React.FormEvent) => {
@@ -525,6 +616,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
     const isCustom = editScope === 'custom';
     const label = isCustom ? (editLabel.trim() || 'Custom Modules') : 'All Videos';
+    const calculatedExpiry = calculateExpiresAt(editDurationPreset, editCustomExpiryDate);
 
     const extra: Partial<PaidStudentAccess> = {
       grantedAt: editingStudent.grantedAt,
@@ -532,6 +624,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       allowedSubjectIds: isCustom ? editSubjects : undefined,
       allowedUnits: isCustom ? editUnits : undefined,
       accessLabel: label,
+      expiresAt: calculatedExpiry,
+      durationPreset: editDurationPreset,
     };
 
     try {
@@ -541,6 +635,40 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       setEditingStudent(null);
     } catch (err: any) {
       alert(err?.message || 'Failed to update student access.');
+    }
+  };
+
+  // Quick 1-Click Renew / Extend Student Access (+30 Days, +1 Year, Lifetime)
+  const handleQuickExtend = async (student: PaidStudentAccess, addDays: number | 'lifetime') => {
+    if (!onGrantVideoAccess) return;
+    let newExpiry: string | undefined = undefined;
+    let preset = 'custom';
+
+    if (addDays === 'lifetime') {
+      newExpiry = undefined;
+      preset = 'lifetime';
+    } else {
+      const currentExpiry = student.expiresAt ? new Date(student.expiresAt).getTime() : 0;
+      const baseTime = currentExpiry > Date.now() ? currentExpiry : Date.now();
+      newExpiry = new Date(baseTime + addDays * 86400000).toISOString();
+      preset = addDays === 30 ? '30days' : addDays === 365 ? '365days' : 'custom';
+    }
+
+    const extra: Partial<PaidStudentAccess> = {
+      ...student,
+      expiresAt: newExpiry,
+      durationPreset: preset,
+    };
+
+    try {
+      await onGrantVideoAccess(student.email, student.studentName, student.note, extra);
+      playRoboticUnlock();
+      const msg = newExpiry 
+        ? `Extended access for ${student.email} until ${new Date(newExpiry).toLocaleDateString()}!`
+        : `Upgraded ${student.email} to Lifetime Access!`;
+      showSuccess(msg);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to extend access.');
     }
   };
 
@@ -3383,19 +3511,61 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               </div>
                             </div>
 
-                            {/* Action Buttons */}
-                            <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
+                            {/* Action Buttons & Duration Selector */}
+                            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 shrink-0 self-end md:self-auto">
                               {isPending ? (
                                 <>
+                                  {/* Duration Preset Selector */}
+                                  <div className="flex items-center gap-1 bg-[#091228] p-1 rounded-xl border border-amber-500/30">
+                                    <span className="text-[10px] font-mono text-slate-400 px-1 flex items-center gap-1">
+                                      <Clock className="w-3 h-3 text-amber-400" />
+                                      <span>Limit:</span>
+                                    </span>
+                                    {[
+                                      { id: '7days', label: '7d' },
+                                      { id: '30days', label: '30d' },
+                                      { id: '90days', label: '90d' },
+                                      { id: '365days', label: '1y' },
+                                      { id: 'lifetime', label: '♾️' },
+                                    ].map((preset) => {
+                                      const active = (requestDurations[req.id] || '30days') === preset.id;
+                                      return (
+                                        <button
+                                          key={preset.id}
+                                          type="button"
+                                          onClick={() => {
+                                            playRoboticClick();
+                                            setRequestDurations((prev) => ({ ...prev, [req.id]: preset.id }));
+                                          }}
+                                          className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold cursor-pointer transition-all ${
+                                            active
+                                              ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
+                                              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                          }`}
+                                        >
+                                          {preset.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+
                                   <button
                                     type="button"
                                     onClick={async () => {
                                       playRoboticUnlock();
                                       if (onApproveAccessRequest) {
-                                        const success = await onApproveAccessRequest(req.id);
+                                        const chosenPreset = requestDurations[req.id] || '30days';
+                                        const calculatedExpiry = calculateExpiresAt(chosenPreset);
+                                        const success = await onApproveAccessRequest(req.id, {
+                                          durationPreset: chosenPreset,
+                                          expiresAt: calculatedExpiry,
+                                        });
                                         if (success) {
+                                          const durText = chosenPreset === 'lifetime' 
+                                            ? 'Lifetime' 
+                                            : `${chosenPreset.replace('days', ' Days')} (Expires: ${new Date(calculatedExpiry || '').toLocaleDateString()})`;
                                           showSuccess(
-                                            `✓ Access granted to ${req.userEmail}! All videos & folders unlocked for this student.`
+                                            `✓ Access granted to ${req.userEmail} for ${durText}! Time limit enforced.`
                                           );
                                         }
                                       }
@@ -3403,7 +3573,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                     className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-[0_0_15px_rgba(16,185,129,0.35)] transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
                                   >
                                     <Check className="w-4 h-4 stroke-[3]" />
-                                    <span>Accept & Grant Access (அனுமதி வழங்கு)</span>
+                                    <span>Accept & Grant Access</span>
                                   </button>
 
                                   <button
@@ -3693,6 +3863,76 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         )}
                       </div>
 
+                      {/* Access Duration / Expiry Time Limit Selector */}
+                      <div className="p-3.5 rounded-2xl bg-[#050A17] border border-amber-500/30 space-y-3">
+                        <label className="block text-xs font-mono font-bold text-amber-300 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Access Time Limit / கால அவகாசம் (Auto-Deny on Expiry) <span className="text-rose-400">*</span></span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-normal">Auto-revokes when time expires</span>
+                        </label>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-1.5">
+                          {[
+                            { id: '7days', label: '7 Days (Trial)' },
+                            { id: '30days', label: '30 Days (1 Mo)' },
+                            { id: '90days', label: '3 Months' },
+                            { id: '180days', label: '6 Months' },
+                            { id: '365days', label: '1 Year (Exam)' },
+                            { id: 'custom', label: 'Custom Date' },
+                            { id: 'lifetime', label: 'Lifetime ♾️' },
+                          ].map((preset) => {
+                            const isSelected = durationPreset === preset.id;
+                            return (
+                              <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => {
+                                  playRoboticClick();
+                                  setDurationPreset(preset.id as any);
+                                }}
+                                className={`px-2 py-2 rounded-xl border text-center transition-all cursor-pointer text-xs font-bold ${
+                                  isSelected
+                                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md font-black'
+                                    : 'bg-[#091228] border-slate-800 text-slate-300 hover:border-slate-700'
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {durationPreset === 'custom' && (
+                          <div className="pt-2 border-t border-slate-800/80 animate-in fade-in duration-150 space-y-1.5">
+                            <label className="block text-[11px] font-mono text-slate-300">
+                              Set Exact Expiration Date & Time (குறிப்பிட்ட திகதி/நேரம்):
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={customExpiryDate}
+                              onChange={(e) => setCustomExpiryDate(e.target.value)}
+                              className="px-3 py-2 bg-[#091228] border border-amber-500/40 rounded-xl text-xs font-mono text-white outline-none focus:border-amber-400"
+                            />
+                            <p className="text-[10px] text-slate-400">
+                              Student's video lessons will automatically show "Access Expired / Denied" right after this deadline.
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400">Configured Expiry:</span>
+                          <span className="font-mono font-bold text-amber-300">
+                            {durationPreset === 'lifetime' 
+                              ? '♾️ Lifetime Access (No Expiration)' 
+                              : durationPreset === 'custom'
+                              ? (customExpiryDate ? `📅 ${new Date(customExpiryDate).toLocaleString()}` : '⚠️ Select date above')
+                              : `⏳ Valid for ${durationPreset.replace('days', ' Days')} from today (${new Date(calculateExpiresAt(durationPreset) || '').toLocaleDateString()})`}
+                          </span>
+                        </div>
+                      </div>
+
                       {accessError && (
                         <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-500/50 flex items-center gap-2 text-xs font-mono text-rose-300">
                           <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
@@ -3788,6 +4028,17 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                       All Videos 🌐
                                     </span>
                                   )}
+
+                                  {/* Expiration Status Badge */}
+                                  {!isOwner && (() => {
+                                    const expInfo = formatExpiryStatus(item.expiresAt);
+                                    return (
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border flex items-center gap-1 ${expInfo.colorClass}`}>
+                                        <Clock className="w-2.5 h-2.5" />
+                                        <span>{expInfo.label}</span>
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
 
                                 <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5 flex-wrap">
@@ -3804,8 +4055,29 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               </div>
                             </div>
 
-                            {/* Actions */}
-                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                            {/* Actions & Quick Renew */}
+                            <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto flex-wrap">
+                              {!isOwner && (
+                                <div className="flex items-center gap-1 bg-[#091228] p-1 rounded-xl border border-slate-800">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickExtend(item, 30)}
+                                    className="px-2 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 hover:text-white text-[10px] font-mono font-bold border border-emerald-500/40 transition-all cursor-pointer"
+                                    title="Extend +30 Days"
+                                  >
+                                    +30d
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickExtend(item, 365)}
+                                    className="px-2 py-1 rounded-lg bg-blue-950/60 hover:bg-blue-900 text-blue-300 hover:text-white text-[10px] font-mono font-bold border border-blue-500/40 transition-all cursor-pointer"
+                                    title="Extend +1 Year"
+                                  >
+                                    +1y
+                                  </button>
+                                </div>
+                              )}
+
                               <button
                                 type="button"
                                 onClick={() => {
@@ -3825,10 +4097,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                   type="button"
                                   onClick={() => handleOpenEditStudent(item)}
                                   className="px-2.5 py-1.5 rounded-lg bg-indigo-950/40 hover:bg-indigo-900/60 text-indigo-200 text-[11px] font-mono flex items-center gap-1.5 transition-colors cursor-pointer border border-indigo-500/30"
-                                  title="Edit Permissions"
+                                  title="Edit Permissions & Expiry"
                                 >
                                   <Edit3 className="w-3 h-3 text-indigo-400" />
-                                  <span>Edit Scope</span>
+                                  <span>Edit</span>
                                 </button>
                               )}
 
@@ -3979,6 +4251,73 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               </div>
                             </div>
                           )}
+
+                          {/* Access Duration / Expiry Time Limit Selector for Edit */}
+                          <div className="p-3 rounded-2xl bg-[#050A17] border border-amber-500/30 space-y-2.5">
+                            <label className="block text-xs font-mono font-bold text-amber-300 flex items-center justify-between">
+                              <span className="flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Access Time Limit / கால அவகாசம் <span className="text-rose-400">*</span></span>
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-normal">Auto-denies when expired</span>
+                            </label>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-1">
+                              {[
+                                { id: '7days', label: '7 Days' },
+                                { id: '30days', label: '30 Days' },
+                                { id: '90days', label: '3 Mo' },
+                                { id: '180days', label: '6 Mo' },
+                                { id: '365days', label: '1 Year' },
+                                { id: 'custom', label: 'Custom' },
+                                { id: 'lifetime', label: 'Lifetime' },
+                              ].map((preset) => {
+                                const isSelected = editDurationPreset === preset.id;
+                                return (
+                                  <button
+                                    key={preset.id}
+                                    type="button"
+                                    onClick={() => {
+                                      playRoboticClick();
+                                      setEditDurationPreset(preset.id as any);
+                                    }}
+                                    className={`px-1.5 py-1.5 rounded-lg border text-center transition-all cursor-pointer text-[11px] font-bold ${
+                                      isSelected
+                                        ? 'bg-amber-500 text-slate-950 border-amber-400 font-black'
+                                        : 'bg-[#091228] border-slate-800 text-slate-300 hover:border-slate-700'
+                                    }`}
+                                  >
+                                    {preset.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {editDurationPreset === 'custom' && (
+                              <div className="pt-1.5 border-t border-slate-800/80 animate-in fade-in duration-150 space-y-1">
+                                <label className="block text-[10px] font-mono text-slate-300">
+                                  Expiration Date & Time:
+                                </label>
+                                <input
+                                  type="datetime-local"
+                                  value={editCustomExpiryDate}
+                                  onChange={(e) => setEditCustomExpiryDate(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 bg-[#091228] border border-amber-500/40 rounded-lg text-xs font-mono text-white outline-none focus:border-amber-400"
+                                />
+                              </div>
+                            )}
+
+                            <div className="p-1.5 rounded-lg bg-slate-900/60 border border-slate-800 flex items-center justify-between text-[10px]">
+                              <span className="text-slate-400">Effective Expiry:</span>
+                              <span className="font-mono font-bold text-amber-300">
+                                {editDurationPreset === 'lifetime' 
+                                  ? '♾️ Lifetime Access' 
+                                  : editDurationPreset === 'custom'
+                                  ? (editCustomExpiryDate ? `📅 ${new Date(editCustomExpiryDate).toLocaleString()}` : '⚠️ Select date above')
+                                  : `⏳ ${editDurationPreset.replace('days', ' Days')} from today (${new Date(calculateExpiresAt(editDurationPreset) || '').toLocaleDateString()})`}
+                              </span>
+                            </div>
+                          </div>
 
                           <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
                             <button

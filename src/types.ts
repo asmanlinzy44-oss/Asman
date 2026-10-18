@@ -167,6 +167,8 @@ export interface PaidStudentAccess {
   allowedVideoIds?: string[]; // specific video IDs e.g. ['vid-phy-hydro-class1']
   allowedUnits?: number[]; // e.g. [2] for Hydrodynamics, [6] for IUPAC
   accessLabel?: string; // e.g. 'All Videos', 'Physics Hydrodynamics Only', 'Chemistry IUPAC Only'
+  expiresAt?: string; // ISO date string e.g. "2026-11-18T10:00:00.000Z" (null or undefined = lifetime)
+  durationPreset?: string; // '7days' | '30days' | '90days' | '180days' | '365days' | 'lifetime' | 'custom'
 }
 
 export interface VideoAccessRequest {

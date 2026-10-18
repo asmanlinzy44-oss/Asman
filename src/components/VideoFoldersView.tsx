@@ -1,30 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import {
-  Folder,
-  FolderOpen,
-  Lock,
-  Unlock,
-  Play,
-  Clock,
-  Sparkles,
-  ChevronRight,
-  ArrowLeft,
-  Search,
-  CheckCircle2,
-  KeyRound,
-  ShieldAlert,
-  Film,
-  Zap,
-  BookOpen,
-  Filter,
-  Eye,
-  AlertCircle,
-  Send
+import { 
+  Folder, Film, Lock, CheckCircle2, ChevronRight, Clock, 
+  ArrowLeft, Search, Sparkles, Send, MessageCircle, UserCheck, 
+  BookOpen, GraduationCap, ShieldCheck
 } from 'lucide-react';
-import { VideoLesson, VideoFolder, User, VideoAccessRequest } from '../types';
-import { VideoCard } from './VideoCard';
+import { VideoFolder, VideoLesson, User, VideoAccessRequest } from '../types';
 import { formatVideoDuration } from '../utils/drive';
-import { playRoboticFolder, playRoboticClick } from '../utils/audio';
+import { VideoCard } from './VideoCard';
+import { playRoboticClick, playRoboticFolder } from '../utils/audio';
 
 interface VideoFoldersViewProps {
   videos: VideoLesson[];
@@ -37,12 +20,12 @@ interface VideoFoldersViewProps {
   isEffectiveVideoUnlocked: boolean;
   isVideoLessonUnlocked: (video: VideoLesson) => boolean;
   isFolderUnlocked: (folder: VideoFolder) => boolean;
-  onUnlockFolderWithCode: (passcode: string, folderId?: string) => Promise<{ success: boolean; message: string }>;
+  onUnlockFolderWithCode?: (code: string, folderId?: string) => Promise<{ success: boolean; message?: string }>;
   onRequireUnlock?: (video: VideoLesson) => void;
   isAdmin?: boolean;
   onOpenAdminFolders?: () => void;
   accessRequests?: VideoAccessRequest[];
-  onRequestAccess?: (params: { folderId?: string; folderName?: string; videoId?: string; videoTitle?: string; message?: string }) => Promise<{ success: boolean; message: string }> | { success: boolean; message: string };
+  onRequestAccess?: (params: { folderId?: string; folderName?: string; videoId?: string; videoTitle?: string; message?: string }) => Promise<{ success: boolean; message: string }>;
   onApproveAccessRequest?: (requestId: string) => Promise<boolean> | boolean;
 }
 
@@ -54,72 +37,56 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
   user,
   onPlayVideo,
   onRequireLogin,
-  isEffectiveVideoUnlocked,
   isVideoLessonUnlocked,
   isFolderUnlocked,
-  onUnlockFolderWithCode,
   onRequireUnlock,
   isAdmin = false,
   onOpenAdminFolders,
   accessRequests = [],
   onRequestAccess,
-  onApproveAccessRequest,
 }) => {
-  // Navigation tabs: 'folders' | 'my-videos' | 'all-videos'
-  const [activeTab, setActiveTab] = useState<'folders' | 'my-videos' | 'all-videos'>('folders');
-  const [searchQuery, setSearchQuery] = useState('');
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
-  const [folderRequestNotice, setFolderRequestNotice] = useState<{ id: string; msg: string } | null>(null);
-  
-  // Passcode unlock form state for locked folders
-  const [passcodeInput, setPasscodeInput] = useState('');
-  const [unlockStatus, setUnlockStatus] = useState<{ type: 'idle' | 'loading' | 'success' | 'error'; message?: string }>({
-    type: 'idle',
-  });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [requestNotice, setRequestNotice] = useState<{ id: string; msg: string } | null>(null);
+  const [isSubmittingReq, setIsSubmittingReq] = useState(false);
 
-  // Calculate folder stats (video count, total duration)
+  // Group and compute stats per folder
   const folderStats = useMemo(() => {
     const stats: Record<string, { count: number; totalMinutes: number; videos: VideoLesson[] }> = {};
-    folders.forEach((f) => {
-      const vids = videos.filter((v) => v.folderId === f.id);
-      const totalMinutes = vids.reduce((sum, v) => sum + (v.durationMinutes || 0), 0);
-      stats[f.id] = { count: vids.length, totalMinutes, videos: vids };
-    });
+    for (const folder of folders) {
+      stats[folder.id] = { count: 0, totalMinutes: 0, videos: [] };
+    }
+    for (const v of videos) {
+      if (v.folderId && stats[v.folderId]) {
+        stats[v.folderId].count += 1;
+        stats[v.folderId].totalMinutes += v.durationMinutes || 0;
+        stats[v.folderId].videos.push(v);
+      }
+    }
     return stats;
   }, [folders, videos]);
 
-  // Current selected folder object (if in drill-down)
+  // Current active folder
   const currentFolder = useMemo(() => {
-    if (!selectedFolderId || selectedFolderId === 'all' || selectedFolderId === 'unorganized') {
-      return null;
-    }
+    if (!selectedFolderId) return null;
     return folders.find((f) => f.id === selectedFolderId) || null;
   }, [selectedFolderId, folders]);
 
-  // Current folder videos - strictly ordered 1, 2, 3, 4, 5... (Part 01, Part 02, etc.)
+  // Videos inside current folder, sorted logically
   const currentFolderVideos = useMemo(() => {
     if (!selectedFolderId) return [];
-    const list = selectedFolderId === 'unorganized'
-      ? videos.filter((v) => !v.folderId)
-      : videos.filter((v) => v.folderId === selectedFolderId);
+    const list = videos.filter((v) => v.folderId === selectedFolderId);
 
     const extractNum = (v: VideoLesson): number => {
-      // 0. Explicit order property if set
-      if (v.order !== undefined && typeof v.order === 'number') return v.order;
-
-      // 1. Check title for "Part X" or "பகுதி X"
       const partM = v.titleEn.match(/part\s*0*(\d+)/i) || (v.titleTa && v.titleTa.match(/பகுதி\s*0*(\d+)/));
       if (partM) return parseInt(partM[1], 10);
 
-      // 2. Check title for "Lesson X" / "Lecture X" / "Class X"
       const lecM = v.titleEn.match(/(?:lesson|lecture|class)\s*0*(\d+)/i) || (v.titleTa && v.titleTa.match(/(?:வகுப்பு|விரிவுரை)\s*0*(\d+)/));
       if (lecM) return parseInt(lecM[1], 10);
 
-      // 3. Check for standalone #01 or leading 01
       const numM = v.titleEn.match(/(?:^|\b|#)0*(\d+)(?:\b|$)/);
       if (numM) return parseInt(numM[1], 10);
 
-      // 4. Fallback to unitNumber
       return v.unitNumber || 999;
     };
 
@@ -131,23 +98,13 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
     });
   }, [selectedFolderId, videos]);
 
-  // Accessible (unlocked) folders for the current user
-  const accessibleFolders = useMemo(() => {
-    return folders.filter((f) => isFolderUnlocked(f));
-  }, [folders, isFolderUnlocked]);
-
-  // Accessible videos for the current user
-  const accessibleVideos = useMemo(() => {
-    return videos.filter((v) => isVideoLessonUnlocked(v));
-  }, [videos, isVideoLessonUnlocked]);
-
-  // Filtered folders for the list view
+  // Filtered folders
   const filteredFolders = useMemo(() => {
     return folders.filter((f) => {
       if (subjectFilter !== 'all') {
         const matchesSubject =
           (f.subjectName && f.subjectName.toLowerCase().includes(subjectFilter.toLowerCase())) ||
-          (f.id.toLowerCase().includes(subjectFilter.toLowerCase()));
+          f.id.toLowerCase().includes(subjectFilter.toLowerCase());
         if (!matchesSubject) return false;
       }
       if (searchQuery.trim()) {
@@ -163,42 +120,16 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
     });
   }, [folders, subjectFilter, searchQuery, videos]);
 
-  // Handle Passcode Unlock
-  const handlePasscodeSubmit = async (e: React.FormEvent, targetFolderId?: string) => {
-    e.preventDefault();
-    if (!passcodeInput.trim()) return;
-
-    setUnlockStatus({ type: 'loading' });
-    playRoboticClick();
-
-    try {
-      const res = await onUnlockFolderWithCode(passcodeInput.trim(), targetFolderId || currentFolder?.id);
-      if (res.success) {
-        setUnlockStatus({ type: 'success', message: res.message || 'Folder unlocked successfully! Access granted.' });
-        setPasscodeInput('');
-        setTimeout(() => {
-          setUnlockStatus({ type: 'idle' });
-        }, 3000);
-      } else {
-        setUnlockStatus({ type: 'error', message: res.message || 'Incorrect passcode. Please check and try again.' });
-      }
-    } catch (err: any) {
-      setUnlockStatus({ type: 'error', message: err.message || 'Error validating code. Please retry.' });
+  // Distinct subjects available
+  const availableSubjects = useMemo(() => {
+    const set = new Set<string>();
+    for (const f of folders) {
+      if (f.subjectName) set.add(f.subjectName.toLowerCase());
     }
-  };
+    return ['all', ...Array.from(set)];
+  }, [folders]);
 
-  // Switch folder with robotic sound
-  const handleFolderClick = (folderId: string) => {
-    playRoboticFolder();
-    onSelectFolder(folderId);
-  };
-
-  const handleBackToFolders = () => {
-    playRoboticClick();
-    onSelectFolder(null);
-  };
-
-  // User's pending folder requests
+  // User pending requests set
   const userCleanEmail = user?.email?.toLowerCase().trim();
   const pendingFolderReqIds = useMemo(() => {
     if (!userCleanEmail) return new Set<string>();
@@ -212,31 +143,53 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
     return set;
   }, [accessRequests, userCleanEmail]);
 
-  const pendingRequestsCount = useMemo(() => {
-    return accessRequests.filter((r) => r.status === 'pending').length;
-  }, [accessRequests]);
+  const handleFolderClick = (folderId: string) => {
+    playRoboticFolder();
+    onSelectFolder(folderId);
+  };
+
+  const handleBackToFolders = () => {
+    playRoboticClick();
+    onSelectFolder(null);
+  };
+
+  const handleInstantRequestAccess = async (folder: VideoFolder) => {
+    if (!onRequestAccess) return;
+    setIsSubmittingReq(true);
+    playRoboticClick();
+    try {
+      const res = await onRequestAccess({
+        folderId: folder.id,
+        folderName: folder.name,
+        message: `Student requested access to ${folder.name} masterclasses.`
+      });
+      setRequestNotice({ id: folder.id, msg: res.message });
+    } catch {
+      setRequestNotice({ id: folder.id, msg: 'Request failed. Please contact Asman Linzy directly on WhatsApp.' });
+    } finally {
+      setIsSubmittingReq(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
-      {/* TOP NAVIGATION & TABS RIBBON */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-xs space-y-4">
-        {/* Top Header Row */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* 1. TOP HEADER & FILTER BAR */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse" />
-              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
-                A/L Masterclass Video System
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
+              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
+                A/L Theory Masterclass & Laboratory Portal
               </span>
             </div>
-            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-0.5 flex items-center gap-2">
-              <span>Theory Video Folders</span>
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1 flex items-center gap-2">
+              <span>Theory Video Modules</span>
               <span className="text-sm font-normal text-slate-500 dark:text-slate-400">· பாட அலகுக் கோப்புறைகள்</span>
             </h3>
           </div>
 
-          {/* Quick Stats & Admin Access Button */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
             {isAdmin && onOpenAdminFolders && (
               <button
                 type="button"
@@ -244,143 +197,100 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                   playRoboticClick();
                   onOpenAdminFolders();
                 }}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-bold font-mono flex items-center gap-1.5 cursor-pointer transition-all shadow-xs ${
-                  pendingRequestsCount > 0
-                    ? 'bg-amber-500/20 text-amber-500 dark:text-amber-300 border-amber-500/50 animate-pulse'
-                    : 'bg-purple-600/10 text-purple-600 dark:text-purple-400 border-purple-500/30 hover:bg-purple-600/20'
-                }`}
+                className="px-3.5 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-xs font-bold font-mono flex items-center gap-1.5 cursor-pointer hover:bg-purple-100 transition-colors"
               >
                 <Folder className="w-3.5 h-3.5" />
-                <span>Admin Folders</span>
-                {pendingRequestsCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 font-black text-[10px]">
-                    {pendingRequestsCount} Pending
-                  </span>
-                )}
+                <span>Admin Panel</span>
               </button>
             )}
 
-            <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-xs font-bold font-mono text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <div className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold font-mono text-slate-700 dark:text-slate-300 flex items-center gap-2">
               <Film className="w-3.5 h-3.5 text-blue-500" />
-              <span>{videos.length} Videos</span>
+              <span>{folders.length} Modules</span>
               <span className="text-slate-400">·</span>
-              <span>{folders.length} Folders</span>
+              <span>{videos.length} Lectures</span>
             </div>
           </div>
         </div>
 
-        {/* Navigation Tabs: All Folders | My Videos | All Videos List */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/90 rounded-2xl">
-            <button
-              type="button"
-              onClick={() => {
-                playRoboticClick();
-                setActiveTab('folders');
-                onSelectFolder(null);
-              }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 ${
-                activeTab === 'folders' && !selectedFolderId
-                  ? 'bg-blue-600 text-white shadow-xs font-black'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Folder className="w-3.5 h-3.5" />
-              <span>All Folders ({folders.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                playRoboticClick();
-                setActiveTab('my-videos');
-                onSelectFolder(null);
-              }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 ${
-                activeTab === 'my-videos'
-                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs font-black'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>My Videos ({accessibleFolders.length})</span>
-              {accessibleFolders.length > 0 && (
-                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                playRoboticClick();
-                setActiveTab('all-videos');
-                onSelectFolder(null);
-              }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 ${
-                activeTab === 'all-videos'
-                  ? 'bg-blue-600 text-white shadow-xs font-black'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Film className="w-3.5 h-3.5" />
-              <span>All Videos ({videos.length})</span>
-            </button>
+        {/* Clean Subject Filters & Fast Search */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            {availableSubjects.map((sub) => {
+              const isSelected = subjectFilter === sub;
+              return (
+                <button
+                  key={sub}
+                  type="button"
+                  onClick={() => {
+                    playRoboticClick();
+                    setSubjectFilter(sub);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer whitespace-nowrap ${
+                    isSelected
+                      ? 'bg-blue-600 text-white shadow-xs font-black'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {sub === 'all' ? 'All Subjects' : sub}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Search Box */}
-          <div className="relative flex-1 sm:max-w-xs min-w-[200px]">
+          <div className="relative sm:max-w-xs min-w-[200px]">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search folders or lessons..."
-              className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-700/80 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500"
+              placeholder="Search lectures, units, topics..."
+              className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
             />
           </div>
         </div>
       </div>
 
-      {/* VIEW 1: DRILL-DOWN INSIDE A SPECIFIC FOLDER */}
+      {/* 2. VIEW: DRILL-DOWN INSIDE A SPECIFIC FOLDER */}
       {selectedFolderId && currentFolder ? (
-        <div className="space-y-5 animate-in fade-in duration-200">
-          {/* Breadcrumbs & Return Navigation */}
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Breadcrumb Navigation */}
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
               onClick={handleBackToFolders}
-              className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-cyan-400 flex items-center gap-2 cursor-pointer transition-all shadow-xs group"
+              className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-sky-400 flex items-center gap-2 cursor-pointer transition-all shadow-xs group"
             >
               <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-              <span>Back to All Folders</span>
+              <span>Back to All Modules</span>
             </button>
 
-            <div className="text-xs font-mono text-slate-400 flex items-center gap-1.5">
-              <span>Theory Videos</span>
+            <div className="text-xs font-mono text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <span>Theory Modules</span>
               <ChevronRight className="w-3 h-3" />
-              <span className="font-bold text-slate-900 dark:text-white">{currentFolder.name}</span>
+              <strong className="text-slate-900 dark:text-white">{currentFolder.name}</strong>
             </div>
           </div>
 
-          {/* Folder Hero Header Banner (Consistent, clean styling across all folders) */}
-          <div className="p-6 sm:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 relative overflow-hidden shadow-xs transition-all text-slate-900 dark:text-white">
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+          {/* Module Banner Header */}
+          <div className="p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 relative overflow-hidden shadow-xs">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
               <div className="space-y-2 max-w-2xl">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-2xl">{currentFolder.icon || '📁'}</span>
-                  <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black font-mono uppercase tracking-wider text-blue-600 dark:text-cyan-400">
+                  <span className="px-2.5 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-xs font-black font-mono uppercase tracking-wider text-blue-700 dark:text-sky-300">
                     {currentFolder.subjectName || 'Theory Module'}
                   </span>
-                  
+
                   {isFolderUnlocked(currentFolder) ? (
-                    <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-mono">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                      <span>Access Granted · Session Active</span>
+                    <span className="px-2.5 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-700 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1 font-mono">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                      <span>Enrolled & Active</span>
                     </span>
                   ) : (
-                    <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] font-black text-amber-600 dark:text-amber-400 flex items-center gap-1 font-mono">
-                      <Lock className="w-3 h-3 text-amber-500" />
-                      <span>Locked Session · Passcode Required</span>
+                    <span className="px-2.5 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700 text-[11px] font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1 font-mono">
+                      <Lock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                      <span>Paid Student Access Only</span>
                     </span>
                   )}
                 </div>
@@ -399,15 +309,14 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                   </p>
                 )}
 
-                {/* Meta stats: lessons and total duration */}
                 <div className="flex items-center gap-4 text-xs font-mono text-slate-600 dark:text-slate-300 pt-2 flex-wrap">
                   <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                    <Film className="w-3.5 h-3.5 text-blue-600 dark:text-cyan-400" />
-                    <strong>{currentFolderVideos.length}</strong> Video Lessons
+                    <Film className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
+                    <strong>{currentFolderVideos.length}</strong> Video Lectures
                   </span>
 
                   <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                    <Clock className="w-3.5 h-3.5 text-blue-500 dark:text-sky-400" />
+                    <Clock className="w-3.5 h-3.5 text-sky-500" />
                     Total Duration:{' '}
                     <strong>
                       {formatVideoDuration(
@@ -418,201 +327,261 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                 </div>
               </div>
 
-              {/* Passcode Unlock Box if Folder is Locked */}
               {!isFolderUnlocked(currentFolder) && (
-                <div className="bg-slate-950/90 border border-amber-500/40 rounded-2xl p-4 sm:p-5 text-center sm:text-left space-y-3 shrink-0 md:max-w-xs shadow-xl backdrop-blur-md">
-                  <div className="flex items-center gap-2 text-amber-400 font-bold text-xs">
-                    <KeyRound className="w-4 h-4 shrink-0" />
-                    <span>Enter Folder Access Passcode</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 leading-normal">
-                    This folder is restricted to enrolled students. Enter your designated access passcode to unlock all sessions.
-                  </p>
-
-                  <form onSubmit={(e) => handlePasscodeSubmit(e, currentFolder.id)} className="space-y-2">
-                    <input
-                      type="text"
-                      value={passcodeInput}
-                      onChange={(e) => setPasscodeInput(e.target.value)}
-                      placeholder="Passcode / Student Index..."
-                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono tracking-wider"
-                    />
-
+                <div className="shrink-0 flex flex-col gap-2">
+                  {user?.email ? (
                     <button
-                      type="submit"
-                      disabled={unlockStatus.type === 'loading' || !passcodeInput.trim()}
-                      className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs cursor-pointer transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                      type="button"
+                      onClick={() => handleInstantRequestAccess(currentFolder)}
+                      disabled={isSubmittingReq}
+                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
                     >
-                      <Unlock className="w-3.5 h-3.5" />
-                      <span>{unlockStatus.type === 'loading' ? 'Verifying...' : 'Unlock Folder'}</span>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>{isSubmittingReq ? 'Submitting...' : 'Request Access (அனுமதி கோர)'}</span>
                     </button>
-                  </form>
-
-                  {unlockStatus.message && (
-                    <div className={`p-2 rounded-xl text-[11px] font-bold text-center ${
-                      unlockStatus.type === 'success'
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                    }`}>
-                      {unlockStatus.message}
-                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={onRequireLogin}
+                      className="px-5 py-2.5 rounded-xl bg-white hover:bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <span>Sign In with Google</span>
+                    </button>
                   )}
-
-                  {/* 1-Click Access Request for this Folder */}
-                  <div className="pt-2.5 border-t border-slate-800 space-y-2">
-                    <p className="text-[10px] text-slate-400">
-                      Don't have a passcode? Send a request to Admin:
-                    </p>
-                    {pendingFolderReqIds.has(currentFolder.id) || pendingFolderReqIds.has('all') ? (
-                      <div className="p-2 bg-amber-500/15 border border-amber-500/30 rounded-xl text-amber-300 text-[11px] font-bold flex items-center justify-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                        <span>Access Request Pending Admin Approval</span>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          playRoboticClick();
-                          if (!user) {
-                            onRequireLogin();
-                            return;
-                          }
-                          if (onRequestAccess) {
-                            const res = await onRequestAccess({
-                              folderId: currentFolder.id,
-                              folderName: currentFolder.name,
-                            });
-                            setFolderRequestNotice({ id: currentFolder.id, msg: res.message });
-                          }
-                        }}
-                        className="w-full py-2 px-3 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/40 text-sky-200 hover:text-white font-bold text-xs cursor-pointer transition-all flex items-center justify-center gap-1.5"
-                      >
-                        <Send className="w-3.5 h-3.5 text-cyan-400" />
-                        <span>Request Access from Admin (அனுமதி கோர)</span>
-                      </button>
-                    )}
-
-                    {folderRequestNotice && folderRequestNotice.id === currentFolder.id && (
-                      <div className="p-2 rounded-xl text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-center">
-                        {folderRequestNotice.msg}
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* If Folder is LOCKED: Strict Privacy Gate - ZERO VIDEOS SHOWN! */}
+          {/* If Folder is LOCKED: Render Bright, Premium, High-Converting Masterclass Showcase (NOT A DARK GLOOMY BOX) */}
           {!isFolderUnlocked(currentFolder) ? (
-            <div className="p-8 sm:p-14 text-center bg-gradient-to-b from-[#060D20] via-[#091536] to-[#040815] rounded-3xl border-2 border-amber-500/40 shadow-2xl space-y-6 max-w-2xl mx-auto my-4 text-white">
-              <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-400/40 text-amber-400 flex items-center justify-center mx-auto shadow-[0_0_30px_rgba(245,158,11,0.25)]">
-                <Lock className="w-8 h-8" />
-              </div>
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white via-sky-50/60 to-indigo-50/50 dark:from-slate-900 dark:via-slate-800/90 dark:to-indigo-950/40 border-2 border-blue-200/80 dark:border-blue-900/60 shadow-xl p-6 sm:p-10 space-y-8 animate-in fade-in duration-200">
+              {/* Background ambient accents */}
+              <div className="absolute top-0 right-0 w-80 h-80 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-80 h-80 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none" />
 
-              <div className="space-y-2 max-w-lg mx-auto">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-mono font-bold uppercase tracking-wider">
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Workshop Content Locked 🔐</span>
+              <div className="relative z-10 text-center max-w-2xl mx-auto space-y-3">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-amber-500/15 border border-amber-400/50 text-amber-800 dark:text-amber-300 text-xs font-mono font-bold tracking-wider shadow-xs">
+                  <Lock className="w-3.5 h-3.5 text-amber-500" />
+                  <span>👑 PAID STUDENT MASTERCLASS • ENROLLED ACCESS ONLY</span>
                 </div>
-                <h3 className="text-xl sm:text-2xl font-black text-white">
-                  {currentFolder.name} - விரிவுரைகள் பூட்டப்பட்டுள்ளன
+
+                <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                  {currentFolder.name} Masterclass Series
                 </h3>
-                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                  இந்தக் கோப்புறையில் உள்ள <strong>{currentFolderVideos.length} விரிவுரைகளும்</strong> கட்டணம் செலுத்திய பதிவு செய்யப்பட்ட மாணவர்களுக்காக மட்டுமே ஒதுக்கப்பட்டுள்ளன. அணுகல் குறியீட்டைப் பயன்படுத்தி அல்லது ஆசிரியரின் அனுமதியுடன் திறக்கலாம்.
+                <p className="text-sm font-semibold text-blue-700 dark:text-sky-300">
+                  {currentFolder.nameTa || 'உயர்தர விசேட கோட்பாட்டு விரிவுரைகள்'}
+                </p>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Join our comprehensive lecture series with complete syllabus derivations, real laboratory apparatus experiments, and past paper model answers.
                 </p>
               </div>
 
-              {/* Passcode Unlock Form */}
-              <div className="max-w-md mx-auto space-y-3 pt-2">
-                <form onSubmit={(e) => handlePasscodeSubmit(e, currentFolder.id)} className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={passcodeInput}
-                    onChange={(e) => setPasscodeInput(e.target.value)}
-                    placeholder="Enter access passcode..."
-                    className="flex-1 px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono tracking-wider"
-                  />
-                  <button
-                    type="submit"
-                    disabled={unlockStatus.type === 'loading' || !passcodeInput.trim()}
-                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs sm:text-sm cursor-pointer transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center gap-1.5 shrink-0"
-                  >
-                    <Unlock className="w-4 h-4" />
-                    <span>{unlockStatus.type === 'loading' ? 'Verifying...' : 'Unlock'}</span>
-                  </button>
-                </form>
-
-                {unlockStatus.message && (
-                  <div className={`p-2.5 rounded-xl text-xs font-bold ${
-                    unlockStatus.type === 'success'
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                  }`}>
-                    {unlockStatus.message}
+              {/* What's Inside: Actual Lecture Sneak Peek */}
+              <div className="relative z-10 pt-4 border-t border-slate-200/80 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
+                      Curriculum Sneak Peek • பாடநெறி விபரம்
+                    </span>
+                    <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                      Lectures in this Workshop ({currentFolderVideos.length} In-Depth Classes)
+                    </h4>
                   </div>
-                )}
+                  <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold flex items-center gap-1 font-mono">
+                    <Lock className="w-3 h-3 text-amber-500" />
+                    <span>Enrolled Access</span>
+                  </span>
+                </div>
 
-                {/* 1-Click Request Access or Sign In */}
-                {user?.email ? (
-                  <div className="pt-2 space-y-2">
-                    {accessRequests?.some((r) => 
-                      r.status === 'pending' && 
-                      r.userEmail.toLowerCase().trim() === user.email.toLowerCase().trim() && 
-                      (!r.folderId || r.folderId === currentFolder.id)
-                    ) ? (
-                      <div className="p-3 bg-amber-950/60 border border-amber-500/40 rounded-xl text-amber-300 text-xs font-bold flex items-center justify-center gap-2">
-                        <Clock className="w-4 h-4 animate-pulse text-amber-400" />
-                        <span>Access Request Pending (அனுமதி கோரிக்கை சமர்ப்பிக்கப்பட்டது)</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {currentFolderVideos.map((vid, idx) => (
+                    <div
+                      key={vid.id}
+                      className="p-4 rounded-2xl bg-white/90 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 shadow-xs flex items-start justify-between gap-3 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-sky-300 text-[10px] font-mono font-bold">
+                            Lecture {String(idx + 1).padStart(2, '0')}
+                          </span>
+                          {vid.durationMinutes ? (
+                            <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                              ⏱️ {formatVideoDuration(vid.durationMinutes)}
+                            </span>
+                          ) : null}
+                        </div>
+                        <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {vid.titleEn}
+                        </h5>
+                        {vid.titleTa && (
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            {vid.titleTa}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <Lock className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Course Benefits Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-800/60 border border-blue-200/60 dark:border-slate-700/60 text-center space-y-1">
+                  <Film className="w-5 h-5 text-blue-600 dark:text-sky-400 mx-auto" />
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">Full HD Video</p>
+                  <p className="text-[10px] text-slate-500">Unrestricted Playback</p>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-800/60 border border-purple-200/60 dark:border-slate-700/60 text-center space-y-1">
+                  <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 mx-auto" />
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">Full Derivations</p>
+                  <p className="text-[10px] text-slate-500">Core Formulas</p>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-800/60 border border-emerald-200/60 dark:border-slate-700/60 text-center space-y-1">
+                  <GraduationCap className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mx-auto" />
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">Model Answers</p>
+                  <p className="text-[10px] text-slate-500">Structured Marking</p>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-white/80 dark:bg-slate-800/60 border border-amber-200/60 dark:border-slate-700/60 text-center space-y-1">
+                  <ShieldCheck className="w-5 h-5 text-amber-600 dark:text-amber-400 mx-auto" />
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">Teacher Support</p>
+                  <p className="text-[10px] text-slate-500">Direct WhatsApp</p>
+                </div>
+              </div>
+
+              {/* Student Activation Section */}
+              <div className="relative z-10 p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-blue-200 dark:border-slate-700 shadow-md">
+                {user && user.email ? (
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-sky-300 font-bold flex items-center justify-center shrink-0">
+                          {user.photoURL ? (
+                            <img src={user.photoURL} alt={user.name || user.email} className="w-full h-full rounded-full object-cover" />
+                          ) : (
+                            user.email.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-white">
+                            {user.name || 'Student Account'}
+                          </div>
+                          <div className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                            {user.email}
+                          </div>
+                        </div>
+                      </div>
+
+                      <span className="px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950/60 border border-amber-300 text-amber-800 dark:text-amber-300 text-xs font-bold font-mono flex items-center gap-1.5 self-start sm:self-auto">
+                        <Lock className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Awaiting Activation</span>
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                      Your Gmail is connected. If you have paid the course fee, submit an instant access request below or contact Asman Linzy on WhatsApp.
+                    </p>
+
+                    {pendingFolderReqIds.has(currentFolder.id) || pendingFolderReqIds.has('all') ? (
+                      <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 text-amber-900 dark:text-amber-200 text-xs flex items-center gap-2.5 font-medium">
+                        <Clock className="w-5 h-5 text-amber-500 shrink-0 animate-pulse" />
+                        <div>
+                          <p className="font-bold">✓ Access Request Submitted (அனுமதி கோரிக்கை சமர்ப்பிக்கப்பட்டது)</p>
+                          <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                            Your request is pending in Admin Asman Linzy's queue. Once approved, this module will unlock immediately!
+                          </p>
+                        </div>
                       </div>
                     ) : (
                       <button
                         type="button"
-                        onClick={async () => {
-                          playRoboticClick();
-                          if (onRequestAccess) {
-                            const res = await onRequestAccess({
-                              folderId: currentFolder.id,
-                              folderName: currentFolder.name,
-                            });
-                            setFolderRequestNotice({ id: currentFolder.id, msg: res.message });
-                          }
-                        }}
-                        className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-xs transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                        onClick={() => handleInstantRequestAccess(currentFolder)}
+                        disabled={isSubmittingReq}
+                        className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-sm shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98 disabled:opacity-50"
                       >
                         <Send className="w-4 h-4" />
-                        <span>Request Access from Admin (அனுமதி கோர)</span>
+                        <span>{isSubmittingReq ? 'Submitting...' : 'Request Access from Admin (அனுமதி கோரிக்கை அனுப்புக)'}</span>
                       </button>
                     )}
 
-                    {folderRequestNotice && folderRequestNotice.id === currentFolder.id && (
-                      <div className="p-2 rounded-xl text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-center">
-                        {folderRequestNotice.msg}
+                    {requestNotice && requestNotice.id === currentFolder.id && (
+                      <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 text-xs font-bold text-center">
+                        {requestNotice.msg}
                       </div>
                     )}
 
-                    <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400">
-                      Logged in as: <strong className="font-mono text-cyan-300">{user.email}</strong> (Access Not Activated)
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                      <a
+                        href="https://wa.me/94770000000?text=Hello%20Asman%20Linzy,%20I%20would%20like%20to%20enroll%20in%20the%20Video%20Masterclasses."
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        <span>Enroll via WhatsApp</span>
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={onRequireLogin}
+                        className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer border border-slate-200 dark:border-slate-700"
+                      >
+                        <UserCheck className="w-4 h-4 text-sky-500" />
+                        <span>Switch Gmail</span>
+                      </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={onRequireLogin}
-                      className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer active:scale-98"
-                    >
-                      <span>Sign In with Google to Request Access</span>
-                    </button>
+                  <div className="text-center space-y-4">
+                    <div className="space-y-1">
+                      <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
+                        Ready to Watch? Sign In with Google
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                        Connect with your registered Google (Gmail) account to access these theory lectures and workshops.
+                      </p>
+                    </div>
+
+                    <div className="max-w-md mx-auto space-y-2.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={onRequireLogin}
+                        className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 border-2 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-extrabold text-sm shadow-md transition-all flex items-center justify-center gap-3 cursor-pointer group active:scale-98"
+                      >
+                        <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shrink-0">
+                          <svg className="w-full h-full" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z" />
+                            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z" />
+                            <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z" />
+                            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
+                          </svg>
+                        </div>
+                        <span>Sign In with Google (Gmail மூலம் இணைய)</span>
+                      </button>
+
+                      <a
+                        href="https://wa.me/94770000000?text=Hello%20Asman%20Linzy,%20I%20want%20to%20enroll%20in%20the%20Video%20Masterclasses."
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        <span>Want to Enroll? Contact Asman Linzy on WhatsApp</span>
+                      </a>
+                    </div>
                   </div>
                 )}
               </div>
             </div>
           ) : (
-            /* Videos List within this Folder (ONLY rendered when unlocked!) */
-            <div className="space-y-3">
+            /* Videos List within this Folder (Rendered when Unlocked) */
+            <div className="space-y-4">
               <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-400 px-1">
-                <span>Lectures in this Workshop ({currentFolderVideos.length})</span>
+                <span>Lectures in this Module ({currentFolderVideos.length})</span>
                 <span className="font-mono text-[11px]">Click any video to play directly</span>
               </div>
 
@@ -632,7 +601,7 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                       onPlay={onPlayVideo}
                       onRequireLogin={onRequireLogin}
                       isWatched={user?.watchedVideoIds?.includes(video.id) || false}
-                      isUnlocked={true}
+                      isUnlocked={isVideoLessonUnlocked(video)}
                       onRequireUnlock={() => {
                         if (onRequireUnlock) onRequireUnlock(video);
                         else onRequireLogin();
@@ -645,245 +614,14 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
             </div>
           )}
         </div>
-      ) : activeTab === 'my-videos' ? (
-        /* VIEW 2: "MY VIDEOS" (Accessible / Enrolled Sessions) */
-        <div className="space-y-6 animate-in fade-in duration-200">
-          <div className="bg-gradient-to-r from-emerald-950/30 via-slate-900 to-slate-950 rounded-3xl border border-emerald-500/30 p-5 sm:p-6 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-emerald-400" />
-                  <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-400">
-                    My Enrolled Masterclasses · எனது அங்கீகரிக்கப்பட்ட வகுப்புகள்
-                  </span>
-                </div>
-                <h3 className="text-lg sm:text-xl font-black text-white">
-                  Accessible Video Folders & Active Sessions
-                </h3>
-                <p className="text-xs text-slate-400 max-w-xl">
-                  {user?.email ? (
-                    <>Logged in as <strong className="font-mono text-cyan-300">{user.email}</strong>. All folders and sessions unlocked for your account are shown below.</>
-                  ) : (
-                    <>Sessions unlocked on this device. Sign in to sync across all your phones and computers.</>
-                  )}
-                </p>
-              </div>
-
-              {/* Quick Code Unlock form */}
-              <form onSubmit={handlePasscodeSubmit} className="flex items-center gap-2 sm:max-w-xs shrink-0">
-                <input
-                  type="text"
-                  value={passcodeInput}
-                  onChange={(e) => setPasscodeInput(e.target.value)}
-                  placeholder="Enter access code..."
-                  className="px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400 font-mono"
-                />
-                <button
-                  type="submit"
-                  disabled={unlockStatus.type === 'loading' || !passcodeInput.trim()}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer transition-all shadow-xs shrink-0"
-                >
-                  Unlock
-                </button>
-              </form>
-            </div>
-            
-            {unlockStatus.message && (
-              <div className={`mt-3 p-2 rounded-xl text-xs font-bold ${
-                unlockStatus.type === 'success'
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-              }`}>
-                {unlockStatus.message}
-              </div>
-            )}
-          </div>
-
-          {accessibleFolders.length === 0 ? (
-            <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3 max-w-lg mx-auto">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mx-auto">
-                <Lock className="w-6 h-6" />
-              </div>
-              <h4 className="text-base font-bold text-slate-800 dark:text-white">
-                No Unlocked Folders Yet
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                You have not unlocked any private theory folders yet. Enter your student passcode in the box above or click on any folder to unlock it.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  playRoboticClick();
-                  setActiveTab('folders');
-                }}
-                className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs cursor-pointer hover:bg-blue-500 transition-all shadow-xs"
-              >
-                Browse All Folders
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {accessibleFolders.map((folder) => {
-                const stats = folderStats[folder.id] || { count: 0, totalMinutes: 0, videos: [] };
-                return (
-                  <div
-                    key={folder.id}
-                    onClick={() => handleFolderClick(folder.id)}
-                    className="group rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-500 hover:shadow-xl p-5 sm:p-6 shadow-xs transition-all duration-300 cursor-pointer flex flex-col justify-between transform hover:-translate-y-1 relative overflow-hidden"
-                  >
-                    <div className="space-y-3 relative z-10">
-                      <div className="flex items-center justify-between">
-                        <div className="w-12 h-12 rounded-2xl bg-blue-500/10 dark:bg-slate-800 border border-blue-500/20 dark:border-slate-700 flex items-center justify-center text-2xl shadow-inner group-hover:scale-105 transition-transform text-blue-600 dark:text-cyan-400">
-                          {folder.icon || '📁'}
-                        </div>
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold font-mono flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                          <span>Active Access</span>
-                        </span>
-                      </div>
-
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
-                            {folder.subjectName || 'Theory Module'}
-                          </span>
-                        </div>
-                        <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-cyan-400 transition-colors">
-                          {folder.name}
-                        </h4>
-                        {folder.nameTa && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium line-clamp-1">
-                            {folder.nameTa}
-                          </p>
-                        )}
-                        {folder.description && (
-                          <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 line-clamp-2 leading-relaxed">
-                            {folder.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 relative z-10">
-                      <span className="font-mono flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
-                        <Film className="w-3.5 h-3.5 text-blue-500 dark:text-cyan-400" />
-                        {stats.count} Lessons
-                      </span>
-
-                      <span className="font-mono flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-sky-500" />
-                        {formatVideoDuration(stats.totalMinutes)}
-                      </span>
-
-                      <span className="text-blue-600 dark:text-cyan-400 font-bold group-hover:translate-x-1 transition-transform flex items-center gap-0.5 font-mono text-[11px]">
-                        Open ➜
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      ) : activeTab === 'all-videos' ? (
-        /* VIEW 3: "ALL VIDEOS" FLAT LIST (Only shows videos unlocked for this student) */
-        <div className="space-y-4 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
-            <span>Accessible Masterclass Lectures ({accessibleVideos.length})</span>
-            <span className="font-mono text-[11px]">Enrolled Video Streams</span>
-          </div>
-
-          {accessibleVideos.length === 0 ? (
-            <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4 max-w-lg mx-auto">
-              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mx-auto shadow-inner">
-                <Lock className="w-7 h-7" />
-              </div>
-              <div className="space-y-1.5">
-                <h4 className="text-base font-black text-slate-800 dark:text-white">
-                  All Masterclass Lectures are Locked 🔐
-                </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  {user?.email ? (
-                    <>Your Google account (<strong className="font-mono text-cyan-600 dark:text-cyan-400">{user.email}</strong>) is not enrolled in video lectures yet. Browse the folders below to unlock with a passcode or request access from Admin Asman Linzy.</>
-                  ) : (
-                    <>Private masterclasses are restricted to enrolled students. Please browse folders to enter your passcode or sign in with your authorized Google account.</>
-                  )}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  playRoboticClick();
-                  setActiveTab('folders');
-                }}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs cursor-pointer transition-all shadow-md"
-              >
-                Browse Folders to Unlock
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {accessibleVideos.map((video) => (
-                <VideoCard
-                  key={video.id}
-                  video={video}
-                  user={user}
-                  onPlay={onPlayVideo}
-                  onRequireLogin={onRequireLogin}
-                  isWatched={user?.watchedVideoIds?.includes(video.id) || false}
-                  isUnlocked={true}
-                  onRequireUnlock={() => {
-                    if (onRequireUnlock) onRequireUnlock(video);
-                    else onRequireLogin();
-                  }}
-                  accessStatusText="Enrolled Session"
-                />
-              ))}
-            </div>
-          )}
-        </div>
       ) : (
-        /* VIEW 4: ALL FOLDERS GRID (DOCUMENT LE VAARE FOLDER MAARI) */
+        /* 3. VIEW: ALL FOLDERS / MODULES DIRECTORY (Clean, user-friendly cards) */
         <div className="space-y-6 animate-in fade-in duration-200">
-          {/* Informative Guidance Banner */}
-          <div className="bg-gradient-to-r from-blue-950/20 via-slate-900 to-indigo-950/20 rounded-2xl border border-blue-500/20 p-3.5 sm:p-4 text-xs text-slate-400 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <FolderOpen className="w-4 h-4 text-blue-400 shrink-0" />
-              <span>
-                <strong>Document Folder Navigation:</strong> Click on any subject folder below to expand its lessons. Locked folders can be unlocked with an access code.
-              </span>
-            </div>
-            <span className="font-mono text-[11px] text-cyan-400 font-bold shrink-0 hidden sm:inline">
-              Select a Folder to Start ▶
-            </span>
-          </div>
-
-          {/* Subject Filter Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            {['all', 'physics', 'chemistry'].map((sub) => (
-              <button
-                key={sub}
-                type="button"
-                onClick={() => {
-                  playRoboticClick();
-                  setSubjectFilter(sub);
-                }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize cursor-pointer transition-all ${
-                  subjectFilter === sub
-                    ? 'bg-blue-600 text-white shadow-xs font-black'
-                    : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                {sub === 'all' ? 'All Subjects' : sub}
-              </button>
-            ))}
-          </div>
-
-          {/* Grid of Folders */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredFolders.map((folder) => {
               const stats = folderStats[folder.id] || { count: 0, totalMinutes: 0, videos: [] };
               const isUnlocked = isFolderUnlocked(folder);
+              const isPending = pendingFolderReqIds.has(folder.id) || pendingFolderReqIds.has('all');
 
               return (
                 <div
@@ -892,64 +630,38 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                   className="group rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-500 hover:shadow-xl p-5 sm:p-6 shadow-xs transition-all duration-300 cursor-pointer flex flex-col justify-between transform hover:-translate-y-1 relative overflow-hidden"
                 >
                   <div className="space-y-3 relative z-10">
-                    {/* Top Row: Icon, Subject Tag & Status */}
                     <div className="flex items-center justify-between gap-2">
-                      <div className="w-12 h-12 rounded-2xl bg-blue-500/10 dark:bg-slate-800 border border-blue-500/20 dark:border-slate-700 flex items-center justify-center text-2xl shadow-inner group-hover:scale-105 transition-transform text-blue-600 dark:text-cyan-400">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-slate-800 border border-blue-200 dark:border-slate-700 flex items-center justify-center text-2xl shadow-inner group-hover:scale-105 transition-transform text-blue-600 dark:text-sky-400">
                         {folder.icon || '📁'}
                       </div>
 
                       <div className="flex items-center gap-1.5 flex-wrap justify-end">
                         {isUnlocked ? (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold font-mono flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                            <span>Access Granted</span>
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 text-[10px] font-bold font-mono flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>Enrolled</span>
+                          </span>
+                        ) : isPending ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 text-[10px] font-bold font-mono flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-600 animate-pulse" />
+                            <span>Pending</span>
                           </span>
                         ) : (
-                          <>
-                            <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-[10px] font-black font-mono flex items-center gap-1">
-                              <Lock className="w-3 h-3 text-amber-500" />
-                              <span>Locked</span>
-                            </span>
-                            {pendingFolderReqIds.has(folder.id) || pendingFolderReqIds.has('all') ? (
-                              <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30 text-[10px] font-bold font-mono flex items-center gap-1">
-                                <Clock className="w-2.5 h-2.5 animate-pulse" />
-                                <span>Pending ⏳</span>
-                              </span>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  playRoboticClick();
-                                  if (onRequestAccess) {
-                                    const res = await onRequestAccess({
-                                      folderId: folder.id,
-                                      folderName: folder.name,
-                                    });
-                                    setFolderRequestNotice({ id: folder.id, msg: res.message });
-                                  }
-                                }}
-                                className="px-2 py-0.5 rounded-full bg-blue-600/15 hover:bg-blue-600/30 text-blue-600 dark:text-cyan-400 border border-blue-500/30 text-[10px] font-bold font-mono flex items-center gap-1 cursor-pointer transition-colors"
-                                title="Request Access from Admin"
-                              >
-                                <Send className="w-2.5 h-2.5" />
-                                <span>Request Access</span>
-                              </button>
-                            )}
-                          </>
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 text-[10px] font-bold font-mono flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-amber-600" />
+                            <span>Paid Only</span>
+                          </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Folder Title & Subject */}
                     <div>
                       <div className="flex items-center gap-1.5 mb-1">
                         <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
                           {folder.subjectName || 'Theory Module'}
                         </span>
                       </div>
-
-                      <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-cyan-400 transition-colors">
+                      <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-sky-400 transition-colors">
                         {folder.name}
                       </h4>
                       {folder.nameTa && (
@@ -965,11 +677,10 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Bottom Meta & Open Action */}
                   <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 relative z-10">
                     <span className="font-mono flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
-                      <Film className="w-3.5 h-3.5 text-blue-500 dark:text-cyan-400" />
-                      {stats.count} Lessons
+                      <Film className="w-3.5 h-3.5 text-blue-500 dark:text-sky-400" />
+                      {stats.count} Lectures
                     </span>
 
                     <span className="font-mono flex items-center gap-1">
@@ -977,8 +688,8 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                       {formatVideoDuration(stats.totalMinutes)}
                     </span>
 
-                    <span className="text-blue-600 dark:text-cyan-400 font-bold group-hover:translate-x-1 transition-transform flex items-center gap-0.5 font-mono text-[11px]">
-                      Open ➜
+                    <span className="text-blue-600 dark:text-sky-400 font-bold group-hover:translate-x-1 transition-transform flex items-center gap-0.5 font-mono text-[11px]">
+                      View ➜
                     </span>
                   </div>
                 </div>
