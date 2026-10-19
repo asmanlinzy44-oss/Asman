@@ -185,5 +185,7 @@ export interface VideoAccessRequest {
   requestedAt: string;
   resolvedAt?: string;
   resolvedBy?: string;
+  expiresAt?: string;
+  durationPreset?: string;
 }
 

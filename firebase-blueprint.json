@@ -314,6 +314,15 @@
     },
     "/deleted_videos/{videoId}": {
       "description": "Blacklist of deleted video IDs across all clients"
+    },
+    "/video_access/{docId}": {
+      "description": "Live cloud storage whitelist for paid student Gmail access with expiration dates"
+    },
+    "/video_access_requests/{requestId}": {
+      "description": "Live cloud storage student access requests and admin time-limited approvals"
+    },
+    "/settings/{settingId}": {
+      "description": "Platform global configuration, announcements, and video access lists"
     }
   }
 }

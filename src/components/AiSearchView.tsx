@@ -96,36 +96,100 @@ export interface ChatMessage {
   clarificationChips?: string[];
 }
 
+export type PaperTypeClassification = 'national-past' | 'moratuwa-pilot' | 'provincial-model' | 'term-fwc' | 'other';
+
+export const classifyPaperType = (paper: PaperResource): PaperTypeClassification => {
+  const title = (paper.titleEn || '').toLowerCase();
+  const titleTa = (paper.titleTa || '').toLowerCase();
+  const source = (paper.schoolOrSource || '').toLowerCase();
+  const pilot = (paper.pilotType || '').toLowerCase();
+  const district = (paper.districtOrProvince || '').toLowerCase();
+  const id = (paper.id || '').toLowerCase();
+
+  // 1. Moratuwa University
+  if (
+    title.includes('moratuwa') || 
+    titleTa.includes('மொறட்டுவ') ||
+    source.includes('moratuwa') || 
+    pilot.includes('moratuwa') || 
+    id.includes('moratuwa')
+  ) {
+    return 'moratuwa-pilot';
+  }
+
+  // 2. Provincial & Benchmark Pilot
+  if (
+    pilot.includes('provincial') ||
+    pilot.includes('pilot') ||
+    pilot.includes('leading schools') ||
+    district.includes('province') ||
+    district.includes('pilot') ||
+    district.includes('colombo') ||
+    district.includes('jaffna') ||
+    title.includes('pilot') ||
+    title.includes('model') ||
+    titleTa.includes('முன்னோடி') ||
+    titleTa.includes('மாதிரி') ||
+    titleTa.includes('மாகாண') ||
+    source.includes('provincial') ||
+    source.includes('royal college') ||
+    source.includes('kalinga') ||
+    source.includes('dream way') ||
+    paper.category === 'pilot-papers'
+  ) {
+    return 'provincial-model';
+  }
+
+  // 3. FWC & Term Tests
+  if (
+    paper.category === 'fwc-papers' ||
+    paper.category === 'term-papers' ||
+    title.includes('fwc') ||
+    title.includes('term') ||
+    title.includes('thondaimanaru') ||
+    titleTa.includes('தவணை')
+  ) {
+    return 'term-fwc';
+  }
+
+  // 4. National Past Papers
+  if (paper.category === 'past-papers') {
+    return 'national-past';
+  }
+
+  return 'other';
+};
+
 const SAMPLE_PROMPTS = [
-  { label: '2023 Physics Marking Scheme', prompt: '2023 Physics question paper and official marking scheme' },
-  { label: 'Biology NIE Resource Books', prompt: 'Biology Unit Notes and official NIE Resource Books folder' },
-  { label: 'Moratuwa Pilot Combined Maths', prompt: 'University of Moratuwa Combined Maths pilot paper 2024' },
-  { label: 'Chemistry 2000+ MCQ Bank', prompt: 'Chemistry 2000+ classified MCQ master bank questions' },
-  { label: 'Physics 42 Practicals Handbook', prompt: 'Physics 42 mandatory experiments practical handbook' },
-  { label: 'Organic Chemistry Notes', prompt: 'Organic Chemistry reaction mechanisms notes and conversions handbook' },
-  { label: 'Pure Maths Trigonometry Notes', prompt: 'Combined Mathematics Pure Maths trigonometry and practice books' },
+  { label: '2024 Physics (Past + Moratuwa + Provincial)', prompt: '2024 Physics National past paper, University of Moratuwa pilot paper, and Northern Province model paper' },
+  { label: '2023 Chemistry (Past + Moratuwa + Provincial NP)', prompt: '2023 Chemistry past paper, Moratuwa pilot paper and Northern Province model paper' },
+  { label: '2022 Combined Maths (Past + Moratuwa + WP Model)', prompt: '2022 Combined Mathematics past paper, University of Moratuwa pilot paper and Western Province model paper' },
+  { label: '2024 Biology (Past + Moratuwa + Provincial)', prompt: '2024 Biology past paper, Moratuwa pilot paper and provincial model examination paper' },
+  { label: 'University of Moratuwa All-Year Pilot Archive', prompt: 'University of Moratuwa Combined Maths, Physics, Chemistry, Biology pilot exam master papers' },
+  { label: 'Northern & Western Provincial Model Papers', prompt: 'Northern Province NP and Western Province model examination papers' },
+  { label: 'Biology NIE Textbooks & Unit Notes', prompt: 'Biology Unit Notes and official NIE Resource Books folder' },
 ];
 
 const DEEP_SEARCH_STEPS = [
   {
     phase: 'SEARCHING',
-    title: 'Semantic Query & Intent Analysis',
-    detail: 'Extracting subject, year, exam category & language intent (English / தமிழ் / Tanglish)...',
+    title: 'Multi-Tier Intent & Entity Analysis',
+    detail: 'Extracting subject, year, and scanning National Past, Moratuwa Pilot & Provincial Model repositories...',
   },
   {
     phase: 'DEEP SEARCH',
-    title: 'Scanning National Past Exam Archives',
-    detail: 'Cross-referencing 1981–2024 National Papers, Official Marking Schemes & Pilot collections...',
+    title: 'Cross-Referencing National Past Papers & Official Schemes',
+    detail: 'Searching 1981–2024 Department of Examinations past papers and verified step marking schemes...',
   },
   {
     phase: 'DEEP SEARCH',
-    title: 'Auditing 40 Curriculum Sub-Folders',
-    detail: 'Inspecting Google Drive directories, NIE handbooks, 2000+ MCQs & practical guide vaults...',
+    title: 'Auditing Moratuwa Pilot & Provincial Model Archives',
+    detail: 'Scanning University of Moratuwa pilot exams, Northern Province, Central, Western & leading school models...',
   },
   {
     phase: 'VALIDATING',
-    title: 'Accuracy Verification & Clarity Evaluation',
-    detail: 'Checking direct Google Drive links, scoring confidence, and checking for ambiguous queries...',
+    title: 'Drive Verification & Direct Link Generation',
+    detail: 'Validating Google Drive direct links for Question Papers and Marking Schemes...',
   },
 ];
 
@@ -147,6 +211,7 @@ export const AiSearchView: React.FC<AiSearchViewProps> = ({
   const [subFolderFilterSubject, setSubFolderFilterSubject] = useState<'all' | 'biology' | 'chemistry' | 'physics' | 'c-maths'>('all');
   const [subFolderCategoryFilter, setSubFolderCategoryFilter] = useState<'all' | 'theory' | 'nie' | 'mcq' | 'practical' | 'essay' | 'seminar'>('all');
   const [subFolderSearch, setSubFolderSearch] = useState('');
+  const [paperFilters, setPaperFilters] = useState<Record<string, string>>({});
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
@@ -183,7 +248,7 @@ export const AiSearchView: React.FC<AiSearchViewProps> = ({
     setPromptInput('');
   };
 
-  // High-intelligence multi-lingual scoring engine for papers with maximum accuracy
+  // High-intelligence multi-lingual scoring engine for papers with maximum accuracy across all 3 key pillars
   const scoreAndMatchPapers = (query: string, parsedTarget?: {
     subject?: string;
     year?: number;
@@ -192,7 +257,7 @@ export const AiSearchView: React.FC<AiSearchViewProps> = ({
     isTerm?: boolean;
     termNumber?: string;
     keywords?: string;
-  }) => {
+  }): PaperResource[] => {
     const q = query.toLowerCase();
 
     // High precision year extraction
@@ -211,9 +276,10 @@ export const AiSearchView: React.FC<AiSearchViewProps> = ({
       extractedSubject = 'biology';
     }
 
-    const isPilot = q.includes('moratuwa') || q.includes('மொறட்டுவ') || q.includes('pilot') || q.includes('மாதிரி') || q.includes('model') || Boolean(parsedTarget?.isPilot);
-    const isTerm = q.includes('fwc') || q.includes('term') || q.includes('தவணை') || q.includes('thondaimanaru') || Boolean(parsedTarget?.isTerm);
-    const isResource = q.includes('resource') || q.includes('வள') || q.includes('note') || q.includes('formula') || q.includes('handbook') || q.includes('booklet');
+    const wantsMoratuwa = q.includes('moratuwa') || q.includes('மொறட்டுவ') || q.includes('mora');
+    const wantsProvincial = q.includes('provinc') || q.includes('model') || q.includes('மாகாண') || q.includes('மாதிரி') || q.includes('northern') || q.includes('np') || q.includes('central') || q.includes('western') || q.includes('royal');
+    const wantsPast = q.includes('past') || q.includes('கடந்த') || q.includes('national') || q.includes('தேசிய');
+    const wantsTerm = q.includes('fwc') || q.includes('term') || q.includes('தவணை') || q.includes('thondaimanaru');
     const wantsScheme = q.includes('scheme') || q.includes('marking') || q.includes('விடை') || q.includes('குறிப்பு') || q.includes('answer') || q.includes('solution') || parsedTarget?.intent === 'scheme';
 
     const scored = (papers || []).map((paper) => {
@@ -226,73 +292,145 @@ export const AiSearchView: React.FC<AiSearchViewProps> = ({
       const schoolSource = (paper.schoolOrSource || '').toLowerCase();
       const unit = (paper.unitOrTopic || '').toLowerCase();
       const term = (paper.term || '').toLowerCase();
+      const pType = classifyPaperType(paper);
 
       // Filter out generic all-in-one papers as requested by user
       if (titleEn.includes('all in one resource')) {
-        return { paper, score: -999 };
+        return { paper, score: -999, pType };
       }
 
-      // 1. Year Matching (Very high weight for accuracy)
+      // 1. Subject Matching
+      if (extractedSubject !== 'all') {
+        const matchesSubj = 
+          subjId === extractedSubject || 
+          subjId.includes(extractedSubject) || 
+          subjEn.includes(extractedSubject) ||
+          (extractedSubject === 'c-maths' && (subjId.includes('math') || subjEn.includes('math')));
+        
+        if (matchesSubj) {
+          score += 70;
+        } else {
+          score -= 75; // Strong penalty for wrong subject
+        }
+      }
+
+      // 2. Year Matching (Master collections and Provincial models cover student's year)
       if (extractedYear) {
         if (paper.year === extractedYear) {
-          score += 90;
+          score += 90; // Exact year match
+        } else if (pType === 'moratuwa-pilot') {
+          // Moratuwa Master archive contains pilot exams for 1994-2025: ALWAYS reward when year is typed!
+          score += 85;
+        } else if (paper.id.includes('master')) {
+          score += 70;
+        } else if (pType === 'provincial-model') {
+          // Provincial model papers provide standard benchmark papers for preparation: reward positively!
+          score += 55;
         } else {
-          score -= 40; // Penalize wrong year to avoid clutter
+          score -= 30;
         }
       }
 
-      // 2. Subject Matching
-      if (extractedSubject !== 'all') {
-        if (subjId === extractedSubject || subjId.includes(extractedSubject) || subjEn.includes(extractedSubject)) {
-          score += 55;
-        } else if (extractedSubject === 'c-maths' && (subjId.includes('math') || subjEn.includes('math'))) {
-          score += 55;
-        } else {
-          score -= 50; // Strong penalty for wrong subject
-        }
-      }
-
-      // 3. Category Match (Pilot vs Term vs Past Paper)
-      if (isPilot) {
-        if (paper.category === 'pilot-papers') score += 60;
-        if (titleEn.includes('moratuwa') || schoolSource.includes('moratuwa')) score += 45;
-      } else if (isTerm) {
-        if (paper.category === 'fwc-papers' || paper.category === 'term-papers') score += 60;
+      // 3. Category & Type Weighting
+      if (pType === 'moratuwa-pilot') {
+        score += 70;
+        if (wantsMoratuwa) score += 60;
+        if (titleEn.includes('master')) score += 25;
+      } else if (pType === 'provincial-model') {
+        score += 65;
+        if (wantsProvincial) score += 60;
+        if (q.includes('northern') && (titleEn.includes('northern') || schoolSource.includes('northern'))) score += 40;
+        if (q.includes('royal') && (titleEn.includes('royal') || schoolSource.includes('royal'))) score += 40;
+        if (q.includes('central') && (titleEn.includes('central') || schoolSource.includes('central'))) score += 40;
+        if (q.includes('western') && (titleEn.includes('western') || schoolSource.includes('western'))) score += 40;
+      } else if (pType === 'national-past') {
+        score += 65;
+        if (wantsPast) score += 60;
+      } else if (pType === 'term-fwc') {
+        if (wantsTerm) score += 60;
         if (q.includes('1st') && (term.includes('1st') || titleEn.includes('1st'))) score += 35;
         if (q.includes('2nd') && (term.includes('2nd') || titleEn.includes('2nd'))) score += 35;
         if (q.includes('3rd') && (term.includes('3rd') || titleEn.includes('3rd'))) score += 35;
-      } else if (!isResource) {
-        if (paper.category === 'past-papers') score += 40;
-      }
-
-      if (isResource) {
-        if (paper.category === 'theory-notes' || paper.category === 'useful-resources') score += 50;
       }
 
       // 4. Marking Scheme Intent
       if (wantsScheme && paper.markingSchemeDriveLink) {
-        score += 40;
+        score += 30;
       }
 
       // 5. Token Matching
       const tokens = q.split(/\s+/).filter((t) => t.length > 2);
       tokens.forEach((token) => {
-        if (titleEn.includes(token)) score += 20;
-        if (titleTa.includes(token)) score += 25;
-        if (subjEn.includes(token) || subjTa.includes(token)) score += 15;
-        if (schoolSource.includes(token)) score += 15;
+        if (titleEn.includes(token)) score += 25;
+        if (titleTa.includes(token)) score += 30;
+        if (subjEn.includes(token) || subjTa.includes(token)) score += 20;
+        if (schoolSource.includes(token)) score += 25;
         if (unit.includes(token)) score += 15;
       });
 
-      return { paper, score };
+      return { paper, score, pType };
     });
 
-    const filtered = scored
-      .filter((item) => item.score > 25)
-      .sort((a, b) => b.score - a.score)
-      .map((item) => item.paper);
+    const validPapers = scored.filter((item) => item.score > 15);
 
-    return filtered.slice(0, 5);
+    const nationalMatches = validPapers
+      .filter((i) => i.pType === 'national-past')
+      .sort((a, b) => b.score - a.score)
+      .map((i) => i.paper);
+
+    const moratuwaMatches = validPapers
+      .filter((i) => i.pType === 'moratuwa-pilot')
+      .sort((a, b) => b.score - a.score)
+      .map((i) => i.paper);
+
+    const provincialMatches = validPapers
+      .filter((i) => i.pType === 'provincial-model')
+      .sort((a, b) => b.score - a.score)
+      .map((i) => i.paper);
+
+    const termMatches = validPapers
+      .filter((i) => i.pType === 'term-fwc')
+      .sort((a, b) => b.score - a.score)
+      .map((i) => i.paper);
+
+    // Multi-Pillar Balanced Assembly:
+    // GUARANTEES National Past, Moratuwa Pilot & Provincial Model are ALL identified when any year is typed!
+    const combined: PaperResource[] = [];
+    const addedIds = new Set<string>();
+
+    const addUnique = (p: PaperResource) => {
+      if (p && !addedIds.has(p.id)) {
+        addedIds.add(p.id);
+        combined.push(p);
+      }
+    };
+
+    if (wantsMoratuwa && !wantsPast && !wantsProvincial) {
+      moratuwaMatches.forEach(addUnique);
+      provincialMatches.slice(0, 4).forEach(addUnique);
+      nationalMatches.slice(0, 4).forEach(addUnique);
+    } else if (wantsProvincial && !wantsMoratuwa && !wantsPast) {
+      provincialMatches.forEach(addUnique);
+      moratuwaMatches.slice(0, 3).forEach(addUnique);
+      nationalMatches.slice(0, 4).forEach(addUnique);
+    } else {
+      // General year / subject / past paper search: BALANCED TRIPLE-PILLAR ASSEMBLY
+      // 1. National Past Papers for the year (Top 4)
+      nationalMatches.slice(0, 4).forEach(addUnique);
+      // 2. University of Moratuwa Pilot Exam Papers (Top 3)
+      moratuwaMatches.slice(0, 3).forEach(addUnique);
+      // 3. Provincial & Leading School Model Papers (Top 6)
+      provincialMatches.slice(0, 6).forEach(addUnique);
+      // 4. Term / FWC Papers (Top 2)
+      termMatches.slice(0, 2).forEach(addUnique);
+      // 5. Fill remaining from highest score if under 18
+      validPapers
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 24)
+        .forEach((i) => addUnique(i.paper));
+    }
+
+    return combined.slice(0, 18);
   };
 
   // High-intelligence sub-folder scoring engine - extracts all dedicated sub-folders
@@ -427,9 +565,12 @@ export const AiSearchView: React.FC<AiSearchViewProps> = ({
       q.includes('folder') ||
       q.includes('note');
 
-    if (q.includes('moratuwa') || q.includes('மொறட்டுவ') || q.includes('pilot')) {
+    if (q.includes('moratuwa') || q.includes('மொறட்டுவ') || q.includes('mora')) {
       cat = 'pilot-papers';
       folder = `University of Moratuwa Pilot Archive (${subjName})`;
+    } else if (q.includes('provinc') || q.includes('மாகாண') || q.includes('model') || q.includes('மாதிரி')) {
+      cat = 'pilot-papers';
+      folder = `Provincial & Leading School Model Papers Archive (${subjName})`;
     } else if (q.includes('fwc') || q.includes('term') || q.includes('தவணை')) {
       cat = 'fwc-papers';
       folder = `FWC & Provincial Term Tests Folder (${subjName})`;
@@ -438,7 +579,9 @@ export const AiSearchView: React.FC<AiSearchViewProps> = ({
       folder = `${subjName} — Dedicated Sub-Folders & Academic Vault`;
     } else {
       cat = 'past-papers';
-      folder = yr ? `G.C.E. A/L ${yr} Past Paper & Official Marking Scheme` : `National Past Papers Archive (${subjName})`;
+      folder = yr 
+        ? `G.C.E. A/L ${yr} Past Papers, Moratuwa Pilot & Provincial Model Papers (${subjName})` 
+        : `National Past, Moratuwa Pilot & Provincial Model Papers Archive (${subjName})`;
     }
 
     const wantsScheme = q.includes('scheme') || q.includes('marking') || q.includes('விடை') || q.includes('answer');
@@ -446,15 +589,19 @@ export const AiSearchView: React.FC<AiSearchViewProps> = ({
     let guidance = '';
     if (isAllInOne) {
       guidance = `கோரப்பட்ட ${subjName} All in One வளக் களஞ்சியத்திலுள்ள அனைத்து தனித்தனி துணைப் பிரிவுகளும் (Sub-Folders: Theory Books, NIE Textbooks, 2000+ MCQs, Practical Handbooks, Essays, Seminar Papers) கண்டறியப்பட்டு கீழே தனித்தனி நேரடி Google Drive இணைப்புகளுடன் பட்டியலிடப்பட்டுள்ளன.`;
+    } else if (yr) {
+      guidance = `நீங்கள் கோரிய ${yr} ${subjName} பாடத்திற்கான 3 பிரதான பரீட்சை ஆவணப் பிரிவுகளும் (Triple-Pillar Repositories) துல்லியமாக கண்டறியப்பட்டுள்ளன:\n1. 🏛️ தேசிய கடந்த கால வினாத்தாள்கள் & உத்தியோகபூர்வ விடைக் குறிப்புகள் (National Past Paper & Marking Scheme)\n2. 🎓 மொறட்டுவ பல்கலைக்கழக மாதிரி வினாத்தாள்கள் (University of Moratuwa Pilot Exam Papers & Solutions)\n3. 🌐 மாகாண மாதிரி வினாத்தாள்கள் (Provincial Model Papers: வட மாகாணம் NP, மேல் மாகாணம் WP, மத்திய மாகாணம், ரோயல் கல்லூரி)`;
     } else {
-      guidance = `நீங்கள் கோரிய ${subjName} ${yr ? `${yr} ` : ''}${wantsScheme ? 'உத்தியோகபூர்வ விடைக் குறிப்பு மற்றும் வினாத்தாள்' : 'பரீட்சை ஆவணங்கள் மற்றும் துணை வளக் கோப்புறைகள்'} துல்லியமாக கண்டறியப்பட்டு கீழே தனித்தனி நேரடி இணைப்புகளுடன் வழங்கப்பட்டுள்ளன.`;
+      guidance = `நீங்கள் கோரிய ${subjName} பாடத்திற்கான தேசிய கடந்த கால வினாத்தாள்கள், மொறட்டுவ பல்கலைக்கழக மாதிரி வினாத்தாள்கள் மற்றும் மாகாண மாதிரி வினாத்தாள்கள் (NP, WP, Central) துல்லியமாக கண்டறியப்பட்டு கீழே தனித்தனி நேரடி இணைப்புகளுடன் வழங்கப்பட்டுள்ளன.`;
     }
 
     if (!q.includes('பௌதிக') && !q.includes('இரசாயன') && !q.includes('கணித') && !q.includes('உயிரியல்') && !q.includes('விடை') && !q.includes('வள')) {
       if (isAllInOne) {
         guidance = `All individual sub-folders within the All in One Resource archive (Theory Books, NIE Resource Textbooks, 2000+ MCQ Master Bank, Practical Handbooks, Essays, Seminars) for ${subjName} are extracted below with separate direct Google Drive links.`;
+      } else if (yr) {
+        guidance = `Identified complete 3-tier examination repositories for ${yr} ${subjName}:\n1) 🏛️ National Past Papers & Official Department Marking Schemes\n2) 🎓 University of Moratuwa Pilot Examination Papers (1994–2025 Master Collection)\n3) 🌐 Provincial Model Examination Papers (Northern Province NP, Western Province WP, Central Province & Leading Schools).`;
       } else {
-        guidance = `Found verified direct study materials and dedicated sub-folders for ${subjName}${yr ? ` (${yr})` : ''}. Separate direct links for Question Papers, Marking Schemes, and individual Google Drive sub-folders are ready below.`;
+        guidance = `Found verified direct study materials across National Past Papers, University of Moratuwa Pilot Exams, and Provincial Model Papers for ${subjName}. Separate direct links for Question Papers and Marking Schemes are ready below.`;
       }
     }
 
@@ -566,23 +713,28 @@ export const AiSearchView: React.FC<AiSearchViewProps> = ({
 Student Query: "${textToSearch}"
 Previous Conversation Subject Context: "${previousContext?.subject || 'all'}"
 
-IMPORTANT INSTRUCTIONS:
-1. Academic Material Intent:
-   - Identify whether the student wants Past Papers (1981-2024), Official Department Marking Schemes, FWC Thondaimanaru / Term Tests, Moratuwa Pilot Exams, or Dedicated Resource Sub-Folders (Theory Books, NIE Resource Textbooks, 2000+ MCQs, Practicals, Essays, Seminars).
-   - Never represent "All in One resource" as just a single generic folder; explain that all separate sub-folders are provided below with individual links.
+CRITICAL INSTRUCTIONS & KNOWLEDGE BASE:
+1. Multi-Pillar Identification (MANDATORY):
+   - When a student specifies ANY examination year (e.g. 2024, 2023, 2022, 2021, 2020, etc.) or asks for past papers/pilot papers:
+     You MUST acknowledge and surface all 3 Academic Pillars:
+     • Pillar 1: 🏛️ National Past Papers & Official Department Marking Schemes
+     • Pillar 2: 🎓 University of Moratuwa Pilot Examination Papers (The Moratuwa Master archive contains 1994–2025 pilot exams & step solutions)
+     • Pillar 3: 🌐 Provincial Model Examination Papers (Northern Province NP, Western Province WP, Central Province, Royal College Colombo, and leading school trial models)
+   - Do NOT restrict the search or explanation to only National Past Papers when a year is given! Explicitly state that Moratuwa pilot exams and Provincial model papers have also been identified.
+   - For All in One resources: explain that all individual sub-folders (Theory Books, NIE Resource Textbooks, 2000+ MCQs, Practicals, Essays, Seminars) are provided below with separate direct links.
 
 2. Doubt & Clarification Detection:
-   - Evaluate if the student's question has ANY ambiguity, doubt, or missing parameters (e.g. they asked for a past paper or scheme without specifying the year, or said "pilot" without specifying subject, or said "term test" without specifying term number).
-   - If there IS ambiguity or missing detail: set "hasDoubt": true, and provide a polite, helpful "clarificationQuestion" in Tamil or English, and 3-4 clickable "clarificationChips".
-   - If the request is already crystal-clear and specific (e.g. "2023 physics marking scheme"), set "hasDoubt": false, "clarificationQuestion": "", "clarificationChips": [].
+   - Evaluate if the student's question has ANY ambiguity (e.g. asking for "past paper" without any year or subject).
+   - If ambiguous: set "hasDoubt": true, and provide a polite, helpful "clarificationQuestion" in Tamil or English, and 3-4 clickable "clarificationChips".
+   - If year or subject is given: set "hasDoubt": false, "clarificationQuestion": "", "clarificationChips": [].
 
 Respond ONLY with a valid JSON matching this schema:
 {
-  "guidance": "Concise direct response in English or Tamil explaining what exact study materials were found",
+  "guidance": "Clear, concise direct explanation in English or Tamil summarizing that National Past Papers, Moratuwa Pilot Exams, and Provincial Model Papers were all identified with direct links",
   "targetCategory": "past-papers" | "fwc-papers" | "theory-notes" | "pilot-papers",
   "targetSubject": "physics" | "chemistry" | "c-maths" | "biology" | "all",
   "searchKeywords": "precise keywords to match paper titles and sub-folders",
-  "highlightFolder": "Exact target folder title",
+  "highlightFolder": "Target archive folder title reflecting National, Moratuwa & Provincial papers",
   "preferredFormat": "both" | "scheme" | "paper" | "folder",
   "hasDoubt": boolean,
   "clarificationQuestion": "Question asking the user to clarify if ambiguous",
@@ -925,137 +1077,285 @@ Respond ONLY with a valid JSON matching this schema:
                       </div>
                     )}
 
-                    {/* 5. Identified Exact Papers & Marking Schemes */}
-                    {msg.matchingPapers && msg.matchingPapers.length > 0 && (
-                      <div className="space-y-4 pt-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-                          <h5 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-blue-600 dark:text-sky-400" />
-                            <span>Identified Examination Papers & Official Schemes ({msg.matchingPapers.length})</span>
-                          </h5>
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                            Separate direct links for Question Papers and Official Marking Schemes
-                          </span>
-                        </div>
+                    {/* 5. Identified Multi-Pillar Examination Papers & Marking Schemes */}
+                    {msg.matchingPapers && msg.matchingPapers.length > 0 && (() => {
+                      const nationalCount = msg.matchingPapers.filter((p) => classifyPaperType(p) === 'national-past').length;
+                      const moratuwaCount = msg.matchingPapers.filter((p) => classifyPaperType(p) === 'moratuwa-pilot').length;
+                      const provincialCount = msg.matchingPapers.filter((p) => classifyPaperType(p) === 'provincial-model').length;
+                      const termCount = msg.matchingPapers.filter((p) => classifyPaperType(p) === 'term-fwc').length;
+                      const activeFilter = paperFilters[msg.id] || 'all';
 
-                        <div className="space-y-3.5">
-                          {msg.matchingPapers.map((paper) => {
-                            const directPaperViewUrl = getDriveDirectViewUrl(paper.driveLink);
-                            const directPaperDownloadUrl = getDriveDirectDownloadUrl(paper.driveLink);
-                            const directSchemeViewUrl = getDriveDirectViewUrl(paper.markingSchemeDriveLink || paper.driveLink);
-                            const directSchemeDownloadUrl = getDriveDirectDownloadUrl(paper.markingSchemeDriveLink || paper.driveLink);
-                            const isPaperBookmarked = isBookmarked ? isBookmarked(paper.id) : false;
+                      const displayedPapers = msg.matchingPapers.filter((paper) => {
+                        if (activeFilter === 'all') return true;
+                        const pt = classifyPaperType(paper);
+                        if (activeFilter === 'national') return pt === 'national-past';
+                        if (activeFilter === 'moratuwa') return pt === 'moratuwa-pilot';
+                        if (activeFilter === 'provincial') return pt === 'provincial-model';
+                        if (activeFilter === 'term') return pt === 'term-fwc';
+                        return true;
+                      });
 
-                            return (
-                              <div
-                                key={paper.id}
-                                className="bg-slate-50/70 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 hover-card-elevate"
+                      return (
+                        <div className="space-y-4 pt-1">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-1 pb-1 border-b border-slate-100 dark:border-slate-800">
+                            <div>
+                              <h5 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-blue-600 dark:text-sky-400" />
+                                <span>Identified Examination Papers & Schemes ({msg.matchingPapers.length})</span>
+                              </h5>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                National Past Papers • University of Moratuwa Pilot • Provincial Model Papers
+                              </p>
+                            </div>
+
+                            {/* Multi-Pillar Interactive Filter Chips */}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  playRoboticClick();
+                                  setPaperFilters((prev) => ({ ...prev, [msg.id]: 'all' }));
+                                }}
+                                className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                  activeFilter === 'all'
+                                    ? 'bg-blue-600 text-white shadow-xs font-black'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                }`}
                               >
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <div className="flex items-center gap-2">
-                                    <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-950/70">
-                                      {getSubjectIcon(paper.subjectId)}
+                                <span>All</span>
+                                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/15 dark:bg-white/15">
+                                  {msg.matchingPapers.length}
+                                </span>
+                              </button>
+
+                              {nationalCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playRoboticClick();
+                                    setPaperFilters((prev) => ({ ...prev, [msg.id]: 'national' }));
+                                  }}
+                                  className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    activeFilter === 'national'
+                                      ? 'bg-blue-600 text-white shadow-xs font-black'
+                                      : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-sky-300 border border-blue-200 dark:border-blue-900'
+                                  }`}
+                                >
+                                  <span>🏛️ National Past</span>
+                                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-blue-500/20">
+                                    {nationalCount}
+                                  </span>
+                                </button>
+                              )}
+
+                              {moratuwaCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playRoboticClick();
+                                    setPaperFilters((prev) => ({ ...prev, [msg.id]: 'moratuwa' }));
+                                  }}
+                                  className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    activeFilter === 'moratuwa'
+                                      ? 'bg-purple-600 text-white shadow-xs font-black'
+                                      : 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-900'
+                                  }`}
+                                >
+                                  <span>🎓 Moratuwa Pilot</span>
+                                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-500/20">
+                                    {moratuwaCount}
+                                  </span>
+                                </button>
+                              )}
+
+                              {provincialCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playRoboticClick();
+                                    setPaperFilters((prev) => ({ ...prev, [msg.id]: 'provincial' }));
+                                  }}
+                                  className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    activeFilter === 'provincial'
+                                      ? 'bg-emerald-600 text-white shadow-xs font-black'
+                                      : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900'
+                                  }`}
+                                >
+                                  <span>🌐 Provincial Model</span>
+                                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500/20">
+                                    {provincialCount}
+                                  </span>
+                                </button>
+                              )}
+
+                              {termCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    playRoboticClick();
+                                    setPaperFilters((prev) => ({ ...prev, [msg.id]: 'term' }));
+                                  }}
+                                  className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    activeFilter === 'term'
+                                      ? 'bg-amber-600 text-white shadow-xs font-black'
+                                      : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900'
+                                  }`}
+                                >
+                                  <span>📝 FWC / Term</span>
+                                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/20">
+                                    {termCount}
+                                  </span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="space-y-3.5">
+                            {displayedPapers.map((paper) => {
+                              const directPaperViewUrl = getDriveDirectViewUrl(paper.driveLink);
+                              const directSchemeViewUrl = getDriveDirectViewUrl(paper.markingSchemeDriveLink || paper.driveLink);
+                              const isPaperBookmarked = isBookmarked ? isBookmarked(paper.id) : false;
+                              const pType = classifyPaperType(paper);
+
+                              return (
+                                <div
+                                  key={paper.id}
+                                  className="bg-slate-50/70 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 hover-card-elevate"
+                                >
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                                      <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs shrink-0 mt-0.5">
+                                        {getSubjectIcon(paper.subjectId)}
+                                      </div>
+                                      <div className="space-y-1 min-w-0 flex-1">
+                                        {/* Distinct Pillar Badges */}
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                          {pType === 'moratuwa-pilot' ? (
+                                            <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-purple-500/15 via-indigo-500/15 to-purple-500/15 border border-purple-400/40 text-purple-700 dark:text-purple-300 text-[10px] font-mono font-bold flex items-center gap-1 shadow-2xs">
+                                              <span>🎓 University of Moratuwa Pilot Exam</span>
+                                            </span>
+                                          ) : pType === 'provincial-model' ? (
+                                            <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-500/15 via-teal-500/15 to-emerald-500/15 border border-emerald-400/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-mono font-bold flex items-center gap-1 shadow-2xs">
+                                              <span>🌐 Provincial Model Exam {paper.districtOrProvince ? `• ${paper.districtOrProvince}` : ''}</span>
+                                            </span>
+                                          ) : pType === 'term-fwc' ? (
+                                            <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/40 text-amber-700 dark:text-amber-300 text-[10px] font-mono font-bold flex items-center gap-1 shadow-2xs">
+                                              <span>📝 FWC & Term Test Paper</span>
+                                            </span>
+                                          ) : (
+                                            <span className="px-2.5 py-0.5 rounded-full bg-blue-500/15 border border-blue-400/40 text-blue-700 dark:text-sky-300 text-[10px] font-mono font-bold flex items-center gap-1 shadow-2xs">
+                                              <span>🏛️ National Past Paper (Official Scheme)</span>
+                                            </span>
+                                          )}
+
+                                          <span className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold font-mono">
+                                            {paper.year}
+                                          </span>
+                                        </div>
+
+                                        <h6 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white leading-snug">
+                                          {paper.titleEn}
+                                        </h6>
+                                        {paper.titleTa && (
+                                          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                                            {paper.titleTa}
+                                          </p>
+                                        )}
+
+                                        {paper.schoolOrSource && (
+                                          <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
+                                            Source: {paper.schoolOrSource}
+                                          </p>
+                                        )}
+                                      </div>
                                     </div>
-                                    <div>
-                                      <h6 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
-                                        {paper.titleEn}
-                                      </h6>
-                                      {paper.titleTa && (
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                          {paper.titleTa}
-                                        </p>
+
+                                    <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-center">
+                                      {onToggleBookmark && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            playRoboticClick();
+                                            onToggleBookmark(paper.id);
+                                          }}
+                                          className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                            isPaperBookmarked
+                                              ? 'bg-amber-100 border-amber-300 text-amber-700 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-300'
+                                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'
+                                          }`}
+                                          title={isPaperBookmarked ? 'Bookmarked' : 'Bookmark'}
+                                        >
+                                          <Bookmark className={`w-3.5 h-3.5 ${isPaperBookmarked ? 'fill-current' : ''}`} />
+                                        </button>
                                       )}
                                     </div>
                                   </div>
 
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-sky-300 text-[10px] font-bold">
-                                      {paper.year}
-                                    </span>
-                                    {onToggleBookmark && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          playRoboticClick();
-                                          onToggleBookmark(paper.id);
-                                        }}
-                                        className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-                                          isPaperBookmarked
-                                            ? 'bg-amber-100 border-amber-300 text-amber-700 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-300'
-                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'
-                                        }`}
-                                        title={isPaperBookmarked ? 'Bookmarked' : 'Bookmark'}
-                                      >
-                                        <Bookmark className={`w-3.5 h-3.5 ${isPaperBookmarked ? 'fill-current' : ''}`} />
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Dual Links: Question Paper vs Marking Scheme */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
-                                  {/* Paper Box */}
-                                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-blue-200/70 dark:border-blue-900/50 flex items-center justify-between gap-2">
-                                    <span className="text-xs font-bold text-blue-900 dark:text-sky-300 flex items-center gap-1">
-                                      <FileText className="w-3.5 h-3.5 text-blue-600" />
-                                      <span>Question Paper</span>
-                                    </span>
-                                    <div className="flex items-center gap-1.5">
-                                      <a
-                                        href={directPaperViewUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        onClick={() => playRoboticClick()}
-                                        className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1"
-                                      >
-                                        <span>Open</span>
-                                        <ExternalLink className="w-3 h-3" />
-                                      </a>
-                                      <button
-                                        type="button"
-                                        onClick={() => onPreviewPaper(paper, 'paper')}
-                                        className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
-                                        title="Preview"
-                                      >
-                                        <Eye className="w-3.5 h-3.5" />
-                                      </button>
+                                  {/* Dual Links: Question Paper vs Marking Scheme */}
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
+                                    {/* Paper Box */}
+                                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-blue-200/70 dark:border-blue-900/50 flex items-center justify-between gap-2 shadow-2xs">
+                                      <span className="text-xs font-bold text-blue-900 dark:text-sky-300 flex items-center gap-1">
+                                        <FileText className="w-3.5 h-3.5 text-blue-600" />
+                                        <span>Question Paper</span>
+                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <a
+                                          href={directPaperViewUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={() => playRoboticClick()}
+                                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer"
+                                        >
+                                          <span>Open</span>
+                                          <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                        <button
+                                          type="button"
+                                          onClick={() => onPreviewPaper(paper, 'paper')}
+                                          className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer"
+                                          title="Preview Paper"
+                                        >
+                                          <Eye className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
                                     </div>
-                                  </div>
 
-                                  {/* Scheme Box */}
-                                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-200/70 dark:border-emerald-900/50 flex items-center justify-between gap-2">
-                                    <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1">
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                      <span>Marking Scheme</span>
-                                    </span>
-                                    <div className="flex items-center gap-1.5">
-                                      <a
-                                        href={directSchemeViewUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        onClick={() => playRoboticClick()}
-                                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1"
-                                      >
-                                        <span>Scheme</span>
-                                        <ExternalLink className="w-3 h-3" />
-                                      </a>
-                                      <button
-                                        type="button"
-                                        onClick={() => onPreviewPaper(paper, 'scheme')}
-                                        className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
-                                        title="Preview Scheme"
-                                      >
-                                        <Eye className="w-3.5 h-3.5" />
-                                      </button>
+                                    {/* Scheme Box */}
+                                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-200/70 dark:border-emerald-900/50 flex items-center justify-between gap-2 shadow-2xs">
+                                      <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>Marking Scheme</span>
+                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <a
+                                          href={directSchemeViewUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={() => playRoboticClick()}
+                                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer"
+                                        >
+                                          <span>Scheme</span>
+                                          <ExternalLink className="w-3 h-3" />
+                                        </a>
+                                        <button
+                                          type="button"
+                                          onClick={() => onPreviewPaper(paper, 'scheme')}
+                                          className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer"
+                                          title="Preview Scheme"
+                                        >
+                                          <Eye className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
               )}

@@ -7,7 +7,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Search, Filter, BookOpen, Video, FileText, 
   ArrowLeft, ExternalLink, Download, Lock, CheckCircle, CheckCircle2, KeyRound, Unlock,
-  UserCheck, AlertCircle, Megaphone, X, ChevronUp, Folder, Film, Sparkles, Clock, Send, MessageCircle
+  UserCheck, AlertCircle, Megaphone, X, ChevronUp, Folder, Film, Sparkles, Clock, Send, MessageCircle,
+  Mail, Check
 } from 'lucide-react';
 import { 
   PaperResource, VideoLesson, VideoFolder, User, ResourceCategory, 
@@ -257,20 +258,40 @@ export default function App() {
     } catch {}
   }, []);
 
-  // Strict check if current logged-in student's access has expired according to time limit set by admin
+  // Live Clock Tick to re-evaluate date expirations automatically every 15 seconds
+  const [currentTimeMs, setCurrentTimeMs] = useState<number>(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTimeMs(Date.now()), 15000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Strict check if current logged-in student's access has expired according to time limit set by admin in Cloud Firestore
   const isCurrentUserAccessExpired = useMemo(() => {
     if (isAdminLoggedIn) return false;
     if (!user || !user.email) return false;
     const currentEmail = user.email.toLowerCase().trim();
     if (currentEmail === 'asmanlinzy44@gmail.com') return false;
-    if (currentUserAccess?.expiresAt) {
-      const expTime = new Date(currentUserAccess.expiresAt).getTime();
-      if (!isNaN(expTime) && expTime <= Date.now()) {
+
+    // 1. Check in live paidAccessList from Cloud Firestore
+    const paidEntry = paidAccessList.find((item) => item.email.toLowerCase().trim() === currentEmail);
+    if (paidEntry?.expiresAt) {
+      const expTime = new Date(paidEntry.expiresAt).getTime();
+      if (!isNaN(expTime) && expTime <= currentTimeMs) {
         return true;
       }
     }
+
+    // 2. Check in approved accessRequests
+    const reqEntry = accessRequests.find((r) => r.status === 'approved' && r.userEmail.toLowerCase().trim() === currentEmail && r.expiresAt);
+    if (reqEntry?.expiresAt) {
+      const expTime = new Date(reqEntry.expiresAt).getTime();
+      if (!isNaN(expTime) && expTime <= currentTimeMs) {
+        return true;
+      }
+    }
+
     return false;
-  }, [isAdminLoggedIn, user, currentUserAccess]);
+  }, [isAdminLoggedIn, user, paidAccessList, accessRequests, currentTimeMs]);
 
   // Strict check if current user has verified, active, paid video access
   const hasVideoAccess = useMemo(() => {
@@ -282,80 +303,54 @@ export default function App() {
     // Time limit expiration check: If expired, DENY ACCESS!
     if (isCurrentUserAccessExpired) return false;
 
-    // 1. Paid student record in paidAccessList
-    if (currentUserAccess) return true;
-
-    // 2. Approved access request in accessRequests
-    if (accessRequests.some((r) => r.status === 'approved' && r.userEmail.toLowerCase().trim() === currentEmail)) {
-      return true;
-    }
-
-    // 3. Whitelisted emails
-    return videoAccessEmails.some((e) => e.toLowerCase().trim() === currentEmail);
-  }, [user, videoAccessEmails, isAdminLoggedIn, isCurrentUserAccessExpired, currentUserAccess, accessRequests]);
+    // A student has access IF AND ONLY IF their email is actively in paidAccessList from Cloud Firestore!
+    return paidAccessList.some((p) => p.email.toLowerCase().trim() === currentEmail);
+  }, [user, isAdminLoggedIn, isCurrentUserAccessExpired, paidAccessList]);
 
   const isPaidStudent = hasVideoAccess;
   const isEffectiveVideoUnlocked = hasVideoAccess;
   const setIsVideoUnlocked = (_val?: boolean) => {};
 
   // Granular check if a specific VideoFolder is unlocked for this student
-  // STRICT: Unknown / unauthorized emails will NEVER have access
+  // STRICT: Revoked or unauthorized emails will NEVER have access
   const isFolderUnlocked = useCallback((folder: VideoFolder): boolean => {
     if (isAdminLoggedIn) return true;
     if (user?.email && user.email.toLowerCase().trim() === 'asmanlinzy44@gmail.com') return true;
+
+    // Passcode session unlock (per-folder passcode entered by user)
+    if (unlockedFolderIds.includes(folder.id)) return true;
 
     // If access is expired according to admin time limit, strictly denied!
     if (isCurrentUserAccessExpired) return false;
 
     const currentEmail = user?.email?.toLowerCase().trim();
+    if (!currentEmail) return false;
 
-    // 1. Authenticated checks for logged in user
-    if (currentEmail) {
-      // Check folder allowed emails
-      if (folder.allowedEmails && folder.allowedEmails.some((e) => e.toLowerCase().trim() === currentEmail)) {
-        return true;
-      }
+    // Single source of truth: Student MUST exist in live Cloud Firestore paidAccessList!
+    const studentRecord = paidAccessList.find((p) => p.email.toLowerCase().trim() === currentEmail);
+    if (!studentRecord) {
+      return false; // Revoked or not enrolled!
+    }
 
-      // Check user unlockedVideoFolderIds
-      if (user?.unlockedVideoFolderIds && user.unlockedVideoFolderIds.includes(folder.id)) {
-        return true;
-      }
+    // If full access
+    if (!studentRecord.accessScope || studentRecord.accessScope === 'all') {
+      return true;
+    }
 
-      // Check approved access requests
-      if (accessRequests.some((r) => 
-        r.status === 'approved' && 
-        r.userEmail.toLowerCase().trim() === currentEmail && 
-        (!r.folderId || r.folderId === folder.id)
-      )) {
-        return true;
-      }
-
-      // Check paid student access record
-      if (currentUserAccess) {
-        if (!currentUserAccess.accessScope || currentUserAccess.accessScope === 'all') {
-          return true;
-        }
-        if (currentUserAccess.accessScope === 'custom') {
-          const label = (currentUserAccess.accessLabel || '').toLowerCase();
-          const folderText = `${folder.name} ${folder.nameTa || ''} ${folder.subjectName || ''} ${folder.id}`.toLowerCase();
-          if (label.includes('prac') && (folderText.includes('prac') || folder.id.includes('prac'))) return true;
-          if (label.includes('hydro') && folderText.includes('hydro')) return true;
-          if (label.includes('chem') && folderText.includes('chem')) return true;
-          if (currentUserAccess.allowedSubjectIds && folder.subjectName && currentUserAccess.allowedSubjectIds.some(s => folder.subjectName?.toLowerCase().includes(s))) {
-            return true;
-          }
-        }
-      }
-
-      // Universal videoAccessEmails whitelist
-      if (videoAccessEmails.some((e) => e.toLowerCase().trim() === currentEmail)) {
+    // If custom scope
+    if (studentRecord.accessScope === 'custom') {
+      const label = (studentRecord.accessLabel || '').toLowerCase();
+      const folderText = `${folder.name} ${folder.nameTa || ''} ${folder.subjectName || ''} ${folder.id}`.toLowerCase();
+      if (label.includes('prac') && (folderText.includes('prac') || folder.id.includes('prac'))) return true;
+      if (label.includes('hydro') && folderText.includes('hydro')) return true;
+      if (label.includes('chem') && folderText.includes('chem')) return true;
+      if (studentRecord.allowedSubjectIds && folder.subjectName && studentRecord.allowedSubjectIds.some(s => folder.subjectName?.toLowerCase().includes(s))) {
         return true;
       }
     }
 
-    // STRICT: Unknown gmails or unauthorized visitors are LOCKED!
     return false;
-  }, [isAdminLoggedIn, user, isCurrentUserAccessExpired, videoAccessEmails, accessRequests, currentUserAccess]);
+  }, [isAdminLoggedIn, user, isCurrentUserAccessExpired, paidAccessList, unlockedFolderIds]);
 
   // Handle Passcode Unlock for a specific folder or all folders
   const handleUnlockFolderWithCode = useCallback(async (passcode: string, targetFolderId?: string): Promise<{ success: boolean; message: string }> => {
@@ -398,75 +393,63 @@ export default function App() {
   }, [videoFolders]);
 
   // Granular check if a specific VideoLesson is unlocked for this student
-  // STRICT: Unknown gmails will NEVER have access unless authorized
+  // STRICT: Revoked or unauthorized emails will NEVER have access
   const isVideoLessonUnlocked = useCallback((video: VideoLesson): boolean => {
     if (isAdminLoggedIn) return true;
     if (user?.email && user.email.toLowerCase().trim() === 'asmanlinzy44@gmail.com') return true;
-    if (isCurrentUserAccessExpired) return false;
 
-    const currentEmail = user?.email?.toLowerCase().trim();
-
-    // 1. Check if student has universal video access via email whitelist
-    if (currentEmail && videoAccessEmails.some((e) => e.toLowerCase().trim() === currentEmail)) {
+    // If parent folder was explicitly unlocked via passcode
+    if (video.folderId && unlockedFolderIds.includes(video.folderId)) {
       return true;
     }
 
-    // 2. Check if parent folder is unlocked for this student
-    if (video.folderId) {
-      const parentFolder = videoFolders.find((f) => f.id === video.folderId);
-      if (parentFolder && isFolderUnlocked(parentFolder)) {
+    if (isCurrentUserAccessExpired) return false;
+
+    const currentEmail = user?.email?.toLowerCase().trim();
+    if (!currentEmail) return false;
+
+    // Single source of truth: Student MUST exist in live Cloud Firestore paidAccessList!
+    const studentRecord = paidAccessList.find((p) => p.email.toLowerCase().trim() === currentEmail);
+    if (!studentRecord) {
+      return false; // Revoked or not enrolled!
+    }
+
+    // 1. All videos scope
+    if (!studentRecord.accessScope || studentRecord.accessScope === 'all') {
+      return true;
+    }
+
+    // 2. Custom modules scope
+    if (studentRecord.accessScope === 'custom') {
+      if (studentRecord.allowedVideoIds && studentRecord.allowedVideoIds.includes(video.id)) {
         return true;
       }
-    }
-
-    // 3. If user is logged in, check approved requests and paid student record
-    if (currentEmail) {
-      // Check approved access requests
-      const hasApprovedReq = accessRequests.some((r) => 
-        r.status === 'approved' && 
-        r.userEmail.toLowerCase().trim() === currentEmail &&
-        (!r.videoId || r.videoId === video.id) &&
-        (!r.folderId || r.folderId === video.folderId)
-      );
-      if (hasApprovedReq) return true;
-
-      // Check detailed student access record
-      if (currentUserAccess) {
-        if (!currentUserAccess.accessScope || currentUserAccess.accessScope === 'all') {
-          return true;
+      if (studentRecord.allowedSubjectIds && studentRecord.allowedSubjectIds.includes(video.subjectId)) {
+        if (studentRecord.allowedUnits && studentRecord.allowedUnits.length > 0) {
+          return studentRecord.allowedUnits.includes(video.unitNumber);
         }
-        if (currentUserAccess.accessScope === 'custom') {
-          if (currentUserAccess.allowedVideoIds && currentUserAccess.allowedVideoIds.includes(video.id)) {
-            return true;
-          }
-          if (currentUserAccess.allowedSubjectIds && currentUserAccess.allowedSubjectIds.includes(video.subjectId)) {
-            if (currentUserAccess.allowedUnits && currentUserAccess.allowedUnits.length > 0) {
-              return currentUserAccess.allowedUnits.includes(video.unitNumber);
-            }
-            return true;
-          }
-          if (currentUserAccess.allowedUnits && currentUserAccess.allowedUnits.includes(video.unitNumber)) {
-            return true;
-          }
-          const label = (currentUserAccess.accessLabel || '').toLowerCase();
-          const vidText = `${video.titleEn} ${video.unitNameEn} ${video.subjectNameEn}`.toLowerCase();
-          if (label.includes('hydro') && (vidText.includes('hydro') || video.unitNumber === 2)) {
-            return true;
-          }
-          if (label.includes('chem') && (video.subjectId.includes('chem') || vidText.includes('chem') || video.unitNumber === 6)) {
-            return true;
-          }
-          if (label.includes('prac') && (video.subjectId.includes('phy') || vidText.includes('prac') || video.folderId?.includes('prac'))) {
-            return true;
-          }
-          return false;
-        }
+        return true;
       }
+      if (studentRecord.allowedUnits && studentRecord.allowedUnits.includes(video.unitNumber)) {
+        return true;
+      }
+      const label = (studentRecord.accessLabel || '').toLowerCase();
+      const vidText = `${video.titleEn} ${video.unitNameEn} ${video.subjectNameEn}`.toLowerCase();
+      if (label.includes('hydro') && (vidText.includes('hydro') || video.unitNumber === 2)) {
+        return true;
+      }
+      if (label.includes('chem') && (video.subjectId.includes('chem') || vidText.includes('chem') || video.unitNumber === 6)) {
+        return true;
+      }
+      if (label.includes('prac') && (video.subjectId.includes('phy') || vidText.includes('prac') || video.folderId?.includes('prac'))) {
+        return true;
+      }
+      return false;
     }
 
-    // STRICT: Unknown gmails or visitors are strictly locked
     return false;
-  }, [isAdminLoggedIn, user, currentUserAccess, videoAccessEmails, videoFolders, isFolderUnlocked, accessRequests]);
+  }, [isAdminLoggedIn, user, isCurrentUserAccessExpired, paidAccessList, unlockedFolderIds]);
+
 
   // Real-time auto-update video duration from player playback (analyzed with 100% precision)
   const handleUpdateVideoDuration = useCallback(async (videoId: string, durationSeconds: number) => {
@@ -941,6 +924,16 @@ export default function App() {
   const [customPdfTitle, setCustomPdfTitle] = useState<string>('');
   const [activeVideo, setActiveVideo] = useState<VideoLesson | null>(null);
 
+  // Live auto-lock: if student's access is revoked or expired while video is playing, immediately close and lock
+  useEffect(() => {
+    if (activeVideo && !isAdminLoggedIn) {
+      if (!isVideoLessonUnlocked(activeVideo)) {
+        setActiveVideo(null);
+        setIsVideoLockOpen(true);
+      }
+    }
+  }, [activeVideo, isVideoLessonUnlocked, isAdminLoggedIn]);
+
   // Sync to localStorage
   useEffect(() => {
     localStorage.setItem('studypro_papers_data', JSON.stringify(papers));
@@ -1200,25 +1193,112 @@ export default function App() {
     }
   };
 
-  // Real-time synchronization of Paid Student Video Access list
+  // Real-time synchronization of Paid Student Video Access from Cloud Firestore (WhatsApp-style instant multi-device live sync)
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'settings', 'videoAccess'), (snap) => {
+    // 1. Primary: Real-time listener on collection 'video_access'
+    const unsubCollection = onSnapshot(collection(db, 'video_access'), (snapshot) => {
+      const list: PaidStudentAccess[] = [];
+      const emails: string[] = ['asmanlinzy44@gmail.com'];
+
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as PaidStudentAccess;
+        if (data && data.email) {
+          const cleanEmail = data.email.toLowerCase().trim();
+          list.push({ ...data, email: cleanEmail });
+          emails.push(cleanEmail);
+        }
+      });
+
+      // Always ensure Asman Linzy is listed
+      if (!list.some((item) => item.email.toLowerCase().trim() === 'asmanlinzy44@gmail.com')) {
+        list.unshift({
+          email: 'asmanlinzy44@gmail.com',
+          studentName: 'Asman Linzy (Founder & Super Admin)',
+          grantedAt: '2026-01-01T00:00:00.000Z',
+          note: 'Permanent Platform Administrator',
+          accessScope: 'all',
+          accessLabel: 'All Masterclasses (Permanent)',
+        });
+      }
+
+      const uniqueEmails = Array.from(new Set(emails));
+      setPaidAccessList(list);
+      setVideoAccessEmails(uniqueEmails);
+
+      try {
+        localStorage.setItem('studypro_paid_video_access_list', JSON.stringify(list));
+        localStorage.setItem('studypro_paid_video_emails', JSON.stringify(uniqueEmails));
+      } catch {}
+    }, (err) => {
+      console.warn('Live video_access collection sync notice:', err);
+    });
+
+    // 2. Secondary listener: sync from doc 'settings/videoAccess' (Strict exact replacement, NEVER resurrect deleted emails)
+    const unsubDoc = onSnapshot(doc(db, 'settings', 'videoAccess'), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (Array.isArray(data.emails)) {
-          const merged = Array.from(new Set(['asmanlinzy44@gmail.com', ...data.emails.map((e: string) => e.toLowerCase().trim())]));
-          setVideoAccessEmails(merged);
-          localStorage.setItem('studypro_paid_video_emails', JSON.stringify(merged));
-        }
         if (Array.isArray(data.accessList)) {
-          setPaidAccessList(data.accessList);
-          localStorage.setItem('studypro_paid_video_access_list', JSON.stringify(data.accessList));
+          const list: PaidStudentAccess[] = data.accessList
+            .map((p: any) => ({
+              ...p,
+              email: p.email ? p.email.toLowerCase().trim() : '',
+            }))
+            .filter((p: any) => Boolean(p.email));
+
+          if (!list.some((item) => item.email === 'asmanlinzy44@gmail.com')) {
+            list.unshift({
+              email: 'asmanlinzy44@gmail.com',
+              studentName: 'Asman Linzy (Founder & Super Admin)',
+              grantedAt: '2026-01-01T00:00:00.000Z',
+              note: 'Permanent Platform Administrator',
+              accessScope: 'all',
+              accessLabel: 'All Masterclasses (Permanent)',
+            });
+          }
+          setPaidAccessList(list);
+          try {
+            localStorage.setItem('studypro_paid_video_access_list', JSON.stringify(list));
+          } catch {}
+        }
+        if (Array.isArray(data.emails)) {
+          const cleanEmails = Array.from(
+            new Set(['asmanlinzy44@gmail.com', ...data.emails.map((e: string) => e.toLowerCase().trim())])
+          );
+          setVideoAccessEmails(cleanEmails);
+          try {
+            localStorage.setItem('studypro_paid_video_emails', JSON.stringify(cleanEmails));
+          } catch {}
         }
       }
     }, (err) => {
-      console.warn('Video access live sync notice:', err);
+      console.warn('Video access doc sync notice:', err);
     });
-    return () => unsub();
+
+    // 3. Ensure super admin is seeded into Firestore video_access collection on cloud storage
+    const seedAdminInCloud = async () => {
+      try {
+        const adminDocRef = doc(db, 'video_access', 'asmanlinzy44_gmail_com');
+        const snap = await getDoc(adminDocRef);
+        if (!snap.exists()) {
+          await setDoc(adminDocRef, cleanFirestoreData({
+            email: 'asmanlinzy44@gmail.com',
+            studentName: 'Asman Linzy (Founder & Super Admin)',
+            grantedAt: '2026-01-01T00:00:00.000Z',
+            note: 'Permanent Platform Administrator',
+            accessScope: 'all',
+            accessLabel: 'All Masterclasses (Permanent)',
+          }));
+        }
+      } catch (err) {
+        console.warn('Super admin cloud check notice:', err);
+      }
+    };
+    seedAdminInCloud();
+
+    return () => {
+      unsubCollection();
+      unsubDoc();
+    };
   }, []);
 
   const handleGrantVideoAccess = async (
@@ -1256,14 +1336,16 @@ export default function App() {
     localStorage.setItem('studypro_paid_video_access_list', JSON.stringify(updatedList));
 
     try {
-      await setDoc(doc(db, 'settings', 'videoAccess'), {
+      const cleanDocId = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+      // Save individual student record to video_access collection in Cloud Firestore
+      await setDoc(doc(db, 'video_access', cleanDocId), cleanFirestoreData(newEntry), { merge: true });
+
+      // Also persist to settings/videoAccess for centralized backup
+      await setDoc(doc(db, 'settings', 'videoAccess'), cleanFirestoreData({
         emails: updatedEmails,
         accessList: updatedList,
         updatedAt: new Date().toISOString(),
-      }, { merge: true });
-
-      const cleanDocId = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
-      await setDoc(doc(db, 'video_access', cleanDocId), newEntry, { merge: true });
+      }), { merge: true });
     } catch (err) {
       console.warn('Sync video access error:', err);
     }
@@ -1284,20 +1366,143 @@ export default function App() {
     localStorage.setItem('studypro_paid_video_emails', JSON.stringify(updatedEmails));
     localStorage.setItem('studypro_paid_video_access_list', JSON.stringify(updatedList));
 
+    // Update access requests state locally
+    setAccessRequests((prev) => 
+      prev.map((r) => r.userEmail.toLowerCase().trim() === cleanEmail ? { ...r, status: 'rejected' } : r)
+    );
+
+    // If current logged-in user on this client is revoked, close playing video immediately
+    if (user && user.email && user.email.toLowerCase().trim() === cleanEmail) {
+      if (activeVideo) {
+        setActiveVideo(null);
+        setIsVideoLockOpen(true);
+      }
+    }
+
     try {
-      await setDoc(doc(db, 'settings', 'videoAccess'), {
+      const cleanDocId = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+      // 1. Delete from Firestore video_access collection
+      await deleteDoc(doc(db, 'video_access', cleanDocId));
+
+      // 2. Persist updated settings/videoAccess
+      await setDoc(doc(db, 'settings', 'videoAccess'), cleanFirestoreData({
         emails: updatedEmails,
         accessList: updatedList,
         updatedAt: new Date().toISOString(),
-      }, { merge: true });
+      }), { merge: true });
 
-      const cleanDocId = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
-      await deleteDoc(doc(db, 'video_access', cleanDocId));
+      // 3. Mark all access requests in Firestore for this email as rejected
+      const matchingReqs = accessRequests.filter((r) => r.userEmail.toLowerCase().trim() === cleanEmail);
+      for (const req of matchingReqs) {
+        try {
+          await setDoc(doc(db, 'video_access_requests', req.id), cleanFirestoreData({
+            ...req,
+            status: 'rejected',
+            resolvedAt: new Date().toISOString(),
+            resolvedBy: user?.email || 'asmanlinzy44@gmail.com',
+          }), { merge: true });
+        } catch {}
+      }
+
+      // 4. Remove from folder allowedEmails in Firestore
+      for (const f of videoFolders) {
+        if (f.allowedEmails && f.allowedEmails.some((e) => e.toLowerCase().trim() === cleanEmail)) {
+          const nextAllowed = f.allowedEmails.filter((e) => e.toLowerCase().trim() !== cleanEmail);
+          await handleUpdateFolder({ ...f, allowedEmails: nextAllowed });
+        }
+      }
     } catch (err) {
       console.warn('Revoke video access error:', err);
     }
 
     return true;
+  };
+
+  // Instant Student Gmail Verification & Login across any device (Cloud Firestore live lookup)
+  const handleStudentGmailLogin = async (
+    gmailInput: string
+  ): Promise<{ success: boolean; message: string; expired?: boolean }> => {
+    const cleanEmail = gmailInput.toLowerCase().trim();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return { success: false, message: 'Please enter a valid Gmail address (e.g. yourname@gmail.com).' };
+    }
+
+    // 1. Check live paidAccessList or query Cloud Firestore directly
+    let studentRecord = paidAccessList.find((p) => p.email.toLowerCase().trim() === cleanEmail);
+
+    if (!studentRecord) {
+      try {
+        const cleanDocId = cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+        const snap = await getDoc(doc(db, 'video_access', cleanDocId));
+        if (snap.exists()) {
+          studentRecord = snap.data() as PaidStudentAccess;
+        }
+      } catch (err) {
+        console.warn('Firestore direct student query notice:', err);
+      }
+    }
+
+    if (!studentRecord && cleanEmail === 'asmanlinzy44@gmail.com') {
+      studentRecord = {
+        email: 'asmanlinzy44@gmail.com',
+        studentName: 'Asman Linzy (Founder & Super Admin)',
+        grantedAt: '2026-01-01T00:00:00.000Z',
+        accessScope: 'all',
+      };
+    }
+
+    if (!studentRecord) {
+      return {
+        success: false,
+        message: `Gmail "${cleanEmail}" is not yet registered in our cloud database. Click "Request Access" to send an instant notification to Admin Asman Linzy!`,
+      };
+    }
+
+    // 2. Check expiration according to admin-set date
+    if (studentRecord.expiresAt) {
+      const expTime = new Date(studentRecord.expiresAt).getTime();
+      if (!isNaN(expTime) && expTime <= Date.now()) {
+        return {
+          success: false,
+          expired: true,
+          message: `Your course access for "${cleanEmail}" expired on ${new Date(studentRecord.expiresAt).toLocaleDateString()}. Please contact Admin Asman Linzy on WhatsApp to renew your enrollment.`,
+        };
+      }
+    }
+
+    // 3. Active authorized student! Create session
+    const isOwnerAdmin = cleanEmail === 'asmanlinzy44@gmail.com';
+    const studentUser: User = {
+      id: `student_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      name: studentRecord.studentName || cleanEmail.split('@')[0],
+      email: cleanEmail,
+      photoURL: '',
+      alYear: 2026,
+      stream: 'bio',
+      district: '',
+      school: '',
+      role: isOwnerAdmin ? 'admin' : 'student',
+      bookmarks: [],
+      watchedVideoIds: [],
+      notes: [],
+    };
+
+    setUser(studentUser);
+    localStorage.setItem('studypro_user_session', JSON.stringify(studentUser));
+    if (isOwnerAdmin) {
+      setIsAdminLoggedIn(true);
+      localStorage.setItem('studypro_admin_session', 'true');
+    }
+
+    playRoboticUnlock();
+    const expiryMsg = studentRecord.expiresAt
+      ? ` Access is active until ${new Date(studentRecord.expiresAt).toLocaleDateString()}.`
+      : ' Permanent access active.';
+
+    return {
+      success: true,
+      message: `🎉 Welcome, ${studentUser.name}! Your video masterclass access is verified in cloud storage.${expiryMsg}`,
+    };
   };
 
   const handleCreateAccessRequest = async (params: {
@@ -1394,12 +1599,14 @@ export default function App() {
       }
     }
 
-    // 3. Mark request as approved
+    // 3. Mark request as approved with time limit
     const updatedReq: VideoAccessRequest = {
       ...target,
       status: 'approved',
       resolvedAt: new Date().toISOString(),
       resolvedBy: user?.email || 'asmanlinzy44@gmail.com',
+      expiresAt: expiresAt,
+      durationPreset: preset,
     };
 
     setAccessRequests((prev) => prev.map((r) => (r.id === requestId ? updatedReq : r)));
@@ -2556,11 +2763,58 @@ export default function App() {
                               </p>
                             </div>
 
-                            <div className="max-w-md mx-auto space-y-2.5 pt-1">
+                            <div className="max-w-md mx-auto space-y-3 pt-1">
+                              {/* Option A: Quick Registered Student Gmail Access */}
+                              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-blue-200 dark:border-blue-900/60 text-left space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <label htmlFor="landing-student-gmail" className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                    <Mail className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
+                                    <span>Enter Registered Gmail (பதிவுசெய்த Gmail)</span>
+                                  </label>
+                                  <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
+                                    🟢 Live Cloud Sync
+                                  </span>
+                                </div>
+                                <form
+                                  onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    const form = e.currentTarget;
+                                    const input = (form.elements.namedItem('studentEmail') as HTMLInputElement)?.value;
+                                    if (!input) return;
+                                    const res = await handleStudentGmailLogin(input);
+                                    if (!res.success) {
+                                      alert(res.message);
+                                    }
+                                  }}
+                                  className="flex gap-2"
+                                >
+                                  <input
+                                    id="landing-student-gmail"
+                                    name="studentEmail"
+                                    type="email"
+                                    placeholder="student@gmail.com"
+                                    className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                                  />
+                                  <button
+                                    type="submit"
+                                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 shadow-xs active:scale-95"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Unlock</span>
+                                  </button>
+                                </form>
+                              </div>
+
+                              <div className="relative flex items-center justify-center my-1">
+                                <div className="border-t border-slate-200 dark:border-slate-700 w-full" />
+                                <span className="bg-white dark:bg-slate-900 px-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider absolute">or</span>
+                              </div>
+
+                              {/* Option B: Official Google Sign-In */}
                               <button
                                 type="button"
                                 onClick={handleDirectGoogleLogin}
-                                className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 border-2 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-extrabold text-sm shadow-md transition-all flex items-center justify-center gap-3 cursor-pointer group active:scale-98"
+                                className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 border-2 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-extrabold text-xs sm:text-sm shadow-xs transition-all flex items-center justify-center gap-3 cursor-pointer group active:scale-98"
                               >
                                 <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shrink-0">
                                   <svg className="w-full h-full" viewBox="0 0 24 24">
@@ -2850,6 +3104,9 @@ export default function App() {
             : undefined
         }
         onGoogleLogin={handleDirectGoogleLogin}
+        onStudentGmailLogin={handleStudentGmailLogin}
+        isAccessExpired={isCurrentUserAccessExpired}
+        currentUserAccess={currentUserAccess}
         onLogoutAndSwitch={async () => {
           await handleLogout();
           setIsVideoLockOpen(false);

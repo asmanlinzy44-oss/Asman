@@ -143,5 +143,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true;
     }
+
+    // Video access requests from students & admin approvals (Live sync across all devices)
+    match /video_access_requests/{requestId} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 }
