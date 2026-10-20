@@ -49,6 +49,7 @@ import {
   playRoboticError,
   initSoloLevelingGlobalAudio 
 } from './utils/audio';
+import { isFolderAllowedByList } from './utils/folderHierarchy';
 
 export default function App() {
   // Local storage persisted state - ensure newly uploaded past papers, physics papers, terms and hydro videos are always loaded
@@ -132,6 +133,7 @@ export default function App() {
   });
 
   const [selectedVideoFolder, setSelectedVideoFolder] = useState<string>('all');
+  const [adminFolderDefaultParent, setAdminFolderDefaultParent] = useState<string | null>(null);
 
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('studypro_user_session');
@@ -317,6 +319,9 @@ export default function App() {
     if (isAdminLoggedIn) return true;
     if (user?.email && user.email.toLowerCase().trim() === 'asmanlinzy44@gmail.com') return true;
 
+    // If folder is open / public (e.g. root subject directories or public modules)
+    if (folder.isLocked === false) return true;
+
     // Passcode session unlock (per-folder passcode entered by user)
     if (unlockedFolderIds.includes(folder.id)) return true;
 
@@ -339,6 +344,12 @@ export default function App() {
 
     // If custom scope
     if (studentRecord.accessScope === 'custom') {
+      // 1. Precise folder hierarchy check
+      if (studentRecord.allowedFolderIds && studentRecord.allowedFolderIds.length > 0) {
+        if (isFolderAllowedByList(folder.id, studentRecord.allowedFolderIds, videoFolders)) {
+          return true;
+        }
+      }
       const label = (studentRecord.accessLabel || '').toLowerCase();
       const folderText = `${folder.name} ${folder.nameTa || ''} ${folder.subjectName || ''} ${folder.id}`.toLowerCase();
       if (label.includes('prac') && (folderText.includes('prac') || folder.id.includes('prac'))) return true;
@@ -350,7 +361,7 @@ export default function App() {
     }
 
     return false;
-  }, [isAdminLoggedIn, user, isCurrentUserAccessExpired, paidAccessList, unlockedFolderIds]);
+  }, [isAdminLoggedIn, user, isCurrentUserAccessExpired, paidAccessList, unlockedFolderIds, videoFolders]);
 
   // Handle Passcode Unlock for a specific folder or all folders
   const handleUnlockFolderWithCode = useCallback(async (passcode: string, targetFolderId?: string): Promise<{ success: boolean; message: string }> => {
@@ -421,6 +432,12 @@ export default function App() {
 
     // 2. Custom modules scope
     if (studentRecord.accessScope === 'custom') {
+      // Check folder hierarchy permission: if video belongs to an allowed folder or any of its subfolders
+      if (video.folderId && studentRecord.allowedFolderIds && studentRecord.allowedFolderIds.length > 0) {
+        if (isFolderAllowedByList(video.folderId, studentRecord.allowedFolderIds, videoFolders)) {
+          return true;
+        }
+      }
       if (studentRecord.allowedVideoIds && studentRecord.allowedVideoIds.includes(video.id)) {
         return true;
       }
@@ -448,7 +465,7 @@ export default function App() {
     }
 
     return false;
-  }, [isAdminLoggedIn, user, isCurrentUserAccessExpired, paidAccessList, unlockedFolderIds]);
+  }, [isAdminLoggedIn, user, isCurrentUserAccessExpired, paidAccessList, unlockedFolderIds, videoFolders]);
 
 
   // Real-time auto-update video duration from player playback (analyzed with 100% precision)
@@ -640,6 +657,7 @@ export default function App() {
 
   const handleCloseAdminPanel = () => {
     setIsAdminPanelOpen(false);
+    setAdminFolderDefaultParent(null);
     if (window.location.hash.toLowerCase().includes('admin')) {
       history.replaceState(null, '', window.location.pathname);
     }
@@ -1078,10 +1096,9 @@ export default function App() {
     const unsubFolders = onSnapshot(collection(db, 'video_folders'), (snap) => {
       if (!snap.empty) {
         const fsFolders = snap.docs.map((d) => d.data() as VideoFolder).filter((f) => f && f.id);
-        setVideoFolders((prev) => {
+        setVideoFolders((_prev) => {
           const map = new Map<string, VideoFolder>();
           INITIAL_VIDEO_FOLDERS.forEach((f) => map.set(f.id, f));
-          prev.forEach((f) => map.set(f.id, f));
           fsFolders.forEach((f) => map.set(f.id, f));
           const result = Array.from(map.values());
           localStorage.setItem('studypro_video_folders', JSON.stringify(result));
@@ -1317,6 +1334,7 @@ export default function App() {
       grantedBy: user?.email || 'asmanlinzy44@gmail.com',
       note: note?.trim() || undefined,
       accessScope: extra?.accessScope || 'all',
+      allowedFolderIds: extra?.allowedFolderIds,
       allowedSubjectIds: extra?.allowedSubjectIds,
       allowedVideoIds: extra?.allowedVideoIds,
       allowedUnits: extra?.allowedUnits,
@@ -1557,39 +1575,62 @@ export default function App() {
 
   const handleApproveAccessRequest = async (
     requestId: string,
-    extraParams?: { durationPreset?: string; expiresAt?: string }
+    extraParams?: { 
+      durationPreset?: string; 
+      expiresAt?: string;
+      accessScope?: 'all' | 'custom';
+      allowedFolderIds?: string[];
+      accessLabel?: string;
+    }
   ): Promise<boolean> => {
     const target = accessRequests.find((r) => r.id === requestId);
     if (!target) return false;
 
     const preset = extraParams?.durationPreset || '30days';
     const expiresAt = extraParams?.expiresAt;
+    const scope = extraParams?.accessScope || (extraParams?.allowedFolderIds && extraParams.allowedFolderIds.length > 0 ? 'custom' : 'all');
+    const folderIds = extraParams?.allowedFolderIds || (target.folderId && scope === 'custom' ? [target.folderId] : undefined);
 
-    // 1. Grant global video access to this student's email with time limit
+    let accessLabel = extraParams?.accessLabel;
+    if (!accessLabel) {
+      if (scope === 'all') {
+        accessLabel = 'All Masterclass & Practical Videos';
+      } else if (folderIds && folderIds.length > 0) {
+        const names = folderIds.map((id) => videoFolders.find((f) => f.id === id)?.name || id).slice(0, 2).join(', ');
+        accessLabel = folderIds.length > 2 ? `${names} +${folderIds.length - 2} more` : names;
+      } else {
+        accessLabel = target.folderName || 'Selected Folder';
+      }
+    }
+
+    // 1. Grant video access to this student's email with time limit and custom folders if specified
     await handleGrantVideoAccess(
       target.userEmail,
       target.userName,
       `Approved via Student Request for ${target.folderName || target.videoTitle || 'Masterclasses'}`,
       { 
-        accessScope: 'all', 
-        accessLabel: 'All Masterclass & Practical Videos',
+        accessScope: scope, 
+        allowedFolderIds: folderIds,
+        accessLabel: accessLabel,
         durationPreset: preset,
         expiresAt: expiresAt,
       }
     );
 
-    // 2. If folderId is specified, also add to that folder's allowedEmails
-    if (target.folderId) {
-      const folder = videoFolders.find((f) => f.id === target.folderId);
-      if (folder) {
-        const currentAllowed = folder.allowedEmails || [];
-        if (!currentAllowed.some((e) => e.toLowerCase().trim() === target.userEmail.toLowerCase().trim())) {
-          const nextAllowed = [...currentAllowed, target.userEmail.toLowerCase().trim()];
-          await handleUpdateFolder({ ...folder, allowedEmails: nextAllowed });
+    // 2. Add to folder's allowedEmails in Firestore
+    if (folderIds && folderIds.length > 0) {
+      for (const fId of folderIds) {
+        const folder = videoFolders.find((f) => f.id === fId);
+        if (folder) {
+          const currentAllowed = folder.allowedEmails || [];
+          if (!currentAllowed.some((e) => e.toLowerCase().trim() === target.userEmail.toLowerCase().trim())) {
+            const nextAllowed = [...currentAllowed, target.userEmail.toLowerCase().trim()];
+            await handleUpdateFolder({ ...folder, allowedEmails: nextAllowed });
+          }
         }
       }
-    } else {
-      // If no folderId specified, grant to all folders
+    } else if (scope === 'all') {
+      // If full access, grant to all folders
       for (const f of videoFolders) {
         const currentAllowed = f.allowedEmails || [];
         if (!currentAllowed.some((e) => e.toLowerCase().trim() === target.userEmail.toLowerCase().trim())) {
@@ -1599,7 +1640,7 @@ export default function App() {
       }
     }
 
-    // 3. Mark request as approved with time limit
+    // 3. Mark request as approved with time limit and allowedFolderIds in Firestore
     const updatedReq: VideoAccessRequest = {
       ...target,
       status: 'approved',
@@ -1607,6 +1648,7 @@ export default function App() {
       resolvedBy: user?.email || 'asmanlinzy44@gmail.com',
       expiresAt: expiresAt,
       durationPreset: preset,
+      allowedFolderIds: folderIds,
     };
 
     setAccessRequests((prev) => prev.map((r) => (r.id === requestId ? updatedReq : r)));
@@ -2955,6 +2997,10 @@ export default function App() {
                         }}
                         isAdmin={isAdminLoggedIn}
                         onOpenAdminFolders={() => setIsAdminPanelOpen(true)}
+                        onAddSubfolder={(parentId) => {
+                          setAdminFolderDefaultParent(parentId);
+                          setIsAdminPanelOpen(true);
+                        }}
                         accessRequests={accessRequests}
                         onRequestAccess={handleCreateAccessRequest}
                         onApproveAccessRequest={handleApproveAccessRequest}
@@ -3104,7 +3150,6 @@ export default function App() {
             : undefined
         }
         onGoogleLogin={handleDirectGoogleLogin}
-        onStudentGmailLogin={handleStudentGmailLogin}
         isAccessExpired={isCurrentUserAccessExpired}
         currentUserAccess={currentUserAccess}
         onLogoutAndSwitch={async () => {
@@ -3197,6 +3242,7 @@ export default function App() {
         onDeleteFolder={handleDeleteFolder}
         onAssignVideosToFolder={handleAssignVideosToFolder}
         onRemoveVideoFromFolder={handleRemoveVideoFromFolder}
+        initialFolderParentId={adminFolderDefaultParent}
         isAdminLoggedIn={isAdminLoggedIn}
         onAdminLoginSuccess={() => {
           setIsAdminLoggedIn(true);

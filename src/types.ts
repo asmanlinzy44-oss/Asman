@@ -88,6 +88,7 @@ export interface VideoFolder {
   description?: string;
   stream?: StreamId | 'all';
   subjectName?: string;
+  parentId?: string | null; // Id of parent folder if this is a subfolder. If null or undefined, this is a root subject/folder.
   color?: string; // 'rose' | 'blue' | 'emerald' | 'amber' | 'purple' | 'cyan'
   createdAt: string;
   isLocked?: boolean;
@@ -163,6 +164,7 @@ export interface PaidStudentAccess {
   note?: string;
   // Granular part-by-part video access
   accessScope?: VideoAccessScope; // 'all' (default) or 'custom'
+  allowedFolderIds?: string[]; // Specific folder IDs and/or subfolder IDs e.g. ['vf-biology', 'vf-phy-hydro']
   allowedSubjectIds?: string[]; // e.g. ['physics'] or ['chemistry']
   allowedVideoIds?: string[]; // specific video IDs e.g. ['vid-phy-hydro-class1']
   allowedUnits?: number[]; // e.g. [2] for Hydrodynamics, [6] for IUPAC
@@ -187,5 +189,6 @@ export interface VideoAccessRequest {
   resolvedBy?: string;
   expiresAt?: string;
   durationPreset?: string;
+  allowedFolderIds?: string[]; // Specific folder IDs granted for this request
 }
 

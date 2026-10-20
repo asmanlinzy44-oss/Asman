@@ -16,6 +16,14 @@ import { extractYoutubeId } from '../utils/drive';
 import { cleanFirestoreData } from '../utils/firestoreClean';
 import { playRoboticClick, playRoboticTab, playRoboticUnlock } from '../utils/audio';
 import { AdminAiCopilot } from './AdminAiCopilot';
+import {
+  getFlattenedFolderTree,
+  getFolderPath,
+  getChildFolders,
+  getRootFolders,
+  isRootFolder,
+  PRIMARY_ROOT_SUBJECT_IDS,
+} from '../utils/folderHierarchy';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -36,6 +44,7 @@ interface AdminPanelModalProps {
   onDeleteFolder?: (folderId: string) => void;
   onAssignVideosToFolder?: (folderId: string, folderName: string, videoIds: string[]) => void;
   onRemoveVideoFromFolder?: (videoId: string) => void;
+  initialFolderParentId?: string | null;
   isAdminLoggedIn: boolean;
   onAdminLoginSuccess: () => void;
   currentUser?: User | null;
@@ -75,6 +84,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   onDeleteFolder,
   onAssignVideosToFolder,
   onRemoveVideoFromFolder,
+  initialFolderParentId,
   isAdminLoggedIn,
   onAdminLoginSuccess,
   currentUser,
@@ -395,6 +405,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   // Video Folder Create / Edit Modal State
   const [isFolderModalOpen, setIsFolderModalOpen] = useState<boolean>(false);
   const [editingFolder, setEditingFolder] = useState<VideoFolder | null>(null);
+  const [folderParentIdInput, setFolderParentIdInput] = useState<string>('none');
   const [folderNameInput, setFolderNameInput] = useState<string>('');
   const [folderNameTaInput, setFolderNameTaInput] = useState<string>('');
   const [folderDescInput, setFolderDescInput] = useState<string>('');
@@ -405,6 +416,14 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [folderIsLockedInput, setFolderIsLockedInput] = useState<boolean>(false);
   const [folderPasscodeInput, setFolderPasscodeInput] = useState<string>('');
   const [folderIconInput, setFolderIconInput] = useState<string>('📁');
+
+  // React to initialFolderParentId if passed to open create subfolder immediately
+  useEffect(() => {
+    if (isOpen && initialFolderParentId) {
+      setActiveTab('videos');
+      openCreateFolderModal(initialFolderParentId);
+    }
+  }, [isOpen, initialFolderParentId]);
 
   // Resource Vault Drive Links Form State
   const [vaultPhysics, setVaultPhysics] = useState(vaultDriveLinks['physics'] || '');
@@ -933,16 +952,20 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   };
 
   // Video Folders Management Helpers
-  const openCreateFolderModal = () => {
+  const openCreateFolderModal = (defaultParentId?: string) => {
     setEditingFolder(null);
     setFolderNameInput('');
     setFolderNameTaInput('');
     setFolderDescInput('');
-    setFolderSubjectInput('Physics');
-    setFolderColorInput('blue');
+    const parent = defaultParentId && defaultParentId !== 'none'
+      ? videoFolders.find((f) => f.id === defaultParentId)
+      : null;
+    setFolderParentIdInput(defaultParentId || 'none');
+    setFolderSubjectInput(parent?.subjectName || 'Physics');
+    setFolderColorInput(parent?.color || 'blue');
     setFolderIsLockedInput(false);
     setFolderPasscodeInput('');
-    setFolderIconInput('📁');
+    setFolderIconInput(defaultParentId && defaultParentId !== 'none' ? '📂' : '📁');
     setFolderSelectedVideoIds([]);
     setFolderVideoSearch('');
     setIsFolderModalOpen(true);
@@ -953,6 +976,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setFolderNameInput(folder.name);
     setFolderNameTaInput(folder.nameTa || '');
     setFolderDescInput(folder.description || '');
+    setFolderParentIdInput(folder.parentId || 'none');
     setFolderSubjectInput(folder.subjectName || 'Physics');
     setFolderColorInput(folder.color || 'blue');
     setFolderIsLockedInput(folder.isLocked || false);
@@ -971,12 +995,15 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       return;
     }
 
+    const parentIdVal = folderParentIdInput === 'none' || !folderParentIdInput ? null : folderParentIdInput;
+
     if (editingFolder) {
       const updated: VideoFolder = {
         ...editingFolder,
         name: folderNameInput.trim(),
         nameTa: folderNameTaInput.trim() || undefined,
         description: folderDescInput.trim() || undefined,
+        parentId: parentIdVal,
         subjectName: folderSubjectInput,
         color: folderColorInput,
         icon: folderIconInput,
@@ -1001,6 +1028,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         name: folderNameInput.trim(),
         nameTa: folderNameTaInput.trim() || undefined,
         description: folderDescInput.trim() || undefined,
+        parentId: parentIdVal,
         subjectName: folderSubjectInput,
         color: folderColorInput,
         icon: folderIconInput,
@@ -1986,7 +2014,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         <p className="text-[11px] text-slate-500">Create folders to organize your video lessons by syllabus unit or topic.</p>
                         <button
                           type="button"
-                          onClick={openCreateFolderModal}
+                          onClick={() => openCreateFolderModal()}
                           className="mt-2 px-3 py-1.5 bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-300 text-xs font-bold rounded-xl inline-flex items-center gap-1.5 border border-cyan-500/40 cursor-pointer"
                         >
                           <FolderPlus className="w-3.5 h-3.5" />
@@ -1997,6 +2025,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {videoFolders.map((folder) => {
                           const vidsInFolder = videos.filter((v) => v.folderId === folder.id);
+                          const childFolders = getChildFolders(folder.id, videoFolders);
+                          const folderPath = getFolderPath(folder.id, videoFolders);
+                          const isRoot = isRootFolder(folder);
                           const isCurrentFilter = videoFolderFilter === folder.id;
                           return (
                             <div
@@ -2008,11 +2039,23 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               }`}
                             >
                               <div className="space-y-1.5">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 font-mono text-[10px] font-bold border border-cyan-500/20 flex items-center gap-1">
-                                    <span>{folder.icon || '📁'}</span>
-                                    <span>{folder.subjectName || 'All Subjects'}</span>
-                                  </span>
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 font-mono text-[10px] font-bold border border-cyan-500/20 flex items-center gap-1">
+                                      <span>{folder.icon || '📁'}</span>
+                                      <span>{folder.subjectName || 'All Subjects'}</span>
+                                    </span>
+                                    {isRoot ? (
+                                      <span className="px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[9px] font-mono font-bold">
+                                        Root Subject
+                                      </span>
+                                    ) : (
+                                      <span className="px-1.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] font-mono font-bold" title={folderPath.map(p => p.name).join(' ➜ ')}>
+                                        Subfolder
+                                      </span>
+                                    )}
+                                  </div>
+
                                   <div className="flex items-center gap-1">
                                     {folder.isLocked ? (
                                       <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-mono font-bold flex items-center gap-0.5" title={`Passcode: ${folder.accessPasscode || 'None'}`}>
@@ -2030,6 +2073,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                     </span>
                                   </div>
                                 </div>
+
+                                {/* Folder Breadcrumb Hierarchy Path if subfolder */}
+                                {!isRoot && folderPath.length > 1 && (
+                                  <div className="text-[10px] font-mono text-cyan-400/80 flex items-center gap-1 pt-0.5 truncate">
+                                    {folderPath.slice(0, -1).map((p, idx) => (
+                                      <React.Fragment key={p.id}>
+                                        <span className="truncate max-w-[100px]">{p.name}</span>
+                                        <span>➜</span>
+                                      </React.Fragment>
+                                    ))}
+                                    <span className="font-bold text-white truncate max-w-[120px]">{folder.name}</span>
+                                  </div>
+                                )}
 
                                 <div className="flex items-start gap-2 pt-0.5">
                                   <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 shrink-0">
@@ -2052,25 +2108,48 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                     {folder.description}
                                   </p>
                                 )}
+
+                                {childFolders.length > 0 && (
+                                  <div className="pt-1 flex items-center gap-1 text-[10px] font-mono text-purple-300">
+                                    <span className="px-2 py-0.5 rounded-md bg-purple-950/60 border border-purple-500/30">
+                                      📂 {childFolders.length} Nested Subfolder{childFolders.length > 1 ? 's' : ''}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
 
-                              <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-800/80">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    playRoboticClick();
-                                    setVideoFolderFilter(isCurrentFilter ? 'all' : folder.id);
-                                  }}
-                                  className={`px-2.5 py-1.5 rounded-xl text-[11px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-colors ${
-                                    isCurrentFilter
-                                      ? 'bg-cyan-500 text-slate-950 font-black'
-                                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                                  }`}
-                                  title="Filter video list by this folder"
-                                >
-                                  <Filter className="w-3 h-3" />
-                                  <span>{isCurrentFilter ? 'Showing' : 'View'}</span>
-                                </button>
+                              <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-800/80 flex-wrap">
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      playRoboticClick();
+                                      setVideoFolderFilter(isCurrentFilter ? 'all' : folder.id);
+                                    }}
+                                    className={`px-2.5 py-1.5 rounded-xl text-[11px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                                      isCurrentFilter
+                                        ? 'bg-cyan-500 text-slate-950 font-black'
+                                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                    }`}
+                                    title="Filter video list by this folder"
+                                  >
+                                    <Filter className="w-3 h-3" />
+                                    <span>{isCurrentFilter ? 'Showing' : 'View'}</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      playRoboticClick();
+                                      openCreateFolderModal(folder.id);
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-xl bg-purple-950/60 hover:bg-purple-900/80 text-purple-300 text-[11px] font-mono font-bold flex items-center gap-1 border border-purple-500/30 cursor-pointer"
+                                    title="Create a subfolder inside this folder"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                    <span>+ Subfolder</span>
+                                  </button>
+                                </div>
 
                                 <div className="flex items-center gap-1">
                                   <button
@@ -2079,11 +2158,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                       playRoboticClick();
                                       openEditFolderModal(folder);
                                     }}
-                                    className="px-2.5 py-1.5 rounded-xl bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 text-[11px] font-mono font-bold flex items-center gap-1 border border-cyan-500/30 cursor-pointer"
-                                    title="Add or remove videos from this folder"
+                                    className="px-2 py-1.5 rounded-xl bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 text-[11px] font-mono font-bold flex items-center gap-1 border border-cyan-500/30 cursor-pointer"
+                                    title="Edit Folder and Manage Videos"
                                   >
-                                    <FolderCheck className="w-3 h-3" />
-                                    <span>Manage Videos</span>
+                                    <Edit3 className="w-3 h-3" />
+                                    <span>Edit</span>
                                   </button>
 
                                   <button
@@ -2180,12 +2259,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           <select
                             value={bulkTargetFolderId}
                             onChange={(e) => setBulkTargetFolderId(e.target.value)}
-                            className="px-2.5 py-1.5 bg-[#050A17] border border-cyan-500/40 rounded-xl text-xs text-white"
+                            className="px-2.5 py-1.5 bg-[#050A17] border border-cyan-500/40 rounded-xl text-xs text-white max-w-[260px]"
                           >
-                            <option value="none">-- Select Folder --</option>
-                            {videoFolders.map((f) => (
-                              <option key={f.id} value={f.id}>
-                                📁 {f.name}
+                            <option value="none">-- Select Folder / Subfolder --</option>
+                            {getFlattenedFolderTree(videoFolders).map((opt) => (
+                              <option key={opt.folder.id} value={opt.folder.id}>
+                                {opt.label}
                               </option>
                             ))}
                             <option value="unassign">❌ Remove from Folder</option>
@@ -2970,12 +3049,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               <select
                                 value={videoFolderSelect}
                                 onChange={(e) => setVideoFolderSelect(e.target.value)}
-                                className="w-full px-3 py-2 bg-[#091228] border border-rose-500/30 rounded-xl text-xs text-white"
+                                className="w-full px-3 py-2 bg-[#091228] border border-rose-500/30 rounded-xl text-xs text-white font-mono"
                               >
                                 <option value="none">-- No Folder (Unassigned) --</option>
-                                {videoFolders.map((f) => (
-                                  <option key={f.id} value={f.id}>
-                                    📁 {f.name} {f.subjectName ? `(${f.subjectName})` : ''}
+                                {getFlattenedFolderTree(videoFolders).map((opt) => (
+                                  <option key={opt.folder.id} value={opt.folder.id}>
+                                    {opt.label}
                                   </option>
                                 ))}
                               </select>
@@ -3064,12 +3143,12 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                 <select
                                   value={videoFolderSelect}
                                   onChange={(e) => setVideoFolderSelect(e.target.value)}
-                                  className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white"
+                                  className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/30 rounded-xl text-xs text-white font-mono"
                                 >
                                   <option value="none">-- No Folder (Unassigned) --</option>
-                                  {videoFolders.map((f) => (
-                                    <option key={f.id} value={f.id}>
-                                      📁 {f.name} {f.subjectName ? `(${f.subjectName})` : ''}
+                                  {getFlattenedFolderTree(videoFolders).map((opt) => (
+                                    <option key={opt.folder.id} value={opt.folder.id}>
+                                      {opt.label}
                                     </option>
                                   ))}
                                 </select>
@@ -4413,6 +4492,42 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       className="w-full px-3 py-2 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white outline-none focus:border-cyan-400"
                     />
                   </div>
+                </div>
+
+                {/* Parent Folder Hierarchy Selection (Subfolder inside Subfolder) */}
+                <div className="p-3 rounded-2xl bg-gradient-to-r from-purple-950/40 via-cyan-950/30 to-[#050A17] border border-cyan-500/30">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-mono font-bold text-cyan-300 flex items-center gap-1.5">
+                      <Folder className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Parent Subject / Folder (அடங்கும் தாய் Folder)</span>
+                    </label>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      Create subfolder inside any subject/folder
+                    </span>
+                  </div>
+                  <select
+                    value={folderParentIdInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFolderParentIdInput(val);
+                      if (val !== 'none') {
+                        const parent = videoFolders.find((f) => f.id === val);
+                        if (parent?.subjectName) setFolderSubjectInput(parent.subjectName);
+                        if (parent?.color) setFolderColorInput(parent.color);
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-[#050A17] border border-cyan-500/40 rounded-xl text-xs text-white outline-none focus:border-cyan-400 font-mono"
+                  >
+                    <option value="none">-- Top-Level Root Subject (முதன்மைப் பிரிவு) --</option>
+                    {getFlattenedFolderTree(videoFolders, editingFolder?.id).map((opt) => (
+                      <option key={opt.folder.id} value={opt.folder.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-slate-400 pt-1 leading-relaxed">
+                    💡 <strong>Subfolder Options:</strong> You can place this folder directly inside Biology, Physics, Chemistry, Combined Maths, or inside another subfolder to create nested folders (subfolder-க்குள் subfolder)!
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

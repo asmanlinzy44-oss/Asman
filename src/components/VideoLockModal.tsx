@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Lock, X, CheckCircle2, Sparkles, MessageCircle, Send, Clock, UserCheck, ShieldCheck, Film, GraduationCap } from 'lucide-react';
 import { playRoboticClick } from '../utils/audio';
 import { User, VideoLesson, VideoAccessRequest, PaidStudentAccess } from '../types';
-import { Mail, Check, AlertCircle } from 'lucide-react';
 
 interface VideoLockModalProps {
   isOpen: boolean;
@@ -17,7 +16,6 @@ interface VideoLockModalProps {
   onOpenContactUs?: () => void;
   accessRequests?: VideoAccessRequest[];
   onRequestAccess?: (params: { folderId?: string; folderName?: string; videoId?: string; videoTitle?: string; message?: string }) => Promise<{ success: boolean; message: string }> | { success: boolean; message: string };
-  onStudentGmailLogin?: (email: string) => Promise<{ success: boolean; message: string; expired?: boolean }>;
   isAccessExpired?: boolean;
   currentUserAccess?: PaidStudentAccess | null;
 }
@@ -35,15 +33,11 @@ export const VideoLockModal: React.FC<VideoLockModalProps> = ({
   onOpenContactUs,
   accessRequests = [],
   onRequestAccess,
-  onStudentGmailLogin,
   isAccessExpired = false,
   currentUserAccess,
 }) => {
   const [isRequesting, setIsRequesting] = useState(false);
   const [requestStatus, setRequestStatus] = useState<string | null>(null);
-  const [quickGmailInput, setQuickGmailInput] = useState('');
-  const [isVerifyingGmail, setIsVerifyingGmail] = useState(false);
-  const [gmailNotice, setGmailNotice] = useState<{ text: string; type: 'success' | 'error' | 'expired' } | null>(null);
 
   if (!isOpen) return null;
 
@@ -71,38 +65,6 @@ export const VideoLockModal: React.FC<VideoLockModalProps> = ({
       setIsRequesting(false);
     }
   };
-
-  const handleQuickGmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!onStudentGmailLogin) return;
-    const input = quickGmailInput.trim().toLowerCase();
-    if (!input || !input.includes('@')) {
-      setGmailNotice({ text: 'Please enter a valid Gmail address (e.g. yourname@gmail.com)', type: 'error' });
-      return;
-    }
-    setIsVerifyingGmail(true);
-    setGmailNotice(null);
-    try {
-      const result = await onStudentGmailLogin(input);
-      if (result.success) {
-        setGmailNotice({ text: result.message, type: 'success' });
-        setTimeout(() => {
-          if (onUnlock) onUnlock();
-          onClose();
-        }, 1200);
-      } else if (result.expired) {
-        setGmailNotice({ text: result.message, type: 'expired' });
-      } else {
-        setGmailNotice({ text: result.message, type: 'error' });
-      }
-    } catch (err: any) {
-      setGmailNotice({ text: err?.message || 'Verification error. Please contact Asman Linzy.', type: 'error' });
-    } finally {
-      setIsVerifyingGmail(false);
-    }
-  };
-
-  return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200 google-anno-skip">
       <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border-2 border-blue-200 dark:border-blue-900/60 overflow-hidden text-slate-900 dark:text-white google-anno-skip">
         {/* Soft Background Accents */}
@@ -264,70 +226,19 @@ export const VideoLockModal: React.FC<VideoLockModalProps> = ({
               </div>
             </div>
           ) : (
-            /* Scenario 2: User is NOT logged in - Instant Multi-Device Access via Registered Gmail or Google */
-            <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-center space-y-3.5">
-              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                Theory masterclass videos are protected and stored in cloud storage. Access with your registered <strong>Google (Gmail)</strong> account.
-              </p>
-
-              {/* Direct Quick Gmail Verification Form (WhatsApp-Style Cloud Lookup) */}
-              <div className="p-3 bg-white dark:bg-slate-900/90 rounded-2xl border border-blue-200 dark:border-blue-900/70 text-left space-y-2 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="quick-student-gmail" className="text-[11px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
-                    <span>Enter Registered Gmail (பதிவுசெய்த Gmail)</span>
-                  </label>
-                  <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
-                    🟢 Cloud Live
-                  </span>
-                </div>
-                <form onSubmit={handleQuickGmailSubmit} className="flex gap-2">
-                  <input
-                    id="quick-student-gmail"
-                    type="email"
-                    value={quickGmailInput}
-                    onChange={(e) => setQuickGmailInput(e.target.value)}
-                    placeholder="student@gmail.com"
-                    className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                    disabled={isVerifyingGmail}
-                  />
-                  <button
-                    type="submit"
-                    disabled={isVerifyingGmail || !quickGmailInput.trim()}
-                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-extrabold transition-all shrink-0 cursor-pointer flex items-center gap-1 active:scale-95 shadow-xs"
-                  >
-                    {isVerifyingGmail ? (
-                      <span className="animate-pulse">Checking...</span>
-                    ) : (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Unlock</span>
-                      </>
-                    )}
-                  </button>
-                </form>
-
-                {gmailNotice && (
-                  <div className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
-                    gmailNotice.type === 'success' 
-                      ? 'bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300'
-                      : gmailNotice.type === 'expired'
-                      ? 'bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-300'
-                      : 'bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300'
-                  }`}>
-                    {gmailNotice.type === 'success' ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                    )}
-                    <span className="leading-tight">{gmailNotice.text}</span>
-                  </div>
-                )}
+            /* Scenario 2: User is NOT logged in - Instant Google Sign In */
+            <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 text-center space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/60 text-blue-600 dark:text-sky-300 flex items-center justify-center mx-auto">
+                <Lock className="w-6 h-6 text-blue-600 dark:text-sky-400" />
               </div>
 
-              <div className="relative flex items-center justify-center my-1">
-                <div className="border-t border-slate-200 dark:border-slate-700 w-full" />
-                <span className="bg-slate-50 dark:bg-slate-800 px-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider absolute">or</span>
+              <div className="space-y-1">
+                <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                  Sign In with Google to Unlock Video Lessons
+                </h4>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm mx-auto">
+                  Theory masterclass videos are protected in cloud storage. Please log in with your authorized <strong>Google (Gmail)</strong> account. If approved by Admin, lectures will unlock automatically!
+                </p>
               </div>
 
               {onGoogleLogin && (
@@ -337,7 +248,7 @@ export const VideoLockModal: React.FC<VideoLockModalProps> = ({
                     playRoboticClick();
                     onGoogleLogin();
                   }}
-                  className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-extrabold text-xs sm:text-sm rounded-xl transition-all shadow-xs flex items-center justify-center gap-2.5 cursor-pointer group active:scale-[0.98]"
+                  className="w-full py-3.5 px-4 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-extrabold text-sm rounded-xl transition-all shadow-md flex items-center justify-center gap-3 cursor-pointer group active:scale-[0.98]"
                 >
                   <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shrink-0">
                     <svg className="w-full h-full" viewBox="0 0 24 24">
@@ -352,7 +263,7 @@ export const VideoLockModal: React.FC<VideoLockModalProps> = ({
               )}
 
               {onOpenContactUs && (
-                <div className="pt-2">
+                <div className="pt-1">
                   <button
                     type="button"
                     onClick={() => {
