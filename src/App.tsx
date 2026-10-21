@@ -2392,6 +2392,10 @@ export default function App() {
               onToggleBookmark={handleToggleBookmark}
               isVideoUnlocked={isEffectiveVideoUnlocked}
               onRequireUnlockVideo={() => setIsVideoLockOpen(true)}
+              isFolderUnlocked={(folderId) => {
+                const folder = videoFolders.find((f) => f.id === folderId);
+                return folder ? isFolderUnlocked(folder) : false;
+              }}
             />
           )}
 

@@ -68,6 +68,7 @@ interface AiSearchViewProps {
   onToggleBookmark: (id: string) => void;
   isVideoUnlocked?: boolean;
   onRequireUnlockVideo?: () => void;
+  isFolderUnlocked: (folderId: string) => boolean; // Add this
 }
 
 interface AiSearchResult {
@@ -371,7 +372,7 @@ export const AiSearchView: React.FC<AiSearchViewProps> = ({
       return { paper, score, pType };
     });
 
-    const validPapers = scored.filter((item) => item.score > 15);
+    const validPapers = scored.filter((item) => item.score > 40);
 
     const nationalMatches = validPapers
       .filter((i) => i.pType === 'national-past')
@@ -506,7 +507,7 @@ export const AiSearchView: React.FC<AiSearchViewProps> = ({
     }
 
     const matched = scored
-      .filter((item) => item.score > 18)
+      .filter((item) => item.score > 30)
       .sort((a, b) => b.score - a.score)
       .map((item) => item.subFolder);
 
@@ -1031,45 +1032,54 @@ Respond ONLY with a valid JSON matching this schema:
                                 <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
                                   {sub.description}
                                 </p>
+                                
+                                {isFolderUnlocked(sub.id) ? (
+                                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center gap-2">
+                                    <a
+                                      href={sub.driveLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={() => playRoboticClick()}
+                                      className="flex-1 py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                                    >
+                                      <FolderOpen className="w-3.5 h-3.5" />
+                                      <span>Open Google Drive</span>
+                                      <ExternalLink className="w-3 h-3 text-sky-300" />
+                                    </a>
 
-                                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center gap-2">
-                                  <a
-                                    href={sub.driveLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={() => playRoboticClick()}
-                                    className="flex-1 py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-blue-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                                  >
-                                    <FolderOpen className="w-3.5 h-3.5" />
-                                    <span>Open Google Drive</span>
-                                    <ExternalLink className="w-3 h-3 text-sky-300" />
-                                  </a>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        playRoboticTab();
+                                        onNavigateToTab('theory-notes', { subject: sub.subjectId });
+                                      }}
+                                      className="py-1.5 px-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-sky-300 font-bold text-xs border border-blue-200 dark:border-blue-900 transition-colors cursor-pointer"
+                                      title="Open Vault"
+                                    >
+                                      Vault
+                                    </button>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      playRoboticTab();
-                                      onNavigateToTab('theory-notes', { subject: sub.subjectId });
-                                    }}
-                                    className="py-1.5 px-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-sky-300 font-bold text-xs border border-blue-200 dark:border-blue-900 transition-colors cursor-pointer"
-                                    title="Open Vault"
-                                  >
-                                    Vault
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCopyLink(sub.driveLink, `subfolder-${sub.id}`)}
-                                    className="p-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
-                                    title="Copy Drive Link"
-                                  >
-                                    {copiedId === `subfolder-${sub.id}` ? (
-                                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                    ) : (
-                                      <Copy className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyLink(sub.driveLink, `subfolder-${sub.id}`)}
+                                      className="p-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+                                      title="Copy Drive Link"
+                                    >
+                                      {copiedId === `subfolder-${sub.id}` ? (
+                                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                      ) : (
+                                        <Copy className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+                                    <div className="py-2 px-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 text-amber-700 dark:text-amber-400 font-bold text-[11px] flex items-center gap-2">
+                                      <AlertCircle className="w-3.5 h-3.5" />
+                                      <span>Locked (Requires Enrollment)</span>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
