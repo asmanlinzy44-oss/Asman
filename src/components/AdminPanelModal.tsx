@@ -58,7 +58,16 @@ interface AdminPanelModalProps {
   onGrantVideoAccess?: (email: string, studentName?: string, note?: string, extra?: Partial<PaidStudentAccess>) => Promise<boolean> | boolean;
   onRevokeVideoAccess?: (email: string) => Promise<boolean> | boolean;
   accessRequests?: VideoAccessRequest[];
-  onApproveAccessRequest?: (requestId: string, extra?: { durationPreset?: string; expiresAt?: string }) => Promise<boolean> | boolean;
+  onApproveAccessRequest?: (
+    requestId: string,
+    extra?: {
+      durationPreset?: string;
+      expiresAt?: string;
+      accessScope?: 'all' | 'custom';
+      allowedFolderIds?: string[];
+      accessLabel?: string;
+    }
+  ) => Promise<boolean> | boolean;
   onRejectAccessRequest?: (requestId: string) => Promise<boolean> | boolean;
 }
 
@@ -113,6 +122,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [accessScopeInput, setAccessScopeInput] = useState<'all' | 'custom'>('all');
   const [selectedScopeSubjects, setSelectedScopeSubjects] = useState<string[]>(['physics']);
   const [selectedScopeUnits, setSelectedScopeUnits] = useState<number[]>([2]);
+  const [selectedScopeFolderIds, setSelectedScopeFolderIds] = useState<string[]>([]);
   const [customScopeLabel, setCustomScopeLabel] = useState<string>('Physics Hydrodynamics Only');
   const [searchEmailQuery, setSearchEmailQuery] = useState('');
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
@@ -122,10 +132,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [durationPreset, setDurationPreset] = useState<'7days' | '30days' | '90days' | '180days' | '365days' | 'lifetime' | 'custom'>('30days');
   const [customExpiryDate, setCustomExpiryDate] = useState<string>('');
   const [requestDurations, setRequestDurations] = useState<Record<string, string>>({});
+  const [openCustomRequestIds, setOpenCustomRequestIds] = useState<Record<string, boolean>>({});
+  const [requestSelectedFolders, setRequestSelectedFolders] = useState<Record<string, string[]>>({});
 
   // Edit Existing Student Access Modal State
   const [editingStudent, setEditingStudent] = useState<PaidStudentAccess | null>(null);
   const [editScope, setEditScope] = useState<'all' | 'custom'>('all');
+  const [editFolderIds, setEditFolderIds] = useState<string[]>([]);
   const [editSubjects, setEditSubjects] = useState<string[]>([]);
   const [editUnits, setEditUnits] = useState<number[]>([]);
   const [editLabel, setEditLabel] = useState<string>('');
@@ -581,6 +594,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
     const extra: Partial<PaidStudentAccess> = {
       accessScope: accessScopeInput,
+      allowedFolderIds: isCustom && selectedScopeFolderIds.length > 0 ? selectedScopeFolderIds : undefined,
       allowedSubjectIds: isCustom ? selectedScopeSubjects : undefined,
       allowedUnits: isCustom ? selectedScopeUnits : undefined,
       accessLabel: label,
@@ -601,6 +615,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         setStudentEmailInput('');
         setStudentNameInput('');
         setStudentNoteInput('');
+        setSelectedScopeFolderIds([]);
       } catch (err: any) {
         setAccessError(err?.message || 'Failed to grant access. Please try again.');
       }
@@ -610,6 +625,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const handleOpenEditStudent = (student: PaidStudentAccess) => {
     setEditingStudent(student);
     setEditScope(student.accessScope || 'all');
+    setEditFolderIds(student.allowedFolderIds || []);
     setEditSubjects(student.allowedSubjectIds || ['physics']);
     setEditUnits(student.allowedUnits || [2]);
     setEditLabel(student.accessLabel || (student.accessScope === 'custom' ? 'Physics Hydrodynamics Only' : 'All Videos'));
@@ -640,6 +656,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     const extra: Partial<PaidStudentAccess> = {
       grantedAt: editingStudent.grantedAt,
       accessScope: editScope,
+      allowedFolderIds: isCustom && editFolderIds.length > 0 ? editFolderIds : undefined,
       allowedSubjectIds: isCustom ? editSubjects : undefined,
       allowedUnits: isCustom ? editUnits : undefined,
       accessLabel: label,
@@ -3507,7 +3524,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         return (
                           <div
                             key={req.id}
-                            className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                            className={`p-4 rounded-2xl border transition-all flex flex-col gap-3.5 ${
                               isPending
                                 ? 'bg-[#050A17] border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.1)]'
                                 : isApproved
@@ -3515,169 +3532,364 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                 : 'bg-[#050A17] border-slate-800'
                             }`}
                           >
-                            <div className="flex items-start sm:items-center gap-3 min-w-0">
-                              <div
-                                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                                  isPending
-                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                    : isApproved
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                    : 'bg-slate-800 text-slate-400'
-                                }`}
-                              >
-                                {isPending ? (
-                                  <Clock className="w-5 h-5 text-amber-400 animate-pulse" />
-                                ) : isApproved ? (
-                                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                                ) : (
-                                  <X className="w-5 h-5 text-rose-400" />
-                                )}
-                              </div>
-
-                              <div className="min-w-0 space-y-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-mono text-sm font-bold text-white">
-                                    {req.userEmail}
-                                  </span>
-
-                                  {isPending && (
-                                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40 flex items-center gap-1">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-                                      Needs Admin Approval
-                                    </span>
-                                  )}
-
-                                  {isApproved && (
-                                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1">
-                                      <Check className="w-3 h-3 text-emerald-400" />
-                                      Access Active
-                                    </span>
-                                  )}
-
-                                  {req.status === 'rejected' && (
-                                    <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-bold border border-rose-500/30">
-                                      Declined
-                                    </span>
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
+                              <div className="flex items-start sm:items-center gap-3 min-w-0">
+                                <div
+                                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                    isPending
+                                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                      : isApproved
+                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                      : 'bg-slate-800 text-slate-400'
+                                  }`}
+                                >
+                                  {isPending ? (
+                                    <Clock className="w-5 h-5 text-amber-400 animate-pulse" />
+                                  ) : isApproved ? (
+                                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                                  ) : (
+                                    <X className="w-5 h-5 text-rose-400" />
                                   )}
                                 </div>
 
-                                <div className="text-xs text-slate-300 flex items-center gap-2 flex-wrap">
-                                  {req.userName && (
-                                    <span className="text-cyan-300 font-medium">
-                                      👤 {req.userName}
+                                <div className="min-w-0 space-y-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-mono text-sm font-bold text-white">
+                                      {req.userEmail}
                                     </span>
-                                  )}
-                                  {req.folderName && (
-                                    <span className="text-amber-200">
-                                      📁 Requested Folder: <strong>{req.folderName}</strong>
-                                    </span>
-                                  )}
-                                  {req.videoTitle && (
-                                    <span className="text-sky-200">
-                                      🎥 Requested Video: <strong>{req.videoTitle}</strong>
-                                    </span>
-                                  )}
-                                  <span className="text-slate-500 font-mono text-[11px]">
-                                    · {new Date(req.requestedAt).toLocaleString()}
-                                  </span>
-                                </div>
 
-                                {req.message && (
-                                  <p className="text-[11px] text-slate-400 italic bg-black/30 px-2.5 py-1 rounded-lg border border-slate-800">
-                                    "{req.message}"
-                                  </p>
-                                )}
-                              </div>
-                            </div>
+                                    {isPending && (
+                                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40 flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                                        Needs Admin Approval
+                                      </span>
+                                    )}
 
-                            {/* Action Buttons & Duration Selector */}
-                            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 shrink-0 self-end md:self-auto">
-                              {isPending ? (
-                                <>
-                                  {/* Duration Preset Selector */}
-                                  <div className="flex items-center gap-1 bg-[#091228] p-1 rounded-xl border border-amber-500/30">
-                                    <span className="text-[10px] font-mono text-slate-400 px-1 flex items-center gap-1">
-                                      <Clock className="w-3 h-3 text-amber-400" />
-                                      <span>Limit:</span>
-                                    </span>
-                                    {[
-                                      { id: '7days', label: '7d' },
-                                      { id: '30days', label: '30d' },
-                                      { id: '90days', label: '90d' },
-                                      { id: '365days', label: '1y' },
-                                      { id: 'lifetime', label: '♾️' },
-                                    ].map((preset) => {
-                                      const active = (requestDurations[req.id] || '30days') === preset.id;
-                                      return (
-                                        <button
-                                          key={preset.id}
-                                          type="button"
-                                          onClick={() => {
-                                            playRoboticClick();
-                                            setRequestDurations((prev) => ({ ...prev, [req.id]: preset.id }));
-                                          }}
-                                          className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold cursor-pointer transition-all ${
-                                            active
-                                              ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
-                                              : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                                          }`}
-                                        >
-                                          {preset.label}
-                                        </button>
-                                      );
-                                    })}
+                                    {isApproved && (
+                                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1">
+                                        <Check className="w-3 h-3 text-emerald-400" />
+                                        {req.allowedFolderIds && req.allowedFolderIds.length > 0 
+                                          ? `Custom (${req.allowedFolderIds.length} Folders) Active`
+                                          : 'Full Access Active'}
+                                      </span>
+                                    )}
+
+                                    {req.status === 'rejected' && (
+                                      <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-bold border border-rose-500/30">
+                                        Declined
+                                      </span>
+                                    )}
                                   </div>
 
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      playRoboticUnlock();
-                                      if (onApproveAccessRequest) {
-                                        const chosenPreset = requestDurations[req.id] || '30days';
-                                        const calculatedExpiry = calculateExpiresAt(chosenPreset);
-                                        const success = await onApproveAccessRequest(req.id, {
-                                          durationPreset: chosenPreset,
-                                          expiresAt: calculatedExpiry,
-                                        });
-                                        if (success) {
-                                          const durText = chosenPreset === 'lifetime' 
-                                            ? 'Lifetime' 
-                                            : `${chosenPreset.replace('days', ' Days')} (Expires: ${new Date(calculatedExpiry || '').toLocaleDateString()})`;
-                                          showSuccess(
-                                            `✓ Access granted to ${req.userEmail} for ${durText}! Time limit enforced.`
-                                          );
-                                        }
-                                      }
-                                    }}
-                                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-[0_0_15px_rgba(16,185,129,0.35)] transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
-                                  >
-                                    <Check className="w-4 h-4 stroke-[3]" />
-                                    <span>Accept & Grant Access</span>
-                                  </button>
+                                  <div className="text-xs text-slate-300 flex items-center gap-2 flex-wrap">
+                                    {req.userName && (
+                                      <span className="text-cyan-300 font-medium">
+                                        👤 {req.userName}
+                                      </span>
+                                    )}
+                                    {req.folderName && (
+                                      <span className="text-amber-200">
+                                        📁 Requested Folder: <strong>{req.folderName}</strong>
+                                      </span>
+                                    )}
+                                    {req.videoTitle && (
+                                      <span className="text-sky-200">
+                                        🎥 Requested Video: <strong>{req.videoTitle}</strong>
+                                      </span>
+                                    )}
+                                    <span className="text-slate-500 font-mono text-[11px]">
+                                      · {new Date(req.requestedAt).toLocaleString()}
+                                    </span>
+                                  </div>
 
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      playRoboticClick();
-                                      if (onRejectAccessRequest) {
-                                        await onRejectAccessRequest(req.id);
-                                        showSuccess(`Access request from ${req.userEmail} declined.`);
-                                      }
-                                    }}
-                                    className="px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                    <span>Decline</span>
-                                  </button>
-                                </>
-                              ) : (
-                                <span className="text-[11px] font-mono text-slate-400">
-                                  {isApproved
-                                    ? `✓ Approved by ${req.resolvedBy || 'Admin'}`
-                                    : '✕ Request Declined'}
-                                </span>
-                              )}
+                                  {req.message && (
+                                    <p className="text-[11px] text-slate-400 italic bg-black/30 px-2.5 py-1 rounded-lg border border-slate-800">
+                                      "{req.message}"
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Action Buttons & Duration Selector */}
+                              <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 shrink-0 self-end md:self-auto">
+                                {isPending ? (
+                                  <>
+                                    {/* Duration Preset Selector */}
+                                    <div className="flex items-center gap-1 bg-[#091228] p-1 rounded-xl border border-amber-500/30">
+                                      <span className="text-[10px] font-mono text-slate-400 px-1 flex items-center gap-1">
+                                        <Clock className="w-3 h-3 text-amber-400" />
+                                        <span>Limit:</span>
+                                      </span>
+                                      {[
+                                        { id: '7days', label: '7d' },
+                                        { id: '30days', label: '30d' },
+                                        { id: '90days', label: '90d' },
+                                        { id: '365days', label: '1y' },
+                                        { id: 'lifetime', label: '♾️' },
+                                      ].map((preset) => {
+                                        const active = (requestDurations[req.id] || '30days') === preset.id;
+                                        return (
+                                          <button
+                                            key={preset.id}
+                                            type="button"
+                                            onClick={() => {
+                                              playRoboticClick();
+                                              setRequestDurations((prev) => ({ ...prev, [req.id]: preset.id }));
+                                            }}
+                                            className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold cursor-pointer transition-all ${
+                                              active
+                                                ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
+                                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                            }`}
+                                          >
+                                            {preset.label}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+
+                                    {/* Button 1: Grant Full Access */}
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        playRoboticUnlock();
+                                        if (onApproveAccessRequest) {
+                                          const chosenPreset = requestDurations[req.id] || '30days';
+                                          const calculatedExpiry = calculateExpiresAt(chosenPreset);
+                                          const success = await onApproveAccessRequest(req.id, {
+                                            durationPreset: chosenPreset,
+                                            expiresAt: calculatedExpiry,
+                                            accessScope: 'all',
+                                            accessLabel: 'All Masterclass & Practical Videos',
+                                          });
+                                          if (success) {
+                                            const durText = chosenPreset === 'lifetime' 
+                                              ? 'Lifetime' 
+                                              : `${chosenPreset.replace('days', ' Days')} (Expires: ${new Date(calculatedExpiry || '').toLocaleDateString()})`;
+                                            showSuccess(
+                                              `✓ Full Access (All Folders) granted to ${req.userEmail} for ${durText}!`
+                                            );
+                                          }
+                                        }
+                                      }}
+                                      className="px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-[0_0_15px_rgba(16,185,129,0.35)] transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                                      title="Unlock All Folders for this student"
+                                    >
+                                      <Check className="w-4 h-4 stroke-[3]" />
+                                      <span>Grant All (முழு அனுமதி)</span>
+                                    </button>
+
+                                    {/* Button 2: Custom Folders */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        playRoboticClick();
+                                        setOpenCustomRequestIds((prev) => {
+                                          const next = !prev[req.id];
+                                          if (next && !requestSelectedFolders[req.id]) {
+                                            setRequestSelectedFolders((sf) => ({
+                                              ...sf,
+                                              [req.id]: req.folderId ? [req.folderId] : []
+                                            }));
+                                          }
+                                          return { ...prev, [req.id]: next };
+                                        });
+                                      }}
+                                      className={`px-3 py-2 rounded-xl border text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
+                                        openCustomRequestIds[req.id]
+                                          ? 'bg-amber-500 text-slate-950 border-amber-400 font-black shadow-[0_0_15px_rgba(245,158,11,0.35)]'
+                                          : 'bg-amber-950/60 hover:bg-amber-900 border-amber-500/40 text-amber-300'
+                                      }`}
+                                      title="Choose custom folders to unlock for this student"
+                                    >
+                                      <Layers className="w-3.5 h-3.5" />
+                                      <span>Select Custom Folders (Folder தேர்வு) {openCustomRequestIds[req.id] ? '▲' : '▼'}</span>
+                                    </button>
+
+                                    {/* Button 3: Decline */}
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        playRoboticClick();
+                                        if (onRejectAccessRequest) {
+                                          await onRejectAccessRequest(req.id);
+                                          showSuccess(`Access request from ${req.userEmail} declined.`);
+                                        }
+                                      }}
+                                      className="px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                      <span>Decline</span>
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className="text-[11px] font-mono text-slate-400">
+                                    {isApproved
+                                      ? `✓ Approved by ${req.resolvedBy || 'Admin'}`
+                                      : '✕ Request Declined'}
+                                  </span>
+                                )}
+                              </div>
                             </div>
+
+                            {/* Custom Folders Drawer */}
+                            {isPending && openCustomRequestIds[req.id] && (
+                              <div className="w-full mt-1 p-4 bg-[#091228] rounded-2xl border-2 border-amber-500/50 shadow-xl space-y-3 animate-in fade-in duration-150">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                                  <div>
+                                    <h5 className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                                      <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                                      <span>Custom Folder Access Selection for {req.userEmail}</span>
+                                    </h5>
+                                    <p className="text-[10px] text-slate-400">
+                                      தேர்ந்தெடுத்த Folders மட்டும் unlock செய்யப்படும். மற்றவை இந்த மாணவருக்கு பூட்டப்பட்டிருக்கும் (Locked).
+                                    </p>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {req.folderId && req.folderName && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          playRoboticClick();
+                                          setRequestSelectedFolders((prev) => ({
+                                            ...prev,
+                                            [req.id]: [req.folderId!]
+                                          }));
+                                        }}
+                                        className="px-2.5 py-1 rounded-lg bg-blue-950/60 hover:bg-blue-900 border border-blue-500/40 text-blue-200 text-[10px] font-bold cursor-pointer"
+                                      >
+                                        ⚡ Pick Requested: "{req.folderName}"
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        playRoboticClick();
+                                        setRequestSelectedFolders((prev) => ({
+                                          ...prev,
+                                          [req.id]: videoFolders.map((f) => f.id)
+                                        }));
+                                      }}
+                                      className="text-[10px] text-cyan-400 hover:underline cursor-pointer font-bold"
+                                    >
+                                      Select All
+                                    </button>
+                                    <span className="text-slate-600">·</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        playRoboticClick();
+                                        setRequestSelectedFolders((prev) => ({
+                                          ...prev,
+                                          [req.id]: []
+                                        }));
+                                      }}
+                                      className="text-[10px] text-slate-400 hover:underline cursor-pointer"
+                                    >
+                                      Clear
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Folder Checkboxes Tree */}
+                                <div className="max-h-56 overflow-y-auto space-y-1.5 p-2 bg-[#050A17] rounded-xl border border-slate-800">
+                                  {getFlattenedFolderTree(videoFolders).map((opt) => {
+                                    const isSelected = (requestSelectedFolders[req.id] || []).includes(opt.folder.id);
+                                    const vidsInFolder = videos.filter((v) => v.folderId === opt.folder.id).length;
+                                    return (
+                                      <label
+                                        key={opt.folder.id}
+                                        className={`p-2 rounded-xl border flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                                          isSelected
+                                            ? 'bg-amber-500/15 border-amber-500/50 text-white'
+                                            : 'bg-[#091228] border-slate-800/80 text-slate-400 hover:border-slate-700'
+                                        }`}
+                                        style={{ marginLeft: `${opt.depth * 14}px` }}
+                                      >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => {
+                                              const curr = requestSelectedFolders[req.id] || [];
+                                              const next = isSelected 
+                                                ? curr.filter((id) => id !== opt.folder.id) 
+                                                : [...curr, opt.folder.id];
+                                              setRequestSelectedFolders((prev) => ({ ...prev, [req.id]: next }));
+                                            }}
+                                            className="rounded text-amber-500 focus:ring-amber-400 shrink-0"
+                                          />
+                                          <span className="text-sm shrink-0">{opt.folder.icon || '📁'}</span>
+                                          <span className="text-xs font-bold text-white truncate">{opt.folder.name}</span>
+                                          {opt.folder.nameTa && (
+                                            <span className="text-[10px] text-slate-400 truncate">({opt.folder.nameTa})</span>
+                                          )}
+                                        </div>
+                                        <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                                          {vidsInFolder} vids
+                                        </span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* Confirm Action Bar */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-800">
+                                  <div className="text-[11px] text-slate-300 font-mono">
+                                    Selected: <strong className="text-amber-400">{(requestSelectedFolders[req.id] || []).length} folders</strong> to unlock
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setOpenCustomRequestIds((prev) => ({ ...prev, [req.id]: false }))}
+                                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const chosenFolders = requestSelectedFolders[req.id] || [];
+                                        if (chosenFolders.length === 0) {
+                                          alert('Please select at least 1 folder to unlock for this student!');
+                                          return;
+                                        }
+                                        playRoboticUnlock();
+                                        if (onApproveAccessRequest) {
+                                          const chosenPreset = requestDurations[req.id] || '30days';
+                                          const calculatedExpiry = calculateExpiresAt(chosenPreset);
+                                          const names = chosenFolders.map((id) => videoFolders.find((f) => f.id === id)?.name || id);
+                                          const label = names.length > 2 
+                                            ? `${names.slice(0, 2).join(', ')} +${names.length - 2} more` 
+                                            : names.join(', ');
+
+                                          const success = await onApproveAccessRequest(req.id, {
+                                            durationPreset: chosenPreset,
+                                            expiresAt: calculatedExpiry,
+                                            accessScope: 'custom',
+                                            allowedFolderIds: chosenFolders,
+                                            accessLabel: `Custom (${chosenFolders.length} Folders): ${label}`,
+                                          });
+                                          if (success) {
+                                            showSuccess(
+                                              `✓ Custom Access (${chosenFolders.length} Folders) granted to ${req.userEmail}! Other folders locked.`
+                                            );
+                                            setOpenCustomRequestIds((prev) => ({ ...prev, [req.id]: false }));
+                                          }
+                                        }
+                                      }}
+                                      className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-[0_0_15px_rgba(245,158,11,0.35)] cursor-pointer flex items-center gap-1.5 active:scale-95"
+                                    >
+                                      <Check className="w-4 h-4 stroke-[3]" />
+                                      <span>Grant Custom Access ({(requestSelectedFolders[req.id] || []).length} Folders)</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -3923,6 +4135,90 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                   </label>
                                 );
                               })}
+                            </div>
+
+                            {/* Specific Folder Hierarchy Selector */}
+                            <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                              <div className="flex items-center justify-between">
+                                <label className="text-[11px] font-mono font-bold text-amber-300 flex items-center gap-1.5">
+                                  <Folder className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>Unlock Specific Folder(s) / குறிப்பிட்ட Folder தேர்வு:</span>
+                                </label>
+                                <div className="flex items-center gap-2 text-[10px]">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      playRoboticClick();
+                                      setSelectedScopeFolderIds(videoFolders.map((f) => f.id));
+                                    }}
+                                    className="text-cyan-400 hover:underline font-bold cursor-pointer"
+                                  >
+                                    Select All
+                                  </button>
+                                  <span className="text-slate-600">·</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      playRoboticClick();
+                                      setSelectedScopeFolderIds([]);
+                                    }}
+                                    className="text-slate-400 hover:underline cursor-pointer"
+                                  >
+                                    Clear
+                                  </button>
+                                </div>
+                              </div>
+                              <p className="text-[10px] text-slate-400">
+                                தெரிவுசெய்யும் Folders மட்டுமே Unlock செய்யப்படும். மற்ற எல்லா பாடக் கோப்புறைகளும் பூட்டப்பட்டிருக்கும் (Locked 🔐).
+                              </p>
+
+                              <div className="max-h-52 overflow-y-auto space-y-1 p-2 bg-[#050A17] rounded-xl border border-slate-800">
+                                {getFlattenedFolderTree(videoFolders).map((opt) => {
+                                  const isSelected = selectedScopeFolderIds.includes(opt.folder.id);
+                                  const vidsInFolder = videos.filter((v) => v.folderId === opt.folder.id).length;
+                                  return (
+                                    <label
+                                      key={opt.folder.id}
+                                      className={`p-2 rounded-xl border flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                                        isSelected
+                                          ? 'bg-amber-500/15 border-amber-500/50 text-white'
+                                          : 'bg-[#091228] border-slate-800/80 text-slate-400 hover:border-slate-700'
+                                      }`}
+                                      style={{ marginLeft: `${opt.depth * 14}px` }}
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={() => {
+                                            const next = isSelected
+                                              ? selectedScopeFolderIds.filter((id) => id !== opt.folder.id)
+                                              : [...selectedScopeFolderIds, opt.folder.id];
+                                            setSelectedScopeFolderIds(next);
+                                            if (next.length > 0) {
+                                              const names = next.map((id) => videoFolders.find((f) => f.id === id)?.name || id);
+                                              setCustomScopeLabel(names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2} more` : names.join(', '));
+                                            }
+                                          }}
+                                          className="rounded text-amber-500 focus:ring-amber-400 shrink-0"
+                                        />
+                                        <span className="text-sm shrink-0">{opt.folder.icon || '📁'}</span>
+                                        <span className="text-xs font-bold text-white truncate">{opt.folder.name}</span>
+                                        {opt.folder.nameTa && (
+                                          <span className="text-[10px] text-slate-400 truncate">({opt.folder.nameTa})</span>
+                                        )}
+                                      </div>
+                                      <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                                        {vidsInFolder} vids
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="text-[10px] font-mono text-slate-400">
+                                Selected: <strong className="text-amber-400">{selectedScopeFolderIds.length} folder(s)</strong> unlocked for this student
+                              </div>
                             </div>
 
                             {/* Custom Label Input */}
@@ -4316,6 +4612,90 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                 >
                                   ⚡ Physics Complete
                                 </button>
+                              </div>
+
+                              {/* Specific Folder Hierarchy Selector for Edit Modal */}
+                              <div className="space-y-2 pt-2 border-t border-slate-800">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[11px] font-mono font-bold text-amber-300 flex items-center gap-1.5">
+                                    <Folder className="w-3.5 h-3.5 text-amber-400" />
+                                    <span>Allowed Folders (தனிப்பயன் Folders):</span>
+                                  </label>
+                                  <div className="flex items-center gap-2 text-[10px]">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        playRoboticClick();
+                                        setEditFolderIds(videoFolders.map((f) => f.id));
+                                      }}
+                                      className="text-cyan-400 hover:underline font-bold cursor-pointer"
+                                    >
+                                      Select All
+                                    </button>
+                                    <span className="text-slate-600">·</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        playRoboticClick();
+                                        setEditFolderIds([]);
+                                      }}
+                                      className="text-slate-400 hover:underline cursor-pointer"
+                                    >
+                                      Clear
+                                    </button>
+                                  </div>
+                                </div>
+                                <p className="text-[10px] text-slate-400">
+                                  தேர்ந்தெடுத்த Folders மட்டும் Unlock செய்யப்படும். மற்றவை பூட்டப்பட்டிருக்கும்.
+                                </p>
+
+                                <div className="max-h-48 overflow-y-auto space-y-1 p-2 bg-[#050A17] rounded-xl border border-slate-800">
+                                  {getFlattenedFolderTree(videoFolders).map((opt) => {
+                                    const isSelected = editFolderIds.includes(opt.folder.id);
+                                    const vidsInFolder = videos.filter((v) => v.folderId === opt.folder.id).length;
+                                    return (
+                                      <label
+                                        key={opt.folder.id}
+                                        className={`p-2 rounded-xl border flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                                          isSelected
+                                            ? 'bg-amber-500/15 border-amber-500/50 text-white'
+                                            : 'bg-[#091228] border-slate-800/80 text-slate-400 hover:border-slate-700'
+                                        }`}
+                                        style={{ marginLeft: `${opt.depth * 14}px` }}
+                                      >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => {
+                                              const next = isSelected
+                                                ? editFolderIds.filter((id) => id !== opt.folder.id)
+                                                : [...editFolderIds, opt.folder.id];
+                                              setEditFolderIds(next);
+                                              if (next.length > 0) {
+                                                const names = next.map((id) => videoFolders.find((f) => f.id === id)?.name || id);
+                                                setEditLabel(names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2} more` : names.join(', '));
+                                              }
+                                            }}
+                                            className="rounded text-amber-500 focus:ring-amber-400 shrink-0"
+                                          />
+                                          <span className="text-sm shrink-0">{opt.folder.icon || '📁'}</span>
+                                          <span className="text-xs font-bold text-white truncate">{opt.folder.name}</span>
+                                          {opt.folder.nameTa && (
+                                            <span className="text-[10px] text-slate-400 truncate">({opt.folder.nameTa})</span>
+                                          )}
+                                        </div>
+                                        <span className="text-[10px] font-mono text-slate-500 shrink-0">
+                                          {vidsInFolder} vids
+                                        </span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+
+                                <div className="text-[10px] font-mono text-slate-400">
+                                  Selected: <strong className="text-amber-400">{editFolderIds.length} folder(s)</strong>
+                                </div>
                               </div>
 
                               <div>

@@ -297,17 +297,26 @@ export default function App() {
 
   // Strict check if current user has verified, active, paid video access
   const hasVideoAccess = useMemo(() => {
-    if (isAdminLoggedIn) return true;
+    // 1. Super Admin is always unlocked - ONLY if logged-in user is asmanlinzy44@gmail.com or standalone admin session with no student user
+    if (user?.email && user.email.toLowerCase().trim() === 'asmanlinzy44@gmail.com') return true;
+    if (isAdminLoggedIn && !user) return true;
     if (!user || !user.email) return false;
     const currentEmail = user.email.toLowerCase().trim();
-    if (currentEmail === 'asmanlinzy44@gmail.com') return true;
 
     // Time limit expiration check: If expired, DENY ACCESS!
     if (isCurrentUserAccessExpired) return false;
 
     // A student has access IF AND ONLY IF their email is actively in paidAccessList from Cloud Firestore!
-    return paidAccessList.some((p) => p.email.toLowerCase().trim() === currentEmail);
-  }, [user, isAdminLoggedIn, isCurrentUserAccessExpired, paidAccessList]);
+    const studentRecord = paidAccessList.find((p) => p.email.toLowerCase().trim() === currentEmail);
+    if (!studentRecord) return false;
+
+    if (studentRecord.expiresAt) {
+      const expTime = new Date(studentRecord.expiresAt).getTime();
+      if (!isNaN(expTime) && expTime <= currentTimeMs) return false;
+    }
+
+    return true;
+  }, [user, isAdminLoggedIn, isCurrentUserAccessExpired, paidAccessList, currentTimeMs]);
 
   const isPaidStudent = hasVideoAccess;
   const isEffectiveVideoUnlocked = hasVideoAccess;
@@ -316,39 +325,42 @@ export default function App() {
   // Granular check if a specific VideoFolder is unlocked for this student
   // STRICT: Revoked or unauthorized emails will NEVER have access
   const isFolderUnlocked = useCallback((folder: VideoFolder): boolean => {
-    if (isAdminLoggedIn) return true;
+    // 1. Super Admin is always unlocked - strictly asmanlinzy44@gmail.com
     if (user?.email && user.email.toLowerCase().trim() === 'asmanlinzy44@gmail.com') return true;
+    if (isAdminLoggedIn && !user) return true;
 
-    // If folder is open / public (e.g. root subject directories or public modules)
-    if (folder.isLocked === false) return true;
+    // 2. Root subject navigation directories (where parentId is null, undefined, or 'none') are always browsable
+    const isRootNav = !folder.parentId || folder.parentId === 'none';
+    if (isRootNav) return true;
 
-    // Passcode session unlock (per-folder passcode entered by user)
-    if (unlockedFolderIds.includes(folder.id)) return true;
-
-    // If access is expired according to admin time limit, strictly denied!
-    if (isCurrentUserAccessExpired) return false;
-
+    // 3. To unlock any lecture or unit subfolder: User MUST be logged in with Google!
     const currentEmail = user?.email?.toLowerCase().trim();
     if (!currentEmail) return false;
 
-    // Single source of truth: Student MUST exist in live Cloud Firestore paidAccessList!
+    // 4. Single source of truth: Student MUST exist in live Cloud Firestore paidAccessList!
     const studentRecord = paidAccessList.find((p) => p.email.toLowerCase().trim() === currentEmail);
     if (!studentRecord) {
       return false; // Revoked or not enrolled!
     }
 
-    // If full access
+    // 5. Time limit expiration check: If expired, strictly DENY!
+    if (isCurrentUserAccessExpired) return false;
+    if (studentRecord.expiresAt) {
+      const expTime = new Date(studentRecord.expiresAt).getTime();
+      if (!isNaN(expTime) && expTime <= Date.now()) {
+        return false;
+      }
+    }
+
+    // 6. If full access (All Videos)
     if (!studentRecord.accessScope || studentRecord.accessScope === 'all') {
       return true;
     }
 
-    // If custom scope
+    // 7. If custom scope: strictly only the allowed folders selected by Admin!
     if (studentRecord.accessScope === 'custom') {
-      // 1. Precise folder hierarchy check
       if (studentRecord.allowedFolderIds && studentRecord.allowedFolderIds.length > 0) {
-        if (isFolderAllowedByList(folder.id, studentRecord.allowedFolderIds, videoFolders)) {
-          return true;
-        }
+        return isFolderAllowedByList(folder.id, studentRecord.allowedFolderIds, videoFolders);
       }
       const label = (studentRecord.accessLabel || '').toLowerCase();
       const folderText = `${folder.name} ${folder.nameTa || ''} ${folder.subjectName || ''} ${folder.id}`.toLowerCase();
@@ -361,7 +373,7 @@ export default function App() {
     }
 
     return false;
-  }, [isAdminLoggedIn, user, isCurrentUserAccessExpired, paidAccessList, unlockedFolderIds, videoFolders]);
+  }, [isAdminLoggedIn, user, isCurrentUserAccessExpired, paidAccessList, videoFolders]);
 
   // Handle Passcode Unlock for a specific folder or all folders
   const handleUnlockFolderWithCode = useCallback(async (passcode: string, targetFolderId?: string): Promise<{ success: boolean; message: string }> => {
@@ -406,37 +418,45 @@ export default function App() {
   // Granular check if a specific VideoLesson is unlocked for this student
   // STRICT: Revoked or unauthorized emails will NEVER have access
   const isVideoLessonUnlocked = useCallback((video: VideoLesson): boolean => {
-    if (isAdminLoggedIn) return true;
+    // 1. Super Admin is always unlocked - strictly asmanlinzy44@gmail.com
     if (user?.email && user.email.toLowerCase().trim() === 'asmanlinzy44@gmail.com') return true;
+    if (isAdminLoggedIn && !user) return true;
 
-    // If parent folder was explicitly unlocked via passcode
-    if (video.folderId && unlockedFolderIds.includes(video.folderId)) {
-      return true;
-    }
-
-    if (isCurrentUserAccessExpired) return false;
-
+    // 2. MUST be logged in with Google to play video lessons!
     const currentEmail = user?.email?.toLowerCase().trim();
     if (!currentEmail) return false;
 
-    // Single source of truth: Student MUST exist in live Cloud Firestore paidAccessList!
+    // 3. Single source of truth: Student MUST exist in live Cloud Firestore paidAccessList!
     const studentRecord = paidAccessList.find((p) => p.email.toLowerCase().trim() === currentEmail);
     if (!studentRecord) {
       return false; // Revoked or not enrolled!
     }
 
-    // 1. All videos scope
+    // 4. Time limit expiration check: If expired, strictly DENY!
+    if (isCurrentUserAccessExpired) return false;
+    if (studentRecord.expiresAt) {
+      const expTime = new Date(studentRecord.expiresAt).getTime();
+      if (!isNaN(expTime) && expTime <= Date.now()) {
+        return false;
+      }
+    }
+
+    // 5. All videos scope
     if (!studentRecord.accessScope || studentRecord.accessScope === 'all') {
       return true;
     }
 
-    // 2. Custom modules scope
+    // 6. Custom modules scope: strictly only the allowed folders selected by Admin!
     if (studentRecord.accessScope === 'custom') {
       // Check folder hierarchy permission: if video belongs to an allowed folder or any of its subfolders
       if (video.folderId && studentRecord.allowedFolderIds && studentRecord.allowedFolderIds.length > 0) {
         if (isFolderAllowedByList(video.folderId, studentRecord.allowedFolderIds, videoFolders)) {
           return true;
         }
+        if (studentRecord.allowedVideoIds && studentRecord.allowedVideoIds.includes(video.id)) {
+          return true;
+        }
+        return false;
       }
       if (studentRecord.allowedVideoIds && studentRecord.allowedVideoIds.includes(video.id)) {
         return true;
@@ -465,7 +485,15 @@ export default function App() {
     }
 
     return false;
-  }, [isAdminLoggedIn, user, isCurrentUserAccessExpired, paidAccessList, unlockedFolderIds, videoFolders]);
+  }, [isAdminLoggedIn, user, isCurrentUserAccessExpired, paidAccessList, videoFolders]);
+
+  // Real-time security watchdog: If active video becomes locked (e.g. admin revoked or time expired), immediately close player!
+  useEffect(() => {
+    if (activeVideo && !isVideoLessonUnlocked(activeVideo)) {
+      setActiveVideo(null);
+      setIsVideoLockOpen(true);
+    }
+  }, [activeVideo, isVideoLessonUnlocked]);
 
 
   // Real-time auto-update video duration from player playback (analyzed with 100% precision)
@@ -1764,9 +1792,12 @@ export default function App() {
           }
 
           setUser(userData);
-          if (isOwnerAdmin || userData.role === 'admin') {
+          if (isOwnerAdmin) {
             setIsAdminLoggedIn(true);
             localStorage.setItem('studypro_admin_session', 'true');
+          } else {
+            setIsAdminLoggedIn(false);
+            localStorage.removeItem('studypro_admin_session');
           }
           localStorage.setItem('studypro_user_session', JSON.stringify(userData));
         } catch (err) {
@@ -1790,7 +1821,14 @@ export default function App() {
           if (isOwnerAdmin) {
             setIsAdminLoggedIn(true);
             localStorage.setItem('studypro_admin_session', 'true');
+          } else {
+            setIsAdminLoggedIn(false);
+            localStorage.removeItem('studypro_admin_session');
           }
+        }
+      } else {
+        if (!localStorage.getItem('studypro_admin_session')) {
+          setIsAdminLoggedIn(false);
         }
       }
     });
@@ -2806,53 +2844,7 @@ export default function App() {
                             </div>
 
                             <div className="max-w-md mx-auto space-y-3 pt-1">
-                              {/* Option A: Quick Registered Student Gmail Access */}
-                              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-blue-200 dark:border-blue-900/60 text-left space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <label htmlFor="landing-student-gmail" className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                                    <Mail className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
-                                    <span>Enter Registered Gmail (பதிவுசெய்த Gmail)</span>
-                                  </label>
-                                  <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
-                                    🟢 Live Cloud Sync
-                                  </span>
-                                </div>
-                                <form
-                                  onSubmit={async (e) => {
-                                    e.preventDefault();
-                                    const form = e.currentTarget;
-                                    const input = (form.elements.namedItem('studentEmail') as HTMLInputElement)?.value;
-                                    if (!input) return;
-                                    const res = await handleStudentGmailLogin(input);
-                                    if (!res.success) {
-                                      alert(res.message);
-                                    }
-                                  }}
-                                  className="flex gap-2"
-                                >
-                                  <input
-                                    id="landing-student-gmail"
-                                    name="studentEmail"
-                                    type="email"
-                                    placeholder="student@gmail.com"
-                                    className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                                  />
-                                  <button
-                                    type="submit"
-                                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 shadow-xs active:scale-95"
-                                  >
-                                    <Check className="w-3.5 h-3.5" />
-                                    <span>Unlock</span>
-                                  </button>
-                                </form>
-                              </div>
-
-                              <div className="relative flex items-center justify-center my-1">
-                                <div className="border-t border-slate-200 dark:border-slate-700 w-full" />
-                                <span className="bg-white dark:bg-slate-900 px-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider absolute">or</span>
-                              </div>
-
-                              {/* Option B: Official Google Sign-In */}
+                              {/* Official Google Sign-In */}
                               <button
                                 type="button"
                                 onClick={handleDirectGoogleLogin}
@@ -2995,7 +2987,7 @@ export default function App() {
                           setTargetUnlockVideo(video);
                           setIsVideoLockOpen(true);
                         }}
-                        isAdmin={isAdminLoggedIn}
+                        isAdmin={isAdminLoggedIn && (!user || user.email?.toLowerCase().trim() === 'asmanlinzy44@gmail.com')}
                         onOpenAdminFolders={() => setIsAdminPanelOpen(true)}
                         onAddSubfolder={(parentId) => {
                           setAdminFolderDefaultParent(parentId);
@@ -3004,6 +2996,8 @@ export default function App() {
                         accessRequests={accessRequests}
                         onRequestAccess={handleCreateAccessRequest}
                         onApproveAccessRequest={handleApproveAccessRequest}
+                        currentUserAccess={currentUserAccess}
+                        isCurrentUserAccessExpired={isCurrentUserAccessExpired}
                       />
                     </div>
                   </>

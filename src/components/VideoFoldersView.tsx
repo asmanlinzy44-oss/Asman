@@ -2,9 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { 
   Folder, Film, Lock, CheckCircle2, ChevronRight, Clock, 
   ArrowLeft, Search, Sparkles, Send, MessageCircle, UserCheck, 
-  BookOpen, GraduationCap, ShieldCheck, Plus, Layers, FolderPlus
+  BookOpen, GraduationCap, ShieldCheck, Plus, Layers, FolderPlus,
+  AlertTriangle
 } from 'lucide-react';
-import { VideoFolder, VideoLesson, User, VideoAccessRequest } from '../types';
+import { VideoFolder, VideoLesson, User, VideoAccessRequest, PaidStudentAccess } from '../types';
 import { formatVideoDuration } from '../utils/drive';
 import { VideoCard } from './VideoCard';
 import { playRoboticClick, playRoboticFolder } from '../utils/audio';
@@ -35,6 +36,8 @@ interface VideoFoldersViewProps {
   accessRequests?: VideoAccessRequest[];
   onRequestAccess?: (params: { folderId?: string; folderName?: string; videoId?: string; videoTitle?: string; message?: string }) => Promise<{ success: boolean; message: string }>;
   onApproveAccessRequest?: (requestId: string) => Promise<boolean> | boolean;
+  currentUserAccess?: PaidStudentAccess | null;
+  isCurrentUserAccessExpired?: boolean;
 }
 
 export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
@@ -53,6 +56,8 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
   onOpenAdminFolders,
   accessRequests = [],
   onRequestAccess,
+  currentUserAccess,
+  isCurrentUserAccessExpired = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [requestNotice, setRequestNotice] = useState<{ id: string; msg: string } | null>(null);
@@ -297,6 +302,111 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* STUDENT ENROLLMENT & EXPIRY STATUS BAR */}
+      {user && user.email && (
+        <div className="animate-in fade-in duration-200">
+          {isCurrentUserAccessExpired ? (
+            /* Expired Alert Banner */
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-rose-950/80 via-red-900/60 to-rose-950/80 border-2 border-rose-500/70 text-white shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-400/40 text-rose-300 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-rose-400 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-black uppercase tracking-wider text-rose-300 font-mono">
+                      Access Expired • அனுமதி காலாவதியாகிவிட்டது
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-rose-500/30 text-rose-200 text-[10px] font-mono font-bold border border-rose-400/30">
+                      {user.email}
+                    </span>
+                  </div>
+                  <p className="text-xs text-rose-100 mt-0.5">
+                    Your video masterclass course access expired on{' '}
+                    <strong className="text-white font-mono underline">
+                      {currentUserAccess?.expiresAt
+                        ? new Date(currentUserAccess.expiresAt).toLocaleString()
+                        : 'the scheduled deadline'}
+                    </strong>
+                    . All private lectures are currently locked 🔐.
+                  </p>
+                </div>
+              </div>
+
+              <a
+                href="https://wa.me/94770000000?text=Hello%20Asman%20Linzy,%20my%20video%20course%20access%20expired%20and%20I%20would%20like%20to%20renew."
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 rounded-xl bg-white text-slate-950 hover:bg-slate-100 font-extrabold text-xs flex items-center justify-center gap-1.5 shrink-0 shadow-md transition-transform active:scale-95"
+              >
+                <MessageCircle className="w-4 h-4 text-emerald-600" />
+                <span>Renew on WhatsApp (புதுப்பிக்க)</span>
+              </a>
+            </div>
+          ) : currentUserAccess ? (
+            /* Active Enrolled Student Status Bar */
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/60 via-slate-900 to-blue-950/60 border border-emerald-500/40 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 font-mono flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      <span>Enrolled Student (செயலில் உள்ள அனுமதி)</span>
+                    </span>
+                    <span className="font-mono text-xs font-bold text-white truncate">
+                      {user.email}
+                    </span>
+                    {currentUserAccess.accessScope === 'custom' ? (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40">
+                        🎯 {currentUserAccess.accessLabel || 'Custom Modules'}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/40">
+                        🌐 All Masterclasses
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-300 flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span>Course Validity:</span>
+                    <span className="font-mono font-bold text-amber-300 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      {currentUserAccess.expiresAt ? (
+                        <>
+                          <span>Expires on: {new Date(currentUserAccess.expiresAt).toLocaleDateString()} at {new Date(currentUserAccess.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="text-slate-400">({(() => {
+                            const diffMs = new Date(currentUserAccess.expiresAt).getTime() - Date.now();
+                            const diffDays = Math.ceil(diffMs / 86400000);
+                            return diffDays <= 1 ? 'Expires Today!' : `${diffDays} days remaining`;
+                          })()})</span>
+                        </>
+                      ) : (
+                        '♾️ Lifetime Permanent Access'
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-[10px] font-mono text-slate-400 self-end sm:self-auto shrink-0">
+                Paper Express Education
+              </div>
+            </div>
+          ) : !isAdmin ? (
+            /* Signed In with Google, but not yet enrolled */
+            <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 text-slate-300 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                <span>Logged in as <strong className="font-mono text-white">{user.email}</strong> • Awaiting course enrollment or admin approval</span>
+              </div>
+              <span className="text-[11px] font-mono text-amber-400 font-bold">Locked 🔐</span>
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {/* 2. SEARCH RESULTS VIEW (when search query is present) */}
       {searchResults ? (
