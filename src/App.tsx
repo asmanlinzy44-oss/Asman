@@ -487,14 +487,6 @@ export default function App() {
     return false;
   }, [isAdminLoggedIn, user, isCurrentUserAccessExpired, paidAccessList, videoFolders]);
 
-  // Real-time security watchdog: If active video becomes locked (e.g. admin revoked or time expired), immediately close player!
-  useEffect(() => {
-    if (activeVideo && !isVideoLessonUnlocked(activeVideo)) {
-      setActiveVideo(null);
-      setIsVideoLockOpen(true);
-    }
-  }, [activeVideo, isVideoLessonUnlocked]);
-
 
   // Real-time auto-update video duration from player playback (analyzed with 100% precision)
   const handleUpdateVideoDuration = useCallback(async (videoId: string, durationSeconds: number) => {
