@@ -243,12 +243,6 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
-              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
-                A/L Science & Maths Masterclass Portal
-              </span>
-            </div>
             <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1 flex items-center gap-2 flex-wrap">
               <span>Video Lessons Directory</span>
               <span className="text-sm font-normal text-slate-500 dark:text-slate-400">· பாடப் பிரிவுகள் & விரிவுரைக் கோப்புறைகள்</span>

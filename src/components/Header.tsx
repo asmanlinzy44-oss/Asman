@@ -80,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         {/* Primary Desktop Navigation */}
-        <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 text-xs xl:text-sm font-semibold text-slate-600 dark:text-slate-300 overflow-x-auto no-scrollbar max-w-[620px] xl:max-w-none shrink-0 py-1">
+        <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 text-xs xl:text-sm font-semibold text-slate-600 dark:text-slate-300 overflow-x-auto scrollbar-thin flex-1 min-w-0 justify-end xl:justify-center py-1">
           <button
             onClick={() => handleNav('home')}
             className={`px-2.5 xl:px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${

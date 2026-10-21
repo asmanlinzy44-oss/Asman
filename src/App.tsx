@@ -2322,7 +2322,7 @@ export default function App() {
         />
       ) : (
         /* Dedicated Category Archive (Past Papers, FWC, Term Tests, Theory Notes, Theory Videos) */
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
+        <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-12 py-8 flex-1 w-full space-y-6 overflow-x-hidden">
           {/* Breadcrumb Navigation & Title */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
             <div>
@@ -2918,48 +2918,7 @@ export default function App() {
                       </div>
                     ) : null}
 
-                    {/* Extensive Curriculum Syllabus Overview */}
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-xs space-y-6">
-                      <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-                        <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
-                          Course Syllabus & Academic Scope
-                        </span>
-                        <h4 className="text-xl font-black text-slate-900 dark:text-white mt-1">
-                          A/L Theory Masterclass Lectures Overview
-                        </h4>
-                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
-                          Our in-app video lectures provide rigorous, derivation-by-derivation coverage of critical G.C.E. A/L Science syllabus units.
-                        </p>
-                      </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/50 space-y-2.5">
-                          <div className="font-extrabold text-sm text-blue-950 dark:text-sky-200">
-                            🌊 Physics Unit 2: Hydrodynamics (Units 1–5)
-                          </div>
-                          <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1.5 list-disc list-inside">
-                            <li><strong>Unit 1: Streamline Flow & Viscosity:</strong> Velocity gradient, Newton’s law of viscous force, coefficient of viscosity, Poiseuille’s formula derivation.</li>
-                            <li><strong>Unit 2: Equation of Continuity:</strong> Conservation of mass in non-viscous incompressible fluid, volume flow rate (Av = const).</li>
-                            <li><strong>Unit 3: Bernoulli’s Principle:</strong> Conservation of mechanical energy in streamline fluid flow, pressure head, velocity head, elevation head.</li>
-                            <li><strong>Unit 4: Engineering Applications:</strong> Pitot tube, Venturi meter, Torricelli’s law of efflux, dynamic lift on aerofoil.</li>
-                            <li><strong>Unit 5: Capillarity & Surface Tension:</strong> Intermolecular forces, angle of contact, Jurin’s law, excess pressure in spherical bubbles.</li>
-                          </ul>
-                        </div>
-
-                        <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/50 space-y-2.5">
-                          <div className="font-extrabold text-sm text-emerald-950 dark:text-emerald-200">
-                            🧪 Chemistry Unit 7: IUPAC & Organic Mechanisms
-                          </div>
-                          <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1.5 list-disc list-inside">
-                            <li><strong>Systematic IUPAC Nomenclature:</strong> Principal functional group hierarchy, longest continuous carbon chain, locant numbering rules.</li>
-                            <li><strong>Electrophilic Addition:</strong> Markovnikov’s rule, carbocation stability intermediates, halogenation of alkenes & alkynes.</li>
-                            <li><strong>Nucleophilic Substitution:</strong> SN1 vs SN2 kinetics, steric hindrance, optical inversion (Walden inversion).</li>
-                            <li><strong>Elimination Reactions:</strong> E1 vs E2 pathways, Zaitsev’s rule, alkene stability determination.</li>
-                            <li><strong>Aromatic Substitution:</strong> Benzene ring delocalization, electrophilic aromatic substitution (nitration, halogenation, Friedel-Crafts).</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
 
                     {/* Masterclass Video Folders System (Document-like Folder Navigation & My Videos) */}
                     <div className="space-y-4">

@@ -315,9 +315,6 @@ export const TheoryVideosFoldersView: React.FC<TheoryVideosFoldersViewProps> = (
       {/* Top Header & Overview */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-cyan-400">
-            A/L Theory Masterclass Lectures · பாட அலகுக் கோப்புறைகள்
-          </span>
           <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
             Video Lecture Folders
           </h4>
