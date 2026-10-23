@@ -200,6 +200,7 @@ export const AiSearchView: React.FC<AiSearchViewProps> = ({
   onPreviewPaper,
   isBookmarked,
   onToggleBookmark,
+  isFolderUnlocked,
 }) => {
   const [promptInput, setPromptInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);

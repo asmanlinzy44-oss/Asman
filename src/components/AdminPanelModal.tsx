@@ -429,6 +429,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [folderIsLockedInput, setFolderIsLockedInput] = useState<boolean>(false);
   const [folderPasscodeInput, setFolderPasscodeInput] = useState<string>('');
   const [folderIconInput, setFolderIconInput] = useState<string>('📁');
+  const [folderNotesDriveLinkInput, setFolderNotesDriveLinkInput] = useState<string>('');
 
   // React to initialFolderParentId if passed to open create subfolder immediately
   useEffect(() => {
@@ -985,6 +986,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setFolderIconInput(defaultParentId && defaultParentId !== 'none' ? '📂' : '📁');
     setFolderSelectedVideoIds([]);
     setFolderVideoSearch('');
+    setFolderNotesDriveLinkInput('');
     setIsFolderModalOpen(true);
   };
 
@@ -1002,6 +1004,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     const existingVideoIds = videos.filter((v) => v.folderId === folder.id).map((v) => v.id);
     setFolderSelectedVideoIds(existingVideoIds);
     setFolderVideoSearch('');
+    setFolderNotesDriveLinkInput(folder.notesDriveLink || '');
     setIsFolderModalOpen(true);
   };
 
@@ -1026,6 +1029,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         icon: folderIconInput,
         isLocked: folderIsLockedInput,
         accessPasscode: folderPasscodeInput.trim() || undefined,
+        notesDriveLink: folderNotesDriveLinkInput.trim() || undefined,
       };
       if (onUpdateFolder) {
         onUpdateFolder(updated);
@@ -1051,6 +1055,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         icon: folderIconInput,
         isLocked: folderIsLockedInput,
         accessPasscode: folderPasscodeInput.trim() || undefined,
+        notesDriveLink: folderNotesDriveLinkInput.trim() || undefined,
         createdAt: new Date().toISOString(),
       };
       if (onAddFolder) {
@@ -4986,6 +4991,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                       onChange={(e) => setFolderPasscodeInput(e.target.value)}
                       placeholder={folderIsLockedInput ? "Enter folder passcode" : "Not locked"}
                       className="w-full px-3 py-2 bg-[#050A17] border border-slate-700 disabled:opacity-50 rounded-xl text-xs text-white outline-none focus:border-cyan-400 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-mono font-bold text-slate-300 mb-1">
+                      Notes Google Drive Link (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={folderNotesDriveLinkInput}
+                      onChange={(e) => setFolderNotesDriveLinkInput(e.target.value)}
+                      placeholder="https://drive.google.com/..."
+                      className="w-full px-3 py-2 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white outline-none focus:border-cyan-400 font-mono"
                     />
                   </div>
                 </div>

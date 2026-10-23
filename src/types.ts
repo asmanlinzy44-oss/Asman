@@ -96,6 +96,7 @@ export interface VideoFolder {
   allowedEmails?: string[];
   order?: number;
   icon?: string;
+  notesDriveLink?: string;
 }
 
 export interface UserNote {

@@ -79,7 +79,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [isSavedLocally, setIsSavedLocally] = useState<boolean>(false);
-  const [soundActive, setSoundActive] = useState<boolean>(() => isRoboticSoundEnabled());
 
   // Editable form fields
   const [name, setName] = useState<string>('');
@@ -517,58 +516,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
           </div>
 
-          {/* Solo Leveling Anime System Sound UI */}
-          <div className="rounded-2xl p-4 bg-gradient-to-br from-[#0B132B] to-[#1C2541] text-white space-y-3 shadow-sm border border-cyan-900/40">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-cyan-400 fill-cyan-400/20" />
-                <span className="text-xs font-mono font-bold tracking-wider uppercase text-cyan-300">
-                  Solo Leveling System Sound ('ZZZK')
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const nextState = !soundActive;
-                  setSoundActive(nextState);
-                  setRoboticSoundEnabled(nextState);
-                  if (nextState) playRoboticClick();
-                }}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
-                  soundActive
-                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/40 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
-                    : 'bg-slate-800 text-slate-400 border-slate-700'
-                }`}
-              >
-                {soundActive ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
-                <span>{soundActive ? 'Active' : 'Muted'}</span>
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Anime hunter holographic system sound effect. Clicking buttons, cards, tabs &amp; links emits the iconic <span className="text-cyan-300 font-bold font-mono">"ZZZK"</span> electric spark sound.
-            </p>
-
-            <div className="grid grid-cols-2 gap-2 pt-1 font-mono">
-              <button
-                type="button"
-                onClick={() => playRoboticClick()}
-                className="py-2.5 px-3 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
-              >
-                <Zap className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Test "ZZZK" Click</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => playRoboticUnlock()}
-                className="py-2.5 px-3 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/30 text-indigo-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Quest / Level Up</span>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Footer Actions */}
