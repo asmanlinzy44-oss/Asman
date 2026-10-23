@@ -3,7 +3,7 @@ import {
   Folder, Film, Lock, CheckCircle2, ChevronRight, Clock, 
   ArrowLeft, Search, Sparkles, Send, MessageCircle, UserCheck, 
   BookOpen, GraduationCap, ShieldCheck, Plus, Layers, FolderPlus,
-  AlertTriangle
+  AlertTriangle, ExternalLink
 } from 'lucide-react';
 import { VideoFolder, VideoLesson, User, VideoAccessRequest, PaidStudentAccess } from '../types';
 import { formatVideoDuration } from '../utils/drive';
@@ -771,6 +771,35 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                     <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                       Join our comprehensive lecture series with complete syllabus derivations, real laboratory apparatus experiments, and past paper model answers.
                     </p>
+
+                    {/* FOLDER NOTES & STUDY PDF BANNER */}
+                    {currentFolder.notesDriveLink && (
+                      <div className="mt-3 p-3.5 rounded-2xl bg-gradient-to-r from-cyan-950/80 via-blue-950/80 to-slate-900 border border-cyan-500/40 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 shrink-0">
+                            <BookOpen className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-black text-white flex items-center gap-2">
+                              <span>{currentFolder.name} — Official Study Notes & Materials</span>
+                              <span className="px-1.5 py-0.2 rounded bg-cyan-500 text-slate-950 text-[9px] font-mono font-bold">PDF Notes</span>
+                            </h4>
+                            <p className="text-[11px] text-slate-300 mt-0.5">
+                              Complete handwritten theory notes, derivations, and model questions uploaded for this folder.
+                            </p>
+                          </div>
+                        </div>
+                        <a
+                          href={currentFolder.notesDriveLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-[11px] uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all shrink-0 active:scale-95"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Open Notes PDF</span>
+                        </a>
+                      </div>
+                    )}
                   </div>
 
                   {/* Lecture Sneak Peek */}
@@ -946,6 +975,89 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
               </div>
             );
           })()}
+
+          {/* FOLDER-LEVEL "NOTES FOR THE VIDEOS" / PDF HANDOUTS SECTION */}
+          {((currentFolder.handouts && currentFolder.handouts.length > 0) || currentFolder.notesDriveLink) && (
+            <div className="mt-8 p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-[#070D1E] via-[#091538] to-[#0B1B3D] border-2 border-cyan-500/50 shadow-2xl space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 shadow-lg shrink-0">
+                  <BookOpen className="w-6 h-6 text-cyan-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                      Notes for the Videos • பாட குறிப்புகள் & PDF Handouts
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full bg-cyan-500 text-slate-950 font-mono text-xs font-extrabold uppercase">
+                      Official Study Materials
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
+                    Scroll down notes & PDF handouts uploaded for <strong>{currentFolder.name}</strong>. Access theory summaries, derivations, and practice questions.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                {currentFolder.handouts && currentFolder.handouts.length > 0 ? (
+                  currentFolder.handouts.map((h, idx) => (
+                    <a
+                      key={h.id || idx}
+                      href={h.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-4 rounded-2xl bg-[#050A17] hover:bg-[#081229] border border-cyan-500/40 hover:border-cyan-400 shadow-md flex items-center justify-between gap-3 transition-all group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-mono text-xs font-bold flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                          PDF {idx + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-xs sm:text-sm text-white truncate group-hover:text-cyan-300 transition-colors">
+                            {h.title}
+                          </h4>
+                          <p className="text-[10px] text-slate-400 font-mono">
+                            Google Drive / PDF Document
+                          </p>
+                        </div>
+                      </div>
+
+                      <span className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-black flex items-center gap-1.5 shrink-0 shadow-sm transition-transform">
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Open PDF</span>
+                      </span>
+                    </a>
+                  ))
+                ) : currentFolder.notesDriveLink ? (
+                  <a
+                    href={currentFolder.notesDriveLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-4 rounded-2xl bg-[#050A17] hover:bg-[#081229] border border-cyan-500/40 hover:border-cyan-400 shadow-md flex items-center justify-between gap-3 transition-all group sm:col-span-2"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-mono text-xs font-bold flex items-center justify-center shrink-0">
+                        PDF
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-xs sm:text-sm text-white truncate group-hover:text-cyan-300 transition-colors">
+                          {currentFolder.name} — Study Notes & Handouts PDF
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-mono">
+                          Google Drive / PDF Document
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-black flex items-center gap-1.5 shrink-0 shadow-sm">
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Open Notes PDF</span>
+                    </span>
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         /* 4. ROOT VIEW: THE 4 MAIN SUBJECTS DIRECTORY (Biology, Physics, Chemistry, Combined Maths) */

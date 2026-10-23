@@ -68,6 +68,11 @@ export interface VideoLesson {
   descriptionEn: string;
   descriptionTa?: string;
   handoutDriveLink?: string;
+  handouts?: Array<{
+    id: string;
+    title: string;
+    url: string;
+  }>;
   isUnlisted: boolean;
   chapters: VideoChapter[];
   viewsCount: number;
@@ -97,6 +102,11 @@ export interface VideoFolder {
   order?: number;
   icon?: string;
   notesDriveLink?: string;
+  handouts?: Array<{
+    id: string;
+    title: string;
+    url: string;
+  }>;
 }
 
 export interface UserNote {

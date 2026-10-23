@@ -313,6 +313,19 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [videoFolderSelect, setVideoFolderSelect] = useState<string>('none');
   const [videoHideThumbnail, setVideoHideThumbnail] = useState<boolean>(false);
   const [videoCustomThumbInput, setVideoCustomThumbInput] = useState<string>('');
+  const [videoHandouts, setVideoHandouts] = useState<Array<{ id: string; title: string; url: string }>>([
+    { id: 'h_1', title: 'Unit Class Handout & Theory Notes', url: '' }
+  ]);
+
+  const handleAddHandoutField = () => {
+    setVideoHandouts((prev) => [...prev, { id: 'h_' + Date.now(), title: `Handout PDF ${prev.length + 1}`, url: '' }]);
+  };
+  const handleRemoveHandoutField = (id: string) => {
+    setVideoHandouts((prev) => prev.filter(h => h.id !== id));
+  };
+  const handleUpdateHandoutField = (id: string, field: 'title' | 'url', val: string) => {
+    setVideoHandouts((prev) => prev.map(h => h.id === id ? { ...h, [field]: val } : h));
+  };
 
   // Video Upload Mode: 'single' | 'batch' (Bulk 1-Click Upload)
   const [videoUploadMode, setVideoUploadMode] = useState<'single' | 'batch'>('single');
@@ -430,6 +443,18 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [folderPasscodeInput, setFolderPasscodeInput] = useState<string>('');
   const [folderIconInput, setFolderIconInput] = useState<string>('📁');
   const [folderNotesDriveLinkInput, setFolderNotesDriveLinkInput] = useState<string>('');
+  const [folderHandouts, setFolderHandouts] = useState<Array<{ id: string; title: string; url: string }>>([
+    { id: 'fh_1', title: 'Notes for the Videos PDF', url: '' }
+  ]);
+  const handleAddFolderHandoutField = () => {
+    setFolderHandouts((prev) => [...prev, { id: 'fh_' + Date.now(), title: `Notes PDF ${prev.length + 1}`, url: '' }]);
+  };
+  const handleRemoveFolderHandoutField = (id: string) => {
+    setFolderHandouts((prev) => prev.filter(h => h.id !== id));
+  };
+  const handleUpdateFolderHandoutField = (id: string, field: 'title' | 'url', val: string) => {
+    setFolderHandouts((prev) => prev.map(h => h.id === id ? { ...h, [field]: val } : h));
+  };
 
   // React to initialFolderParentId if passed to open create subfolder immediately
   useEffect(() => {
@@ -886,6 +911,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
           { time: '15:00', seconds: 900, title: 'Formulas & Derivations' },
           { time: '30:00', seconds: 1800, title: 'Past Paper Questions' },
         ],
+        handouts: videoHandouts.filter(h => h.url.trim()).length > 0 ? videoHandouts.filter(h => h.url.trim()) : undefined,
         viewsCount: 1,
         uploadedAt: 'Today',
       };
@@ -987,6 +1013,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setFolderSelectedVideoIds([]);
     setFolderVideoSearch('');
     setFolderNotesDriveLinkInput('');
+    setFolderHandouts([{ id: 'fh_1', title: 'Notes for the Videos PDF', url: '' }]);
     setIsFolderModalOpen(true);
   };
 
@@ -1005,6 +1032,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     setFolderSelectedVideoIds(existingVideoIds);
     setFolderVideoSearch('');
     setFolderNotesDriveLinkInput(folder.notesDriveLink || '');
+    setFolderHandouts(
+      folder.handouts && folder.handouts.length > 0
+        ? folder.handouts
+        : folder.notesDriveLink
+          ? [{ id: 'fh_1', title: 'Notes for the Videos PDF', url: folder.notesDriveLink }]
+          : [{ id: 'fh_1', title: 'Notes for the Videos PDF', url: '' }]
+    );
     setIsFolderModalOpen(true);
   };
 
@@ -1016,6 +1050,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }
 
     const parentIdVal = folderParentIdInput === 'none' || !folderParentIdInput ? null : folderParentIdInput;
+    const validHandouts = folderHandouts.filter(h => h.url.trim());
+    const primaryNotesLink = validHandouts.length > 0 ? validHandouts[0].url : (folderNotesDriveLinkInput.trim() || undefined);
 
     if (editingFolder) {
       const updated: VideoFolder = {
@@ -1029,7 +1065,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         icon: folderIconInput,
         isLocked: folderIsLockedInput,
         accessPasscode: folderPasscodeInput.trim() || undefined,
-        notesDriveLink: folderNotesDriveLinkInput.trim() || undefined,
+        notesDriveLink: primaryNotesLink,
+        handouts: validHandouts.length > 0 ? validHandouts : undefined,
       };
       if (onUpdateFolder) {
         onUpdateFolder(updated);
@@ -1055,7 +1092,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
         icon: folderIconInput,
         isLocked: folderIsLockedInput,
         accessPasscode: folderPasscodeInput.trim() || undefined,
-        notesDriveLink: folderNotesDriveLinkInput.trim() || undefined,
+        notesDriveLink: primaryNotesLink,
+        handouts: validHandouts.length > 0 ? validHandouts : undefined,
         createdAt: new Date().toISOString(),
       };
       if (onAddFolder) {
@@ -3082,6 +3120,61 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                               </select>
                             </div>
 
+                            {/* MULTIPLE PDF HANDOUTS & STUDY NOTES */}
+                            <div className="space-y-2 pt-2 border-t border-slate-800">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-xs font-mono font-bold text-cyan-300 flex items-center gap-1.5">
+                                  <BookOpen className="w-4 h-4 text-cyan-400" />
+                                  <span>Class PDF Handouts & Study Notes (Multiple Uploads)</span>
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={handleAddHandoutField}
+                                  className="px-2 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 hover:text-white text-[11px] font-bold font-mono flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  <span>+ Add PDF Handout</span>
+                                </button>
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-mono">
+                                Upload multiple Google Drive / PDF links for this video. All attached PDFs will show up below the video player for students.
+                              </p>
+
+                              <div className="space-y-2">
+                                {videoHandouts.map((h, idx) => (
+                                  <div key={h.id} className="flex items-center gap-2 p-2 rounded-xl bg-[#091228] border border-slate-700">
+                                    <span className="w-5 h-5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
+                                      {idx + 1}
+                                    </span>
+                                    <input
+                                      type="text"
+                                      placeholder="Handout Title (e.g. Unit 02 Theory Summary PDF)"
+                                      value={h.title}
+                                      onChange={(e) => handleUpdateHandoutField(h.id, 'title', e.target.value)}
+                                      className="flex-1 px-2.5 py-1.5 bg-[#050A17] border border-slate-700 rounded-lg text-xs text-white"
+                                    />
+                                    <input
+                                      type="text"
+                                      placeholder="Google Drive / PDF URL"
+                                      value={h.url}
+                                      onChange={(e) => handleUpdateHandoutField(h.id, 'url', e.target.value)}
+                                      className="flex-[2] px-2.5 py-1.5 bg-[#050A17] border border-slate-700 rounded-lg text-xs text-white font-mono"
+                                    />
+                                    {videoHandouts.length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveHandoutField(h.id)}
+                                        className="p-1.5 rounded-lg bg-red-950/40 border border-red-500/30 text-red-400 hover:text-red-300 cursor-pointer"
+                                        title="Remove Handout"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
                             {/* Preservation Note */}
                             <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center gap-2 text-emerald-300 text-[11px] font-mono">
                               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -5016,6 +5109,67 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     placeholder="Brief description of lessons included in this folder..."
                     className="w-full px-3 py-2 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white outline-none focus:border-cyan-400 resize-none"
                   />
+                </div>
+
+                {/* FOLDER PDF HANDOUTS / NOTES FOR THE VIDEOS (Multiple Uploads) */}
+                <div className="space-y-2 pt-2 border-t border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-mono font-bold text-cyan-300 flex items-center gap-1.5">
+                      <BookOpen className="w-4 h-4 text-cyan-400" />
+                      <span>Notes for the Videos / PDF Handouts (Multiple Uploads)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setFolderHandouts((prev) => [...prev, { id: 'fh_' + Date.now(), title: `Notes PDF ${prev.length + 1}`, url: '' }])}
+                      className="px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 hover:text-white text-[11px] font-bold font-mono flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>+ Add Folder Notes PDF</span>
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-mono">
+                    Upload multiple PDF notes/handouts for this folder. These will appear at the bottom of the folder view when scrolling down ("Notes for the Videos").
+                  </p>
+
+                  <div className="space-y-2">
+                    {folderHandouts.map((h, idx) => (
+                      <div key={h.id} className="flex items-center gap-2 p-2 rounded-xl bg-[#050A17] border border-slate-700">
+                        <span className="w-5 h-5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
+                          {idx + 1}
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Notes Title (e.g. Unit 02 Complete Theory Summary PDF)"
+                          value={h.title}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFolderHandouts((prev) => prev.map(item => item.id === h.id ? { ...item, title: val } : item));
+                          }}
+                          className="flex-1 px-2.5 py-1.5 bg-[#091228] border border-slate-700 rounded-lg text-xs text-white"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Google Drive / PDF URL"
+                          value={h.url}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFolderHandouts((prev) => prev.map(item => item.id === h.id ? { ...item, url: val } : item));
+                          }}
+                          className="flex-[2] px-2.5 py-1.5 bg-[#091228] border border-slate-700 rounded-lg text-xs text-white font-mono"
+                        />
+                        {folderHandouts.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setFolderHandouts((prev) => prev.filter(item => item.id !== h.id))}
+                            className="p-1.5 rounded-lg bg-red-950/40 border border-red-500/30 text-red-400 hover:text-red-300 cursor-pointer"
+                            title="Remove Notes PDF"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* SELECT VIDEOS FOR THIS FOLDER */}

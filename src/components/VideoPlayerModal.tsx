@@ -1313,6 +1313,35 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                         <span className="font-mono text-cyan-400 font-bold">Paper Express Engine v3</span>
                       </div>
                     </div>
+
+                    {/* PDF HANDOUTS & STUDY NOTES */}
+                    {video.handouts && video.handouts.length > 0 && (
+                      <div className="p-3 bg-cyan-950/40 rounded-xl border border-cyan-500/30 space-y-2">
+                        <span className="font-bold text-cyan-300 block text-xs flex items-center gap-1.5">
+                          <BookOpen className="w-4 h-4 text-cyan-400" />
+                          <span>Class PDF Handouts & Study Notes ({video.handouts.length})</span>
+                        </span>
+                        <div className="space-y-1.5">
+                          {video.handouts.map((h) => (
+                            <a
+                              key={h.id}
+                              href={h.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/90 border border-cyan-500/30 hover:border-cyan-400 text-xs text-white transition-all group shadow-xs"
+                            >
+                              <div className="flex items-center gap-2.5 truncate">
+                                <div className="w-6 h-6 rounded bg-red-500/20 text-red-400 flex items-center justify-center font-bold text-[10px] font-mono shrink-0">
+                                  PDF
+                                </div>
+                                <span className="font-medium truncate group-hover:text-cyan-300">{h.title || 'Study Handout PDF'}</span>
+                              </div>
+                              <ExternalLink className="w-3.5 h-3.5 text-cyan-400 shrink-0 ml-2" />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
