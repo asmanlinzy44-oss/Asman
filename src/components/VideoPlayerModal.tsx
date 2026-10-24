@@ -332,8 +332,6 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     };
   }, []);
 
-  if (!video) return null;
-
   // Trigger HUD Banner Flash
   const flashGamingHud = (text: string) => {
     setGamingHudFlash(text);
@@ -715,7 +713,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
   const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!noteText.trim()) return;
+    if (!video || !noteText.trim()) return;
 
     const mins = Math.floor(currentTime / 60);
     const secs = Math.floor(currentTime % 60);
@@ -749,9 +747,11 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const videoNotes = user?.notes?.filter((n) => n.videoId === video.id) || [];
+  const videoNotes = user?.notes?.filter((n) => video && n.videoId === video.id) || [];
   const currentSpeedConfig = GAMING_SPEED_OPTIONS.find((s) => s.rate === currentSpeed) || GAMING_SPEED_OPTIONS[1];
   const currentQualityConfig = QUALITY_OPTIONS.find((q) => q.id === currentQuality) || QUALITY_OPTIONS[4];
+
+  if (!video) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-2 md:p-4 bg-slate-950/95 backdrop-blur-md animate-in fade-in duration-200 overflow-hidden w-screen h-screen select-none google-anno-skip">
