@@ -78,6 +78,9 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const [embedQuality, setEmbedQuality] = useState<string>('auto');
   const [streamStartTime, setStreamStartTime] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [volumeLevel, setVolumeLevel] = useState<number>(100);
+  const [extraSoundBoost, setExtraSoundBoost] = useState<number>(100); // 100%, 150%, 200%, 300%
+  const [showSoundModal, setShowSoundModal] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showOverlayControls, setShowOverlayControls] = useState<boolean>(true);
   const [showDrawerInFs, setShowDrawerInFs] = useState<boolean>(false);
@@ -93,6 +96,10 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const modalContainerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<any>(null);
   const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
+  const singleTapTimerRef = useRef<any>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const sourceConnectedRef = useRef<boolean>(false);
   const hudFlashTimeoutRef = useRef<any>(null);
   const touchHandledRef = useRef<boolean>(false);
   const loadingTimeoutRef = useRef<any>(null);
@@ -418,27 +425,142 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     resetControlsTimeout();
   };
 
+  // Apply Web Audio DSP Gain Boost and Volume to HTML5 Video & YouTube
+  const applyAudioBoost = useCallback((boostPercent: number, baseVol: number) => {
+    // 1. HTML5 direct stream video element
+    if (htmlVideoRef.current) {
+      try {
+        htmlVideoRef.current.volume = Math.min(1, Math.max(0, baseVol / 100));
+
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          if (!audioCtxRef.current) {
+            audioCtxRef.current = new AudioContextClass();
+          }
+
+          if (audioCtxRef.current.state === 'suspended') {
+            audioCtxRef.current.resume().catch(() => {});
+          }
+
+          if (!gainNodeRef.current) {
+            gainNodeRef.current = audioCtxRef.current.createGain();
+            gainNodeRef.current.connect(audioCtxRef.current.destination);
+          }
+
+          if (!sourceConnectedRef.current && htmlVideoRef.current) {
+            try {
+              const source = audioCtxRef.current.createMediaElementSource(htmlVideoRef.current);
+              source.connect(gainNodeRef.current);
+              sourceConnectedRef.current = true;
+            } catch (err) {
+              // Might throw if already connected or cross-origin
+              console.warn('Media element source notice:', err);
+            }
+          }
+
+          if (gainNodeRef.current) {
+            // Boost multiplier applied via Web Audio API (e.g. 1.0, 1.5, 2.0, 3.0)
+            gainNodeRef.current.gain.value = boostPercent > 100 ? (boostPercent / 100) : 1.0;
+          }
+        }
+      } catch (err) {
+        console.warn('Audio booster error handled:', err);
+      }
+    }
+
+    // 2. YouTube iframe
+    if (!isDirectStream) {
+      sendYtCommand('setVolume', [Math.min(100, Math.round(baseVol))]);
+      if (baseVol > 0) {
+        sendYtCommand('unMute');
+        setIsMuted(false);
+      }
+    }
+  }, [isDirectStream, sendYtCommand]);
+
+  // Set Extra Sound Booster Preset (100%, 150%, 200%, 300%)
+  const handleSetSoundBoost = (boost: number) => {
+    setExtraSoundBoost(boost);
+    applyAudioBoost(boost, volumeLevel);
+    if (boost > 100) {
+      flashGamingHud(`🔊 SOUND BOOST: ${boost}% (EXTRA LOUD ⚡)`);
+    } else {
+      flashGamingHud(`🔊 SOUND: 100% (STANDARD)`);
+    }
+    resetControlsTimeout();
+  };
+
+  // Set Base Volume (0% - 100%)
+  const handleSetVolume = (val: number) => {
+    const clamped = Math.max(0, Math.min(100, Math.round(val)));
+    setVolumeLevel(clamped);
+    if (clamped === 0) {
+      setIsMuted(true);
+    } else if (isMuted) {
+      setIsMuted(false);
+    }
+    applyAudioBoost(extraSoundBoost, clamped);
+    flashGamingHud(`🔊 VOLUME: ${clamped}%${extraSoundBoost > 100 ? ` (+${extraSoundBoost - 100}% BOOST)` : ''}`);
+  };
+
+  // Step volume up/down (for PC Arrow keys)
+  const handleVolumeStep = (delta: number) => {
+    if (delta > 0) {
+      // Volume Up
+      if (volumeLevel < 100) {
+        const nextVol = Math.min(100, volumeLevel + 10);
+        handleSetVolume(nextVol);
+      } else {
+        // If already 100%, cycle up through extra sound boost presets
+        const presets = [100, 150, 200, 300];
+        const nextIdx = presets.findIndex((p) => p > extraSoundBoost);
+        if (nextIdx !== -1) {
+          handleSetSoundBoost(presets[nextIdx]);
+        } else {
+          flashGamingHud(`🔥 SOUND BOOST MAX: 300%`);
+        }
+      }
+    } else {
+      // Volume Down
+      if (extraSoundBoost > 100) {
+        const presets = [100, 150, 200, 300];
+        const rev = [...presets].reverse();
+        const nextIdx = rev.findIndex((p) => p < extraSoundBoost);
+        if (nextIdx !== -1) {
+          handleSetSoundBoost(rev[nextIdx]);
+        } else {
+          handleSetSoundBoost(100);
+        }
+      } else {
+        const nextVol = Math.max(0, volumeLevel - 10);
+        handleSetVolume(nextVol);
+      }
+    }
+  };
+
   // Skip relative offset in seconds (e.g. -10s or +10s)
-  const handleSkipSeconds = (offset: number) => {
+  const handleSkipSeconds = useCallback((offset: number) => {
     const target = Math.max(0, Math.min(duration, currentTime + offset));
     handleSeek(target);
     flashGamingHud(offset > 0 ? `⏩ +${offset}s SKIP` : `⏪ ${offset}s REWIND`);
-  };
+  }, [duration, currentTime]);
 
   // Volume Mute / Unmute Toggle
   const handleToggleMute = () => {
     if (isDirectStream && htmlVideoRef.current && !directStreamFallbackIframe) {
-      htmlVideoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
-      flashGamingHud(!isMuted ? '🔇 AUDIO MUTED' : '🔊 AUDIO ACTIVE');
+      const nextMuted = !isMuted;
+      htmlVideoRef.current.muted = nextMuted;
+      setIsMuted(nextMuted);
+      flashGamingHud(nextMuted ? '🔇 AUDIO MUTED' : `🔊 AUDIO ACTIVE (${volumeLevel}%)`);
       resetControlsTimeout();
       return;
     }
 
     if (isMuted) {
       sendYtCommand('unMute');
+      sendYtCommand('setVolume', [volumeLevel]);
       setIsMuted(false);
-      flashGamingHud('🔊 AUDIO ACTIVE');
+      flashGamingHud(`🔊 AUDIO ACTIVE (${volumeLevel}%)`);
     } else {
       sendYtCommand('mute');
       setIsMuted(true);
@@ -486,31 +608,90 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     }
   };
 
-  // Touch & tap handler on video area
+  // PC Keyboard Shortcuts (Left/Right Arrow: 10s seek, Up/Down Arrow: Volume/Boost, Space: Play/Pause, M: Mute, F: Fullscreen)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Do not trigger player shortcuts if the student is typing a note or inside an input field
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || (activeEl as HTMLElement).isContentEditable)) {
+        return;
+      }
+
+      if (e.key === 'ArrowLeft' || e.key === 'j' || e.key === 'J') {
+        e.preventDefault();
+        handleSkipSeconds(-10);
+        setDoubleTapFeedback('left');
+        setTimeout(() => setDoubleTapFeedback(null), 700);
+        resetControlsTimeout();
+      } else if (e.key === 'ArrowRight' || e.key === 'l' || e.key === 'L') {
+        e.preventDefault();
+        handleSkipSeconds(10);
+        setDoubleTapFeedback('right');
+        setTimeout(() => setDoubleTapFeedback(null), 700);
+        resetControlsTimeout();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        handleVolumeStep(10);
+        resetControlsTimeout();
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        handleVolumeStep(-10);
+        resetControlsTimeout();
+      } else if (e.key === ' ' || e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        handleTogglePlay();
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        handleToggleMute();
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentTime, duration, isPlaying, isMuted, volumeLevel, extraSoundBoost, handleSkipSeconds]);
+
+  // Touch & tap handler on video area (YouTube-style mobile double-tap on left/right sides)
   const processVideoTap = (clientX: number, rect: DOMRect) => {
     const now = Date.now();
     const clickX = clientX - rect.left;
-    const isLeft = clickX < rect.width * 0.38;
-    const isRight = clickX > rect.width * 0.62;
+    const width = rect.width;
 
-    if (now - lastTapRef.current.time < 350) {
-      // Double tap detected
+    // Left 44% of video area: Rewind 10s
+    // Right 44% of video area: Fast-Forward 10s
+    // Center 12%: Play/Pause toggle on double-tap
+    const isLeft = clickX < width * 0.44;
+    const isRight = clickX > width * 0.56;
+
+    if (now - lastTapRef.current.time < 320) {
+      // Double tap confirmed! Cancel any pending single-tap control toggling
+      if (singleTapTimerRef.current) {
+        clearTimeout(singleTapTimerRef.current);
+        singleTapTimerRef.current = null;
+      }
+      lastTapRef.current.time = 0;
+
       if (isLeft) {
         handleSkipSeconds(-10);
         setDoubleTapFeedback('left');
-        setTimeout(() => setDoubleTapFeedback(null), 600);
+        setTimeout(() => setDoubleTapFeedback(null), 700);
       } else if (isRight) {
         handleSkipSeconds(10);
         setDoubleTapFeedback('right');
-        setTimeout(() => setDoubleTapFeedback(null), 600);
+        setTimeout(() => setDoubleTapFeedback(null), 700);
       } else {
         handleTogglePlay();
       }
-      lastTapRef.current.time = 0;
     } else {
       lastTapRef.current = { time: now, x: clickX };
-      // Single tap: toggle overlay controls
-      setShowOverlayControls((prev) => !prev);
+      // Single tap: toggle overlay controls after slight delay to verify if double tap is coming
+      if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
+      singleTapTimerRef.current = setTimeout(() => {
+        setShowOverlayControls((prev) => !prev);
+        singleTapTimerRef.current = null;
+      }, 260);
     }
   };
 
@@ -773,17 +954,31 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                 onClick={handleVideoClick}
                 onTouchEnd={handleVideoTouchEnd}
               >
-                {/* Double-tap feedback ripple */}
+                {/* YouTube-style Double-tap feedback ripple overlay */}
                 {doubleTapFeedback === 'left' && (
-                  <div className="absolute left-6 sm:left-12 top-1/2 -translate-y-1/2 flex items-center gap-1.5 bg-cyan-600/85 backdrop-blur-md px-4 py-2.5 rounded-full text-white font-black text-xs sm:text-sm border border-cyan-400/50 shadow-[0_0_20px_rgba(6,182,212,0.8)] animate-pulse pointer-events-none">
-                    <RotateCcw className="w-4 h-4" />
-                    <span>-10s REWIND</span>
+                  <div className="absolute left-0 top-0 bottom-0 w-[44%] bg-gradient-to-r from-cyan-500/40 via-cyan-500/15 to-transparent rounded-r-full flex flex-col items-center justify-center pointer-events-none animate-in fade-in zoom-in-90 duration-150 z-35">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-cyan-950/90 border-2 border-cyan-400 flex flex-col items-center justify-center text-cyan-300 shadow-[0_0_35px_rgba(6,182,212,0.9)] animate-pulse">
+                      <RotateCcw className="w-6 h-6 sm:w-7 sm:h-7 text-cyan-300" />
+                      <span className="text-xs sm:text-sm font-black font-mono tracking-tight text-white mt-1">
+                        -10s
+                      </span>
+                    </div>
+                    <span className="text-[10px] sm:text-xs font-mono font-black text-cyan-200 mt-2 bg-black/80 px-3 py-1 rounded-full border border-cyan-500/40 tracking-wider shadow-lg">
+                      10s REWIND
+                    </span>
                   </div>
                 )}
                 {doubleTapFeedback === 'right' && (
-                  <div className="absolute right-6 sm:right-12 top-1/2 -translate-y-1/2 flex items-center gap-1.5 bg-cyan-600/85 backdrop-blur-md px-4 py-2.5 rounded-full text-white font-black text-xs sm:text-sm border border-cyan-400/50 shadow-[0_0_20px_rgba(6,182,212,0.8)] animate-pulse pointer-events-none">
-                    <RotateCw className="w-4 h-4" />
-                    <span>+10s SKIP</span>
+                  <div className="absolute right-0 top-0 bottom-0 w-[44%] bg-gradient-to-l from-cyan-500/40 via-cyan-500/15 to-transparent rounded-l-full flex flex-col items-center justify-center pointer-events-none animate-in fade-in zoom-in-90 duration-150 z-35">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-cyan-950/90 border-2 border-cyan-400 flex flex-col items-center justify-center text-cyan-300 shadow-[0_0_35px_rgba(6,182,212,0.9)] animate-pulse">
+                      <RotateCw className="w-6 h-6 sm:w-7 sm:h-7 text-cyan-300" />
+                      <span className="text-xs sm:text-sm font-black font-mono tracking-tight text-white mt-1">
+                        +10s
+                      </span>
+                    </div>
+                    <span className="text-[10px] sm:text-xs font-mono font-black text-cyan-200 mt-2 bg-black/80 px-3 py-1 rounded-full border border-cyan-500/40 tracking-wider shadow-lg">
+                      10s FORWARD
+                    </span>
                   </div>
                 )}
               </div>
@@ -972,13 +1167,44 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                       <button
                         onClick={handleToggleMute}
                         className="p-1 sm:p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-cyan-950/40 transition-colors cursor-pointer shrink-0 active:scale-95"
-                        title={isMuted ? 'Unmute' : 'Mute'}
+                        title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
                       >
                         {isMuted ? (
                           <VolumeX className="w-4 h-4 text-rose-400" />
                         ) : (
                           <Volume2 className="w-4 h-4 text-cyan-400" />
                         )}
+                      </button>
+
+                      {/* Desktop Volume Slider */}
+                      <div className="hidden sm:flex items-center gap-1.5 w-16 md:w-20">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={isMuted ? 0 : volumeLevel}
+                          onChange={(e) => handleSetVolume(Number(e.target.value))}
+                          className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                          title={`Volume: ${volumeLevel}%`}
+                        />
+                      </div>
+
+                      {/* EXTRA SOUND BOOSTER BUTTON */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowSoundModal((prev) => !prev);
+                        }}
+                        className={`px-2 py-1 rounded-xl text-[10px] sm:text-xs font-black font-mono flex items-center gap-1 cursor-pointer transition-all shadow-sm active:scale-95 border ${
+                          extraSoundBoost > 100
+                            ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 text-white border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.6)] animate-pulse'
+                            : 'bg-slate-900/90 text-cyan-300 border-cyan-500/40 hover:border-cyan-300 hover:bg-slate-800'
+                        }`}
+                        title="Extra Sound Booster (அதிக சவுண்ட்)"
+                      >
+                        <Zap className={`w-3 h-3 ${extraSoundBoost > 100 ? 'text-white' : 'text-amber-400'}`} />
+                        <span>{extraSoundBoost > 100 ? `${extraSoundBoost}% BOOST` : 'SOUND BOOST'}</span>
                       </button>
                     </div>
 
@@ -1096,6 +1322,10 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                     <span>Paper Express Engine</span>
                   </div>
                   <div className="flex items-center gap-2 font-mono text-[10px]">
+                    <span className="text-amber-400 font-black">
+                      🔊 {extraSoundBoost > 100 ? `${extraSoundBoost}% BOOST` : `${volumeLevel}%`}
+                    </span>
+                    <span className="text-slate-600">|</span>
                     <span className="text-cyan-300 font-black">
                       ⚡ {currentSpeed}x
                     </span>
@@ -1160,6 +1390,46 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                       </button>
                     );
                   })}
+                </div>
+
+                {/* Sound Boost Row on Mobile */}
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 w-full">
+                  <span className="text-[9px] font-mono text-amber-400 font-bold uppercase tracking-wider shrink-0 px-1 flex items-center gap-1">
+                    <Volume2 className="w-3 h-3 text-amber-400" />
+                    <span>SOUND BOOST:</span>
+                  </span>
+                  {[
+                    { level: 100, label: '100%', badge: 'NORMAL' },
+                    { level: 150, label: '150%', badge: 'BOOST' },
+                    { level: 200, label: '200%', badge: 'LOUD ⚡' },
+                    { level: 300, label: '300%', badge: 'TURBO 🔥' },
+                  ].map((sb) => {
+                    const isActive = extraSoundBoost === sb.level;
+                    return (
+                      <button
+                        key={sb.level}
+                        onClick={() => handleSetSoundBoost(sb.level)}
+                        className={`px-2.5 py-1 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer border flex items-center gap-1 active:scale-95 ${
+                          isActive
+                            ? 'bg-gradient-to-r from-amber-500 to-rose-600 text-white border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.6)] scale-102'
+                            : 'bg-slate-900/90 text-slate-300 hover:text-white border-slate-700 hover:border-amber-500/40'
+                        }`}
+                      >
+                        <span className="font-mono">{sb.label}</span>
+                        <span className={`text-[8px] font-bold uppercase tracking-wider px-1 py-0.2 rounded ${
+                          isActive ? 'bg-black/30 text-white' : 'bg-slate-800 text-slate-400'
+                        }`}>
+                          {sb.badge}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => setShowSoundModal(true)}
+                    className="px-2 py-1 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-[10px] font-mono font-bold shrink-0 border border-slate-700 flex items-center gap-1"
+                  >
+                    <span>More...</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -1424,6 +1694,115 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
             <div className="pt-2 border-t border-cyan-500/20 text-center">
               <span className="text-[10px] text-slate-400 font-mono">
                 Paper Express Engine · High Speed Streaming
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EXTRA SOUND BOOSTER & VOLUME CONTROLS MODAL */}
+      {showSoundModal && (
+        <div 
+          className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150"
+          onClick={() => setShowSoundModal(false)}
+        >
+          <div 
+            className="w-full max-w-sm bg-[#081024] border-2 border-cyan-400/50 rounded-2xl p-4 sm:p-5 shadow-[0_0_50px_rgba(6,182,212,0.4)] flex flex-col gap-4 text-slate-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-cyan-500/30 pb-2.5">
+              <div className="flex items-center gap-2 text-cyan-400 font-mono font-black text-xs sm:text-sm">
+                <Volume2 className="w-4 h-4 text-cyan-400" />
+                <span>AUDIO & EXTRA SOUND BOOSTER</span>
+              </div>
+              <button 
+                onClick={() => setShowSoundModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-cyan-950/60 active:scale-95 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Master Volume Slider */}
+            <div className="space-y-2 bg-slate-900/80 p-3 rounded-xl border border-slate-700">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-slate-300 font-bold">Master Volume (அடிப்படை ஒலி)</span>
+                <span className="text-cyan-300 font-black">{volumeLevel}%</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={handleToggleMute}
+                  className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer active:scale-95"
+                  title="Toggle Mute"
+                >
+                  {isMuted || volumeLevel === 0 ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-cyan-400" />}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={isMuted ? 0 : volumeLevel}
+                  onChange={(e) => handleSetVolume(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                />
+              </div>
+            </div>
+
+            {/* Extra Sound Booster Presets */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-amber-400 font-bold flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                  <span>Extra Sound Booster (கூடுதல் சவுண்ட்)</span>
+                </span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  extraSoundBoost > 100 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {extraSoundBoost}% Boost
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+                வகுப்பறை வீடியோக்களின் குறைந்த சவுண்டை அதிகப்படுத்தி தெளிவாகக் கேட்க 150%, 200% அல்லது 300% ஐ தெரிவு செய்யவும்.
+              </p>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                {[
+                  { level: 100, label: '100% Standard', desc: 'இயல்பான ஒலி', color: 'from-blue-600 to-cyan-600' },
+                  { level: 150, label: '150% Boost 🔊', desc: '+50% தெளிவான ஒலி', color: 'from-cyan-500 to-blue-600' },
+                  { level: 200, label: '200% Super ⚡', desc: '+100% இரட்டிப்பு சவுண்ட்', color: 'from-amber-500 to-orange-600' },
+                  { level: 300, label: '300% Turbo 🔥', desc: '+200% உச்சபட்ச சவுண்ட்', color: 'from-rose-500 to-red-600' },
+                ].map((item) => {
+                  const isSelected = extraSoundBoost === item.level;
+                  return (
+                    <button
+                      key={item.level}
+                      onClick={() => {
+                        handleSetSoundBoost(item.level);
+                        setShowSoundModal(false);
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-0.5 active:scale-95 ${
+                        isSelected
+                          ? `bg-gradient-to-r ${item.color} text-white border-white/60 shadow-[0_0_15px_rgba(245,158,11,0.5)] ring-1 ring-white/50`
+                          : 'bg-slate-900/90 border-slate-700 hover:border-cyan-500/50 text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-black text-xs">{item.label}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                      </div>
+                      <span className={`text-[10px] ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
+                        {item.desc}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-cyan-500/20 text-center">
+              <span className="text-[10px] text-slate-400 font-mono">
+                Hardware DSP Volume Amplification · Paper Express
               </span>
             </div>
           </div>
