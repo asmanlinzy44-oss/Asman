@@ -97,9 +97,6 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const controlsTimeoutRef = useRef<any>(null);
   const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
   const singleTapTimerRef = useRef<any>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
-  const sourceConnectedRef = useRef<boolean>(false);
   const hudFlashTimeoutRef = useRef<any>(null);
   const touchHandledRef = useRef<boolean>(false);
   const loadingTimeoutRef = useRef<any>(null);
@@ -210,6 +207,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       htmlVideoRef.current.currentTime = 0;
       htmlVideoRef.current.playbackRate = currentSpeed;
       htmlVideoRef.current.muted = isMuted;
+      htmlVideoRef.current.volume = isMuted ? 0 : Math.min(1, Math.max(0, volumeLevel / 100));
       const p = htmlVideoRef.current.play();
       if (p !== undefined) {
         p.then(() => {
@@ -423,65 +421,52 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     resetControlsTimeout();
   };
 
-  // Apply Web Audio DSP Gain Boost and Volume to HTML5 Video & YouTube
+  // Synchronize audio volume and mute state across HTML5 Video & YouTube iframe
   const applyAudioBoost = useCallback((boostPercent: number, baseVol: number) => {
-    // 1. HTML5 direct stream video element
+    // 1. Direct stream HTML5 video element
     if (htmlVideoRef.current) {
       try {
-        htmlVideoRef.current.volume = Math.min(1, Math.max(0, baseVol / 100));
-
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioContextClass) {
-          if (!audioCtxRef.current) {
-            audioCtxRef.current = new AudioContextClass();
-          }
-
-          if (audioCtxRef.current.state === 'suspended') {
-            audioCtxRef.current.resume().catch(() => {});
-          }
-
-          if (!gainNodeRef.current) {
-            gainNodeRef.current = audioCtxRef.current.createGain();
-            gainNodeRef.current.connect(audioCtxRef.current.destination);
-          }
-
-          if (!sourceConnectedRef.current && htmlVideoRef.current) {
-            try {
-              const source = audioCtxRef.current.createMediaElementSource(htmlVideoRef.current);
-              source.connect(gainNodeRef.current);
-              sourceConnectedRef.current = true;
-            } catch (err) {
-              // Might throw if already connected or cross-origin
-              console.warn('Media element source notice:', err);
-            }
-          }
-
-          if (gainNodeRef.current) {
-            // Boost multiplier applied via Web Audio API (e.g. 1.0, 1.5, 2.0, 3.0)
-            gainNodeRef.current.gain.value = boostPercent > 100 ? (boostPercent / 100) : 1.0;
-          }
-        }
+        const normVol = isMuted ? 0 : Math.min(1, Math.max(0, baseVol / 100));
+        htmlVideoRef.current.volume = normVol;
+        htmlVideoRef.current.muted = isMuted;
       } catch (err) {
-        console.warn('Audio booster error handled:', err);
+        console.warn('Direct stream volume update notice:', err);
       }
     }
 
     // 2. YouTube iframe
     if (!isDirectStream) {
-      sendYtCommand('setVolume', [Math.min(100, Math.round(baseVol))]);
-      if (baseVol > 0) {
+      sendYtCommand('setVolume', [isMuted ? 0 : Math.min(100, Math.round(baseVol))]);
+      if (!isMuted && baseVol > 0) {
         sendYtCommand('unMute');
-        setIsMuted(false);
       }
     }
-  }, [isDirectStream, sendYtCommand]);
+  }, [isDirectStream, isMuted, sendYtCommand]);
 
   // Set Extra Sound Booster Preset (100%, 150%, 200%, 300%)
   const handleSetSoundBoost = (boost: number) => {
     setExtraSoundBoost(boost);
-    applyAudioBoost(boost, volumeLevel);
-    if (boost > 100) {
-      flashGamingHud(`🔊 SOUND BOOST: ${boost}% (EXTRA LOUD ⚡)`);
+
+    // Unmute immediately when sound boost is engaged so sound plays loudly without delay
+    setIsMuted(false);
+    setVolumeLevel(100);
+
+    if (htmlVideoRef.current) {
+      htmlVideoRef.current.muted = false;
+      htmlVideoRef.current.volume = 1.0;
+    }
+
+    if (!isDirectStream) {
+      sendYtCommand('unMute');
+      sendYtCommand('setVolume', [100]);
+    }
+
+    if (boost === 150) {
+      flashGamingHud(`🔊 SOUND BOOST: 150% (HIGH CLARITY)`);
+    } else if (boost === 200) {
+      flashGamingHud(`🔊 SOUND BOOST: 200% (SUPER LOUD ⚡)`);
+    } else if (boost === 300) {
+      flashGamingHud(`🔥 SOUND BOOST: 300% (TURBO BOOST 🔥)`);
     } else {
       flashGamingHud(`🔊 SOUND: 100% (STANDARD)`);
     }
@@ -492,13 +477,29 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const handleSetVolume = (val: number) => {
     const clamped = Math.max(0, Math.min(100, Math.round(val)));
     setVolumeLevel(clamped);
+
     if (clamped === 0) {
       setIsMuted(true);
-    } else if (isMuted) {
+      if (htmlVideoRef.current) {
+        htmlVideoRef.current.muted = true;
+        htmlVideoRef.current.volume = 0;
+      }
+      if (!isDirectStream) {
+        sendYtCommand('mute');
+      }
+      flashGamingHud(`🔇 AUDIO MUTED (0%)`);
+    } else {
       setIsMuted(false);
+      if (htmlVideoRef.current) {
+        htmlVideoRef.current.muted = false;
+        htmlVideoRef.current.volume = clamped / 100;
+      }
+      if (!isDirectStream) {
+        sendYtCommand('unMute');
+        sendYtCommand('setVolume', [clamped]);
+      }
+      flashGamingHud(`🔊 VOLUME: ${clamped}%${extraSoundBoost > 100 ? ` (+${extraSoundBoost - 100}% BOOST)` : ''}`);
     }
-    applyAudioBoost(extraSoundBoost, clamped);
-    flashGamingHud(`🔊 VOLUME: ${clamped}%${extraSoundBoost > 100 ? ` (+${extraSoundBoost - 100}% BOOST)` : ''}`);
   };
 
   // Step volume up/down (for PC Arrow keys)
@@ -548,6 +549,9 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     if (isDirectStream && htmlVideoRef.current && !directStreamFallbackIframe) {
       const nextMuted = !isMuted;
       htmlVideoRef.current.muted = nextMuted;
+      if (!nextMuted) {
+        htmlVideoRef.current.volume = Math.max(0.2, volumeLevel / 100);
+      }
       setIsMuted(nextMuted);
       flashGamingHud(nextMuted ? '🔇 AUDIO MUTED' : `🔊 AUDIO ACTIVE (${volumeLevel}%)`);
       resetControlsTimeout();
@@ -556,7 +560,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
     if (isMuted) {
       sendYtCommand('unMute');
-      sendYtCommand('setVolume', [volumeLevel]);
+      sendYtCommand('setVolume', [Math.max(10, volumeLevel)]);
       setIsMuted(false);
       flashGamingHud(`🔊 AUDIO ACTIVE (${volumeLevel}%)`);
     } else {

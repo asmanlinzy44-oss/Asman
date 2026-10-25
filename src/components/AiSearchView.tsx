@@ -6,7 +6,8 @@ import {
   ExternalLink, Atom, Calculator, FlaskConical, Dna,
   Download, Eye, Copy, Check, Bookmark, BookmarkCheck,
   Folder, MessageSquare, HelpCircle, Send, RotateCcw,
-  Sparkles, Zap, Bot, User as UserIcon
+  Sparkles, Zap, Bot, User as UserIcon,
+  History, Clock, Trash2, X, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import { PaperResource, ResourceCategory } from '../types';
@@ -208,6 +209,64 @@ export const AiSearchView: React.FC<AiSearchViewProps> = ({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Recent Searches state (max 5 persisted in localStorage)
+  const RECENT_SEARCHES_STORAGE_KEY = 'paper_express_recent_searches';
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(RECENT_SEARCHES_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((q) => typeof q === 'string' && q.trim().length > 0).slice(0, 5);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse recent searches from localStorage:', e);
+    }
+    return [];
+  });
+  const [isRecentSearchesOpen, setIsRecentSearchesOpen] = useState(true);
+
+  const saveQueryToRecent = (query: string) => {
+    const clean = query.trim();
+    if (!clean) return;
+    setRecentSearches((prev) => {
+      const filtered = prev.filter((item) => item.toLowerCase() !== clean.toLowerCase());
+      const updated = [clean, ...filtered].slice(0, 5);
+      try {
+        localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(updated));
+      } catch (err) {
+        console.warn('Could not save recent search to localStorage:', err);
+      }
+      return updated;
+    });
+  };
+
+  const handleRemoveRecentSearch = (e: React.MouseEvent, queryToRemove: string) => {
+    e.stopPropagation();
+    playRoboticClick();
+    setRecentSearches((prev) => {
+      const updated = prev.filter((item) => item !== queryToRemove);
+      try {
+        localStorage.setItem(RECENT_SEARCHES_STORAGE_KEY, JSON.stringify(updated));
+      } catch (err) {
+        console.warn('Could not remove recent search from localStorage:', err);
+      }
+      return updated;
+    });
+  };
+
+  const handleClearAllRecentSearches = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    playRoboticClick();
+    setRecentSearches([]);
+    try {
+      localStorage.removeItem(RECENT_SEARCHES_STORAGE_KEY);
+    } catch (err) {
+      console.warn('Could not clear recent searches from localStorage:', err);
+    }
+  };
 
   // Sub-folder filter states
   const [subFolderFilterSubject, setSubFolderFilterSubject] = useState<'all' | 'biology' | 'chemistry' | 'physics' | 'c-maths'>('all');
@@ -676,6 +735,8 @@ export const AiSearchView: React.FC<AiSearchViewProps> = ({
   const handleSearch = async (queryText?: string) => {
     const textToSearch = (queryText !== undefined ? queryText : promptInput).trim();
     if (!textToSearch) return;
+
+    saveQueryToRecent(textToSearch);
 
     playRoboticClick();
     setIsLoading(true);
@@ -1428,7 +1489,7 @@ Respond ONLY with a valid JSON matching this schema:
       )}
 
       {/* STICKY INTERACTIVE SEARCH / CHAT INPUT BAR */}
-      <div className="sticky bottom-4 z-30 pt-2">
+      <div className="sticky bottom-4 z-30 pt-2 space-y-2">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -1480,6 +1541,82 @@ Respond ONLY with a valid JSON matching this schema:
             </button>
           </div>
         </form>
+
+        {/* RECENT SEARCHES: Displayed in a list under the search input */}
+        {recentSearches.length > 0 && (
+          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-200/90 dark:border-slate-800 p-2.5 sm:p-3 shadow-xl space-y-2 animate-in fade-in slide-in-from-top-1 duration-200 google-anno-skip">
+            <div className="flex items-center justify-between px-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <button
+                type="button"
+                onClick={() => setIsRecentSearchesOpen((prev) => !prev)}
+                className="flex items-center gap-1.5 uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-sky-400 transition-colors cursor-pointer"
+                title={isRecentSearchesOpen ? 'Collapse recent searches' : 'Expand recent searches'}
+              >
+                <History className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
+                <span>Recent Searches</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                  {recentSearches.length}/5
+                </span>
+                {isRecentSearchesOpen ? (
+                  <ChevronUp className="w-3 h-3 text-slate-400" />
+                ) : (
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearAllRecentSearches}
+                className="hover:text-rose-500 dark:hover:text-rose-400 transition-colors flex items-center gap-1 text-[11px] font-semibold cursor-pointer"
+                title="Clear all recent searches"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Clear All</span>
+              </button>
+            </div>
+
+            {isRecentSearchesOpen && (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800/80 rounded-xl overflow-hidden border border-slate-200/60 dark:border-slate-800/60 bg-slate-50/60 dark:bg-slate-950/40">
+                {recentSearches.map((query, index) => (
+                  <div
+                    key={`${query}-${index}`}
+                    onClick={() => {
+                      playRoboticClick();
+                      setPromptInput(query);
+                      handleSearch(query);
+                    }}
+                    className="group flex items-center justify-between px-3 py-2 hover:bg-blue-50/80 dark:hover:bg-blue-950/40 transition-colors cursor-pointer text-xs"
+                    title={`Click to search "${query}"`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
+                      <span className="w-5 h-5 rounded-lg bg-slate-200/70 dark:bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-blue-600 dark:group-hover:text-sky-400 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 transition-colors shrink-0">
+                        <Clock className="w-3 h-3" />
+                      </span>
+                      <span className="text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-sky-300 font-medium truncate">
+                        {query}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-mono text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:inline-flex items-center gap-0.5 text-blue-600 dark:text-sky-400">
+                        <span>Search</span>
+                        <ArrowRight className="w-2.5 h-2.5" />
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleRemoveRecentSearch(e, query)}
+                        className="p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="Remove from history"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div ref={chatBottomRef} />

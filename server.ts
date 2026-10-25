@@ -3,6 +3,9 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
+import { requireAuth, AuthRequest } from './src/middleware/auth.ts';
+import { getOrCreateUser, getUserByUid } from './src/db/users.ts';
+import { getUserNotes, createNote, getUserBookmarks, toggleBookmark } from './src/db/notes.ts';
 
 dotenv.config();
 
@@ -170,6 +173,91 @@ Conversation History: ${JSON.stringify((history || []).slice(-8))}`;
       error: err.message || 'Gemini processing failed',
       fallbackRequired: true 
     });
+  }
+});
+
+// Cloud SQL PostgreSQL User & Data Routes (Secured with Firebase Auth)
+app.get('/api/me', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) {
+      res.status(401).json({ error: 'User UID not found' });
+      return;
+    }
+    const user = await getUserByUid(uid);
+    res.json(user || { uid, email: req.user?.email });
+  } catch (err: any) {
+    console.error('Failed to get current user:', err);
+    res.status(500).json({ error: 'Failed to retrieve user profile' });
+  }
+});
+
+app.get('/api/notes', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const uid = req.user?.uid;
+    const videoId = req.query.videoId as string | undefined;
+    if (!uid) {
+      res.status(401).json({ error: 'User UID not found' });
+      return;
+    }
+    const notes = await getUserNotes(uid, videoId);
+    res.json(notes);
+  } catch (err: any) {
+    console.error('Failed to get notes:', err);
+    res.status(500).json({ error: 'Failed to retrieve notes' });
+  }
+});
+
+app.post('/api/notes', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const uid = req.user?.uid;
+    const { videoId, timestampSeconds, timestampFormatted, text } = req.body;
+    if (!uid || !videoId || !text) {
+      res.status(400).json({ error: 'Missing required note parameters' });
+      return;
+    }
+    const newNote = await createNote({
+      userId: uid,
+      videoId,
+      timestampSeconds: Number(timestampSeconds) || 0,
+      timestampFormatted: timestampFormatted || '00:00',
+      text,
+    });
+    res.status(201).json(newNote);
+  } catch (err: any) {
+    console.error('Failed to create note:', err);
+    res.status(500).json({ error: 'Failed to save note' });
+  }
+});
+
+app.get('/api/bookmarks', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) {
+      res.status(401).json({ error: 'User UID not found' });
+      return;
+    }
+    const bookmarks = await getUserBookmarks(uid);
+    res.json(bookmarks);
+  } catch (err: any) {
+    console.error('Failed to get bookmarks:', err);
+    res.status(500).json({ error: 'Failed to retrieve bookmarks' });
+  }
+});
+
+app.post('/api/bookmarks/toggle', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const uid = req.user?.uid;
+    const { resourceId } = req.body;
+    if (!uid || !resourceId) {
+      res.status(400).json({ error: 'Missing resourceId' });
+      return;
+    }
+    const result = await toggleBookmark(uid, resourceId);
+    res.json(result);
+  } catch (err: any) {
+    console.error('Failed to toggle bookmark:', err);
+    res.status(500).json({ error: 'Failed to update bookmark' });
   }
 });
 
