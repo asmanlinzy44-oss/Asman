@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -10,6 +10,48 @@ export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
   prompt: 'select_account',
 });
+
+export const WORKSPACE_SCOPES = [
+  'https://www.googleapis.com/auth/drive',
+  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/tasks',
+  'https://www.googleapis.com/auth/calendar',
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://mail.google.com/',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.send',
+];
+
+WORKSPACE_SCOPES.forEach((scope) => {
+  googleProvider.addScope(scope);
+});
+
+// In-memory access token storage (never stored in localStorage/sessionStorage as required)
+let cachedAccessToken: string | null = null;
+
+export const setCachedAccessToken = (token: string | null) => {
+  cachedAccessToken = token;
+};
+
+export const getCachedAccessToken = (): string | null => {
+  return cachedAccessToken;
+};
+
+// Reset access token when auth state changes to null
+auth.onAuthStateChanged((user) => {
+  if (!user) {
+    cachedAccessToken = null;
+  }
+});
+
+export const signInWithGoogleWorkspace = async () => {
+  const result = await signInWithPopup(auth, googleProvider);
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  if (credential?.accessToken) {
+    cachedAccessToken = credential.accessToken;
+  }
+  return { user: result.user, accessToken: cachedAccessToken };
+};
 
 // Validate connection on boot as mandated by the skill
 async function testConnection() {

@@ -18,6 +18,7 @@ interface HeaderProps {
   isPaidStudent?: boolean;
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
+  onOpenWorkspace?: (tab?: 'drive' | 'tasks' | 'calendar' | 'gmail') => void;
 }
 
 const GoogleIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
@@ -55,6 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
   isPaidStudent = false,
   isDarkMode = false,
   onToggleDarkMode,
+  onOpenWorkspace,
 }) => {
   const [photoError, setPhotoError] = useState(false);
 
@@ -172,6 +174,26 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             )}
           </button>
+
+          {/* Google Workspace Hub */}
+          {onOpenWorkspace && (
+            <button
+              onClick={() => {
+                playRoboticClick();
+                onOpenWorkspace('drive');
+              }}
+              className="px-2.5 xl:px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-sky-400 bg-slate-50 dark:bg-slate-800/80 hover:bg-blue-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700/80 shadow-2xs font-bold"
+              title="Google Workspace Hub (Drive, Tasks, Calendar, Gmail)"
+            >
+              <div className="w-3.5 h-3.5 rounded-full bg-white flex items-center justify-center shrink-0 p-0.5 shadow-2xs">
+                <GoogleIcon className="w-full h-full" />
+              </div>
+              <span>Workspace</span>
+              <span className="text-[10px] bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-sky-300 px-1.5 py-0.2 rounded-md font-extrabold">
+                Drive · Tasks
+              </span>
+            </button>
+          )}
 
           {/* Chemistry Virtual Lab Direct Link */}
           <a
@@ -348,6 +370,20 @@ export const Header: React.FC<HeaderProps> = ({
         >
           Video Lessons
         </button>
+        {onOpenWorkspace && (
+          <button
+            onClick={() => {
+              playRoboticClick();
+              onOpenWorkspace('drive');
+            }}
+            className="px-2.5 py-1 rounded-lg shrink-0 bg-blue-50 dark:bg-blue-950/60 text-[#0066FF] dark:text-sky-400 font-bold flex items-center gap-1 border border-blue-200 dark:border-blue-800"
+          >
+            <div className="w-3 h-3 rounded-full bg-white flex items-center justify-center shrink-0 p-0.5">
+              <GoogleIcon className="w-full h-full" />
+            </div>
+            <span>Workspace</span>
+          </button>
+        )}
         <a
           href="https://paperexpresslab1.vercel.app/"
           target="_blank"

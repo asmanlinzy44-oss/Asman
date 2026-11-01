@@ -37,9 +37,10 @@ import { LegalModal, LegalModalType } from './components/LegalModal';
 import { EducationalGuides } from './components/EducationalGuides';
 import { AiSearchView } from './components/AiSearchView';
 import { PaperExpressSplashLoader } from './components/PaperExpressSplashLoader';
-import { onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
+import { GoogleWorkspaceModal } from './components/GoogleWorkspaceModal';
+import { onAuthStateChanged, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { auth, db, googleProvider } from './firebase';
+import { auth, db, googleProvider, setCachedAccessToken } from './firebase';
 import { cleanFirestoreData } from './utils/firestoreClean';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrors';
 import { 
@@ -84,27 +85,20 @@ export default function App() {
   });
 
   const [videos, setVideos] = useState<VideoLesson[]>(() => {
-    const VIDEOS_CACHE_KEY = 'studypro_videos_workshop_v19';
-    const isVideosLoaded = localStorage.getItem(VIDEOS_CACHE_KEY);
-    if (!isVideosLoaded) {
-      localStorage.setItem(VIDEOS_CACHE_KEY, 'true');
-      localStorage.setItem('studypro_videos_data', JSON.stringify(INITIAL_VIDEOS));
-      return INITIAL_VIDEOS;
+    const VIDEOS_RESET_KEY = 'studypro_videos_cleared_v20';
+    const isReset = localStorage.getItem(VIDEOS_RESET_KEY);
+    if (!isReset) {
+      localStorage.setItem(VIDEOS_RESET_KEY, 'true');
+      localStorage.setItem('studypro_videos_data', JSON.stringify([]));
+      return [];
     }
     const saved = localStorage.getItem('studypro_videos_data');
-    if (!saved) return INITIAL_VIDEOS;
+    if (!saved) return [];
     try {
       const parsed: VideoLesson[] = JSON.parse(saved);
-      const existingIds = new Set(parsed.map((v) => v.id));
-      const missingVideos = INITIAL_VIDEOS.filter((v) => !existingIds.has(v.id));
-      if (missingVideos.length > 0) {
-        const merged = [...parsed, ...missingVideos];
-        localStorage.setItem('studypro_videos_data', JSON.stringify(merged));
-        return merged;
-      }
-      return parsed;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return INITIAL_VIDEOS;
+      return [];
     }
   });
 
@@ -170,6 +164,14 @@ export default function App() {
   const [isTimerOpen, setIsTimerOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
+  const [workspaceTab, setWorkspaceTab] = useState<'drive' | 'tasks' | 'calendar' | 'gmail'>('drive');
+
+  const handleOpenWorkspace = (tab: 'drive' | 'tasks' | 'calendar' | 'gmail' = 'drive') => {
+    playRoboticClick();
+    setWorkspaceTab(tab);
+    setIsWorkspaceOpen(true);
+  };
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [isDomainAuthModalOpen, setIsDomainAuthModalOpen] = useState(false);
@@ -1136,10 +1138,11 @@ export default function App() {
     };
   }, []);
 
-  // One-time seed of Physics Practical workshop folder and direct stream videos to Cloud Firestore
+  // One-time setup: keep all folders in Firestore and purge old mock videos so user can upload fresh videos
   useEffect(() => {
-    const seedWorkshopData = async () => {
+    const setupVideoCollections = async () => {
       try {
+        // Keep all folders intact in Firestore
         for (const folder of INITIAL_VIDEO_FOLDERS) {
           const folderRef = doc(db, 'video_folders', folder.id);
           const folderSnap = await getDoc(folderRef);
@@ -1148,28 +1151,26 @@ export default function App() {
           }
         }
 
-        const v1Ref = doc(db, 'videos', 'vid-phy-prac-workshop-01');
-        const v1Snap = await getDoc(v1Ref);
-        if (!v1Snap.exists()) {
-          const v1 = INITIAL_VIDEOS.find((v) => v.id === 'vid-phy-prac-workshop-01');
-          if (v1) {
-            await setDoc(v1Ref, cleanFirestoreData({ ...v1, uploadedAt: '2026-10-14' }));
-          }
-        }
-
-        const v2Ref = doc(db, 'videos', 'vid-phy-prac-workshop-02');
-        const v2Snap = await getDoc(v2Ref);
-        if (!v2Snap.exists()) {
-          const v2 = INITIAL_VIDEOS.find((v) => v.id === 'vid-phy-prac-workshop-02');
-          if (v2) {
-            await setDoc(v2Ref, cleanFirestoreData({ ...v2, uploadedAt: '2026-10-14' }));
+        // One-time purge of previous mock videos from Firestore and local storage
+        const purgeKey = 'studypro_purged_old_videos_v21';
+        if (!localStorage.getItem(purgeKey)) {
+          try {
+            const vSnap = await getDocs(collection(db, 'videos'));
+            for (const vDoc of vSnap.docs) {
+              await deleteDoc(doc(db, 'videos', vDoc.id));
+            }
+            localStorage.setItem(purgeKey, 'true');
+            localStorage.setItem('studypro_videos_data', JSON.stringify([]));
+            setVideos([]);
+          } catch (e) {
+            console.warn('One-time video purge notice:', e);
           }
         }
       } catch (err) {
-        console.warn('Workshop video Firestore seeding notice:', err);
+        console.warn('Video folder Firestore setup notice:', err);
       }
     };
-    seedWorkshopData();
+    setupVideoCollections();
   }, []);
 
   // Real-time synchronization of Site Announcement and Vault Drive Links
@@ -1870,6 +1871,10 @@ export default function App() {
 
     try {
       const result = await signInWithPopup(auth, googleProvider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        setCachedAccessToken(credential.accessToken);
+      }
       if (result.user) {
         playRoboticUnlock();
         const photo = result.user.photoURL || result.user.providerData?.[0]?.photoURL || '';
@@ -2297,6 +2302,7 @@ export default function App() {
         }}
         isDarkMode={isDarkMode}
         onToggleDarkMode={toggleDarkMode}
+        onOpenWorkspace={handleOpenWorkspace}
       />
 
       {/* 2. Router: Home Page (Attractive Hub) or Dedicated Category Archive */}
@@ -2317,6 +2323,7 @@ export default function App() {
             setIsContactOpen(true);
           }}
           onOpenLegal={(type) => setLegalModalType(type)}
+          onOpenWorkspace={handleOpenWorkspace}
           user={user}
           isDarkMode={isDarkMode}
         />
@@ -3224,6 +3231,13 @@ export default function App() {
       <LegalModal
         type={legalModalType}
         onClose={() => setLegalModalType(null)}
+      />
+
+      {/* Google Workspace Hub (Drive, Tasks, Calendar, Gmail) */}
+      <GoogleWorkspaceModal
+        isOpen={isWorkspaceOpen}
+        onClose={() => setIsWorkspaceOpen(false)}
+        defaultTab={workspaceTab}
       />
 
       {/* Clean Global Loading / Auth Notice */}

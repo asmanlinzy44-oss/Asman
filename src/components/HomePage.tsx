@@ -3,7 +3,8 @@ import {
   FileText, Award, BookOpen, Video, Clock, MessageSquare, 
   ExternalLink, CheckCircle2, ChevronRight,
   ShieldCheck, Layers, ArrowRight, Compass, Instagram, FolderOpen,
-  Info, AlertCircle, FlaskConical, Sparkles, Atom
+  Info, AlertCircle, FlaskConical, Sparkles, Atom,
+  HardDrive, CheckSquare, Calendar, Mail
 } from 'lucide-react';
 import { User, ResourceCategory } from '../types';
 import { PaperExpressLogo } from './PaperExpressLogo';
@@ -17,6 +18,7 @@ interface HomePageProps {
   onOpenAuth: () => void;
   onOpenContactUs?: () => void;
   onOpenLegal?: (type: 'privacy' | 'terms' | 'about' | 'disclaimer') => void;
+  onOpenWorkspace?: (tab?: 'drive' | 'tasks' | 'calendar' | 'gmail') => void;
   user: User | null;
   isDarkMode?: boolean;
 }
@@ -118,6 +120,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   onOpenAuth,
   onOpenContactUs,
   onOpenLegal,
+  onOpenWorkspace,
   user,
   isDarkMode = false,
 }) => {
@@ -604,36 +607,150 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
         </section>
 
-        {/* 6. Elite Study Advantage & Cloud Storage Banner */}
-        <section className="reveal-on-scroll bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 rounded-3xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8 border border-slate-800">
-          <div className="relative z-10 max-w-xl text-center md:text-left">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-sky-300 text-xs font-extrabold uppercase tracking-wider mb-3 border border-blue-500/30">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Reliable Academic Infrastructure</span>
+        {/* 6. Google Workspace Integration Suite (Drive, Tasks, Calendar, Gmail) */}
+        <section className="reveal-on-scroll bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 rounded-3xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden space-y-8 border border-slate-800">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+            <div className="max-w-2xl text-left">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/20 text-sky-300 text-xs font-black uppercase tracking-wider mb-3 border border-blue-500/30">
+                <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                <span>Integrated Google Workspace Services</span>
+              </div>
+              <h3 className="text-2xl sm:text-3xl font-black tracking-tight mb-2">
+                Google Drive · Tasks · Calendar · Gmail
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                Connect your real Google account directly with Paper Express to organize lecture notes, track A/L syllabus revision tasks, synchronize study deadlines with your calendar, and manage academic emails in one central dashboard.
+              </p>
             </div>
-            <h3 className="text-2xl sm:text-3xl font-black tracking-tight mb-3">
-              Direct Google Drive Integration & In-Website Video
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              All PDF examination resources open directly in Google Drive for lightning-fast downloads and offline reading. Theory videos run inside our distraction-free player without YouTube ads or algorithm distractions.
-            </p>
+
+            {onOpenWorkspace && (
+              <button
+                type="button"
+                onClick={() => {
+                  playRoboticClick();
+                  onOpenWorkspace('drive');
+                }}
+                className="px-6 py-3.5 rounded-2xl bg-[#0066FF] hover:bg-blue-600 text-white font-black text-xs sm:text-sm shadow-lg shadow-blue-500/30 transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+              >
+                <span>Open Workspace Hub</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
-          <div className="relative z-10 shrink-0 flex flex-col sm:flex-row items-center gap-3">
-            <button
-              onClick={() => handleNav('fwc-papers')}
-              className="px-6 py-3.5 rounded-2xl bg-[#0066FF] hover:bg-blue-600 text-white font-black text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center gap-2"
+          {/* 4 Interactive Workspace Tool Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
+            {/* Card 1: Google Drive */}
+            <div 
+              onClick={() => {
+                if (onOpenWorkspace) {
+                  playRoboticClick();
+                  onOpenWorkspace('drive');
+                }
+              }}
+              className="p-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-slate-700/60 hover:border-blue-500/60 backdrop-blur-md transition-all cursor-pointer group space-y-3"
             >
-              <span>Explore FWC Folders</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => handleNav('theory-notes')}
-              className="px-6 py-3.5 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center gap-2"
+              <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <HardDrive className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-white flex items-center justify-between">
+                  <span>Google Drive</span>
+                  <span className="text-[10px] text-blue-400 font-mono">Storage</span>
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  Browse study documents, create notes, and search your Drive directly.
+                </p>
+              </div>
+              <div className="text-[11px] font-bold text-sky-400 group-hover:underline flex items-center gap-1">
+                <span>Access Drive</span>
+                <ChevronRight className="w-3 h-3" />
+              </div>
+            </div>
+
+            {/* Card 2: Google Tasks */}
+            <div 
+              onClick={() => {
+                if (onOpenWorkspace) {
+                  playRoboticClick();
+                  onOpenWorkspace('tasks');
+                }
+              }}
+              className="p-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-slate-700/60 hover:border-emerald-500/60 backdrop-blur-md transition-all cursor-pointer group space-y-3"
             >
-              <span>Explore Resources Folders</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <CheckSquare className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-white flex items-center justify-between">
+                  <span>Google Tasks</span>
+                  <span className="text-[10px] text-emerald-400 font-mono">To-Do</span>
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  Track homework, past paper revisions, and syllabus checklist deadlines.
+                </p>
+              </div>
+              <div className="text-[11px] font-bold text-emerald-400 group-hover:underline flex items-center gap-1">
+                <span>Manage Tasks</span>
+                <ChevronRight className="w-3 h-3" />
+              </div>
+            </div>
+
+            {/* Card 3: Google Calendar */}
+            <div 
+              onClick={() => {
+                if (onOpenWorkspace) {
+                  playRoboticClick();
+                  onOpenWorkspace('calendar');
+                }
+              }}
+              className="p-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-slate-700/60 hover:border-indigo-500/60 backdrop-blur-md transition-all cursor-pointer group space-y-3"
+            >
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-white flex items-center justify-between">
+                  <span>Google Calendar</span>
+                  <span className="text-[10px] text-indigo-400 font-mono">Timetable</span>
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  Schedule masterclass lectures, mock test sessions, and view upcoming events.
+                </p>
+              </div>
+              <div className="text-[11px] font-bold text-indigo-400 group-hover:underline flex items-center gap-1">
+                <span>View Timetable</span>
+                <ChevronRight className="w-3 h-3" />
+              </div>
+            </div>
+
+            {/* Card 4: Gmail */}
+            <div 
+              onClick={() => {
+                if (onOpenWorkspace) {
+                  playRoboticClick();
+                  onOpenWorkspace('gmail');
+                }
+              }}
+              className="p-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-slate-700/60 hover:border-rose-500/60 backdrop-blur-md transition-all cursor-pointer group space-y-3"
+            >
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Mail className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-white flex items-center justify-between">
+                  <span>Gmail</span>
+                  <span className="text-[10px] text-rose-400 font-mono">Mail</span>
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  Compose emails with educator review, search notes, and receive updates.
+                </p>
+              </div>
+              <div className="text-[11px] font-bold text-rose-400 group-hover:underline flex items-center gap-1">
+                <span>Check Inbox</span>
+                <ChevronRight className="w-3 h-3" />
+              </div>
+            </div>
           </div>
         </section>
 
