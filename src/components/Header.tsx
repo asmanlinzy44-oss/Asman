@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User as UserIcon, LogOut, BookmarkCheck, ShieldCheck, Search, Sun, Moon, FlaskConical, Lock } from 'lucide-react';
+import { motion } from 'motion/react';
 import { User, ResourceCategory } from '../types';
 import { PaperExpressLogo } from './PaperExpressLogo';
 import { playRoboticTab, playRoboticClick } from '../utils/audio';
@@ -71,6 +72,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 shadow-xs google-anno-skip">
+      {/* High-tech top ambient glow line */}
+      <div className="h-0.5 w-full bg-gradient-to-r from-blue-600 via-sky-400 to-indigo-600 opacity-90 shadow-[0_0_12px_rgba(56,189,248,0.5)]" />
+
       <div className="max-w-[1440px] mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
         {/* Logo and Brand: Paper Express */}
         <button
@@ -81,99 +85,89 @@ export const Header: React.FC<HeaderProps> = ({
           <PaperExpressLogo size="md" variant={isDarkMode ? 'dark' : 'light'} />
         </button>
 
-        {/* Primary Desktop Navigation */}
+        {/* Primary Desktop Navigation with Physics Beast style animated sliding pill */}
         <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 text-xs xl:text-sm font-semibold text-slate-600 dark:text-slate-300 overflow-x-auto scrollbar-thin flex-1 min-w-0 justify-end xl:justify-center py-1">
-          <button
-            onClick={() => handleNav('home')}
-            className={`px-2.5 xl:px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-              currentTab === 'home'
-                ? 'bg-blue-50 dark:bg-blue-950/60 text-[#0066FF] dark:text-sky-400 font-bold shadow-xs'
-                : 'hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            Home
-          </button>
-          <button
-            onClick={() => handleNav('past-papers')}
-            className={`px-2.5 xl:px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-              currentTab === 'past-papers'
-                ? 'bg-blue-50 dark:bg-blue-950/60 text-[#0066FF] dark:text-sky-400 font-bold shadow-xs'
-                : 'hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            Past Papers
-          </button>
-          <button
-            onClick={() => handleNav('fwc-papers')}
-            className={`px-2.5 xl:px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-              currentTab === 'fwc-papers' || currentTab === 'term-papers'
-                ? 'bg-blue-50 dark:bg-blue-950/60 text-[#0066FF] dark:text-sky-400 font-bold shadow-xs'
-                : 'hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <span>FWC & Term Tests</span>
-            <span className="text-[10px] bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300 px-1.5 py-0.2 rounded-md font-extrabold uppercase">
-              Hot
-            </span>
-          </button>
-          <button
-            onClick={() => handleNav('theory-notes')}
-            className={`px-2.5 xl:px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-              currentTab === 'theory-notes'
-                ? 'bg-blue-50 dark:bg-blue-950/60 text-[#0066FF] dark:text-sky-400 font-bold shadow-xs'
-                : 'hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <span>Resources</span>
-            <span className="text-[10px] bg-blue-100 dark:bg-blue-950/70 text-[#0066FF] dark:text-sky-400 px-1.5 py-0.2 rounded-md font-extrabold">
-              4 Folders
-            </span>
-          </button>
-          <button
-            onClick={() => handleNav('pilot-papers')}
-            className={`px-2.5 xl:px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-              currentTab === 'pilot-papers'
-                ? 'bg-blue-50 dark:bg-blue-950/60 text-[#0066FF] dark:text-sky-400 font-bold shadow-xs'
-                : 'hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <span>Other Pilot</span>
-            <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.2 rounded-md font-extrabold">
-              Moratuwa
-            </span>
-          </button>
+          {[
+            { id: 'home' as const, label: 'Home' },
+            { id: 'past-papers' as const, label: 'Past Papers' },
+            {
+              id: 'fwc-papers' as const,
+              label: 'FWC & Term Tests',
+              badge: 'Hot',
+              badgeColor: 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300',
+              isActiveMatch: (tab: string) => tab === 'fwc-papers' || tab === 'term-papers',
+            },
+            {
+              id: 'theory-notes' as const,
+              label: 'Resources',
+              badge: '4 Folders',
+              badgeColor: 'bg-blue-100 dark:bg-blue-950/70 text-[#0066FF] dark:text-sky-400',
+            },
+            {
+              id: 'pilot-papers' as const,
+              label: 'Other Pilot',
+              badge: 'Moratuwa',
+              badgeColor: 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300',
+            },
+            {
+              id: 'ai-search' as const,
+              label: 'Advance Search',
+              icon: Search,
+            },
+            {
+              id: 'theory-videos' as const,
+              label: 'Video Lessons',
+              showLoginHint: !user,
+            },
+          ].map((item) => {
+            const isSelected = item.isActiveMatch
+              ? item.isActiveMatch(currentTab)
+              : currentTab === item.id;
+            const Icon = item.icon;
 
-          {/* Advance Search Page Button */}
-          <button
-            onClick={() => handleNav('ai-search')}
-            className={`px-2.5 xl:px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-              currentTab === 'ai-search'
-                ? 'bg-blue-50 dark:bg-blue-950/60 text-[#0066FF] dark:text-sky-400 font-bold shadow-xs'
-                : 'hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Search className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
-            <span>Advance Search</span>
-          </button>
-
-          <button
-            onClick={() => handleNav('theory-videos')}
-            className={`px-2.5 xl:px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-              currentTab === 'theory-videos'
-                ? 'bg-blue-50 dark:bg-blue-950/60 text-[#0066FF] dark:text-sky-400 font-bold shadow-xs'
-                : 'hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <span>Video Lessons</span>
-            {!user && (
-              <span className="text-[10px] bg-blue-100 dark:bg-blue-950/70 text-[#0066FF] dark:text-sky-400 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-white flex items-center justify-center shrink-0 p-0.5 shadow-2xs">
-                  <GoogleIcon className="w-full h-full" />
-                </div>
-                <span>Login</span>
-              </span>
-            )}
-          </button>
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleNav(item.id)}
+                className={`relative px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap z-10 ${
+                  isSelected
+                    ? 'text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/60 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                {isSelected && (
+                  <motion.div
+                    layoutId="desktopNavActivePill"
+                    className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-600 via-[#0066FF] to-blue-500 shadow-md shadow-blue-500/30 dark:shadow-[0_0_18px_rgba(56,189,248,0.4)] -z-10"
+                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                  />
+                )}
+                {Icon && (
+                  <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-[#0066FF] dark:text-sky-400'}`} />
+                )}
+                <span>{item.label}</span>
+                {item.badge && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-md font-extrabold uppercase transition-colors ${
+                      isSelected ? 'bg-white/20 text-white' : item.badgeColor
+                    }`}
+                  >
+                    {item.badge}
+                  </span>
+                )}
+                {item.showLoginHint && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1 ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-blue-100 dark:bg-blue-950/70 text-[#0066FF] dark:text-sky-400'
+                  }`}>
+                    <div className="w-3 h-3 rounded-full bg-white flex items-center justify-center shrink-0 p-0.5 shadow-2xs">
+                      <GoogleIcon className="w-full h-full" />
+                    </div>
+                    <span>Login</span>
+                  </span>
+                )}
+              </button>
+            );
+          })}
 
           {/* Google Workspace Hub */}
           {onOpenWorkspace && (
@@ -311,65 +305,46 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Mobile Sub-Navigation Bar */}
-      <div className="lg:hidden flex items-center gap-1 px-4 py-2 bg-slate-50/90 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 overflow-x-auto text-xs font-bold scrollbar-none">
-        <button
-          onClick={() => handleNav('home')}
-          className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors ${
-            currentTab === 'home' ? 'bg-[#0066FF] text-white' : 'text-slate-600 dark:text-slate-300'
-          }`}
-        >
-          Home
-        </button>
-        <button
-          onClick={() => handleNav('past-papers')}
-          className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors ${
-            currentTab === 'past-papers' ? 'bg-[#0066FF] text-white' : 'text-slate-600 dark:text-slate-300'
-          }`}
-        >
-          Past Papers
-        </button>
-        <button
-          onClick={() => handleNav('fwc-papers')}
-          className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors ${
-            currentTab === 'fwc-papers' || currentTab === 'term-papers' ? 'bg-[#0066FF] text-white' : 'text-slate-600 dark:text-slate-300'
-          }`}
-        >
-          FWC & Term Tests
-        </button>
-        <button
-          onClick={() => handleNav('theory-notes')}
-          className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors ${
-            currentTab === 'theory-notes' ? 'bg-[#0066FF] text-white' : 'text-slate-600 dark:text-slate-300'
-          }`}
-        >
-          Resources
-        </button>
-        <button
-          onClick={() => handleNav('pilot-papers')}
-          className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors ${
-            currentTab === 'pilot-papers' ? 'bg-[#0066FF] text-white' : 'text-slate-600 dark:text-slate-300'
-          }`}
-        >
-          Other Pilot
-        </button>
-        <button
-          onClick={() => handleNav('ai-search')}
-          className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors flex items-center gap-1 ${
-            currentTab === 'ai-search' ? 'bg-[#0066FF] text-white' : 'text-slate-600 dark:text-slate-300'
-          }`}
-        >
-          <Search className="w-3 h-3" />
-          <span>Advance Search</span>
-        </button>
-        <button
-          onClick={() => handleNav('theory-videos')}
-          className={`px-2.5 py-1 rounded-lg shrink-0 transition-colors ${
-            currentTab === 'theory-videos' ? 'bg-[#0066FF] text-white' : 'text-slate-600 dark:text-slate-300'
-          }`}
-        >
-          Video Lessons
-        </button>
+      {/* Mobile Sub-Navigation Bar with animatic sliding pill */}
+      <div className="lg:hidden flex items-center gap-1 px-3 py-2 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 overflow-x-auto text-xs font-bold scrollbar-none">
+        {[
+          { id: 'home' as const, label: 'Home' },
+          { id: 'past-papers' as const, label: 'Past Papers' },
+          {
+            id: 'fwc-papers' as const,
+            label: 'FWC & Term Tests',
+            isActiveMatch: (tab: string) => tab === 'fwc-papers' || tab === 'term-papers',
+          },
+          { id: 'theory-notes' as const, label: 'Resources' },
+          { id: 'pilot-papers' as const, label: 'Other Pilot' },
+          { id: 'ai-search' as const, label: 'Advance Search', icon: Search },
+          { id: 'theory-videos' as const, label: 'Video Lessons' },
+        ].map((tab) => {
+          const isSelected = tab.isActiveMatch
+            ? tab.isActiveMatch(currentTab)
+            : currentTab === tab.id;
+          const Icon = tab.icon;
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() => handleNav(tab.id)}
+              className={`relative px-3 py-1.5 rounded-lg shrink-0 transition-colors z-10 font-bold whitespace-nowrap flex items-center gap-1 cursor-pointer ${
+                isSelected ? 'text-white' : 'text-slate-600 dark:text-slate-300'
+              }`}
+            >
+              {isSelected && (
+                <motion.div
+                  layoutId="mobileNavActivePill"
+                  className="absolute inset-0 rounded-lg bg-[#0066FF] shadow-xs -z-10"
+                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                />
+              )}
+              {Icon && <Icon className="w-3 h-3" />}
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
         {onOpenWorkspace && (
           <button
             onClick={() => {

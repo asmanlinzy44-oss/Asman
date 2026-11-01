@@ -6,6 +6,7 @@ import {
   Info, AlertCircle, FlaskConical, Sparkles, Atom,
   HardDrive, CheckSquare, Calendar, Mail
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { User, ResourceCategory } from '../types';
 import { PaperExpressLogo } from './PaperExpressLogo';
 import { ExamCountdown } from './ExamCountdown';
@@ -274,41 +275,51 @@ export const HomePage: React.FC<HomePageProps> = ({
             Choose what you want to explore from the sections below. Fast PDF previews, direct Google Drive storage access, and in-website theory video lessons.
           </p>
 
-          {/* Quick Action Navigation Buttons */}
+          {/* Quick Action Navigation Buttons with Physics Beast style interactive physics */}
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => handleNav('past-papers')}
-              className="px-6 py-3 rounded-2xl bg-[#0066FF] hover:bg-blue-600 text-white font-extrabold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer transform hover:-translate-y-0.5"
+              className="px-6 py-3 rounded-2xl bg-[#0066FF] hover:bg-blue-600 text-white font-extrabold text-sm shadow-md hover:shadow-blue-500/25 transition-all flex items-center gap-2 cursor-pointer"
             >
               <FileText className="w-4 h-4" />
               <span>Explore Past Papers</span>
-            </button>
+            </motion.button>
 
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => handleNav('fwc-papers')}
-              className="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer transform hover:-translate-y-0.5"
+              className="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-sm shadow-md hover:shadow-amber-500/25 transition-all flex items-center gap-2 cursor-pointer"
             >
               <Award className="w-4 h-4" />
               <span>FWC & Term Tests</span>
-            </button>
+            </motion.button>
 
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => handleNav('theory-notes')}
-              className="px-6 py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer transform hover:-translate-y-0.5"
+              className="px-6 py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-sm shadow-md hover:shadow-purple-500/25 transition-all flex items-center gap-2 cursor-pointer"
             >
               <BookOpen className="w-4 h-4" />
               <span>Resources (4 Folders)</span>
-            </button>
+            </motion.button>
 
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => handleNav('theory-videos')}
               className="px-6 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm shadow-xs transition-all flex items-center gap-2 cursor-pointer"
             >
               <Video className="w-4 h-4 text-sky-400" />
               <span>Video Masterclasses</span>
-            </button>
+            </motion.button>
 
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => {
                 playRoboticClick();
                 onOpenTimer();
@@ -317,9 +328,11 @@ export const HomePage: React.FC<HomePageProps> = ({
             >
               <Clock className="w-4 h-4 text-[#0066FF]" />
               <span>Focus Timer (25m)</span>
-            </button>
+            </motion.button>
 
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => {
                 playRoboticClick();
                 if (onOpenContactUs) onOpenContactUs();
@@ -328,7 +341,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             >
               <MessageSquare className="w-4 h-4 text-[#0066FF]" />
               <span>Contact Us</span>
-            </button>
+            </motion.button>
           </div>
         </div>
       </section>
@@ -352,10 +365,12 @@ export const HomePage: React.FC<HomePageProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
             {STREAMS_DATA.map((st, idx) => (
-              <div
+              <motion.div
                 key={st.id}
+                whileHover={{ y: -6, transition: { duration: 0.22 } }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => handleNav('past-papers')}
-                className={`reveal-on-scroll reveal-delay-${idx + 1} p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between group transform hover:-translate-y-1 hover-card-elevate ${st.borderHover}`}
+                className={`p-6 sm:p-7 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 cursor-pointer flex flex-col justify-between group ${st.borderHover}`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -392,7 +407,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   <span>Access {st.badge} Archive</span>
                   <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1.5 transition-transform" />
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </section>
@@ -416,9 +431,11 @@ export const HomePage: React.FC<HomePageProps> = ({
             {CATEGORY_SHOWCASE.map((cat, idx) => {
               const IconComponent = cat.icon;
               return (
-                <div
+                <motion.div
                   key={cat.id}
-                  className={`reveal-on-scroll reveal-delay-${(idx % 3) + 1} bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group hover:border-blue-400 dark:hover:border-blue-500 hover-card-elevate`}
+                  whileHover={{ y: -6, transition: { duration: 0.22 } }}
+                  whileTap={{ scale: 0.98 }}
+                  className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 p-6 shadow-xs hover:shadow-xl hover:shadow-blue-500/10 transition-all flex flex-col justify-between group hover:border-blue-400 dark:hover:border-blue-500"
                 >
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-3">
@@ -455,7 +472,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                     <span>{cat.buttonText}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
-                </div>
+                </motion.div>
               );
             })}
           </div>

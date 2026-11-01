@@ -10,6 +10,7 @@ import {
   UserCheck, AlertCircle, Megaphone, X, ChevronUp, Folder, Film, Sparkles, Clock, Send, MessageCircle,
   Mail, Check
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   PaperResource, VideoLesson, VideoFolder, User, ResourceCategory, 
   StreamId, UserNote, PaidStudentAccess, VideoAccessRequest 
@@ -2305,9 +2306,18 @@ export default function App() {
         onOpenWorkspace={handleOpenWorkspace}
       />
 
-      {/* 2. Router: Home Page (Attractive Hub) or Dedicated Category Archive */}
-      {activeTab === 'home' ? (
-        <HomePage
+      {/* 2. Router: Home Page (Attractive Hub) or Dedicated Category Archive with Physics Beast style animatic page transitions */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 16, scale: 0.995 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -12, scale: 0.995 }}
+          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full flex-1 flex flex-col"
+        >
+          {activeTab === 'home' ? (
+            <HomePage
           onNavigateToTab={(tab) => {
             playRoboticTab();
             setActiveTab(tab);
@@ -3079,6 +3089,8 @@ export default function App() {
           </footer>
         </div>
       )}
+        </motion.div>
+      </AnimatePresence>
 
       {/* 3. Interactive Modals */}
       {/* Video Index & Password Lock Modal */}

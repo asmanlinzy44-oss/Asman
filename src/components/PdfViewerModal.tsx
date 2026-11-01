@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, ExternalLink, Download, FileText, CheckCircle2, ShieldAlert, FolderArchive, ArrowRight, Sparkles } from 'lucide-react';
+import { X, ExternalLink, Download, FileText, CheckCircle2, ShieldAlert, FolderArchive, ArrowRight, Sparkles, Pencil } from 'lucide-react';
 import { PaperResource } from '../types';
 import { getDriveDirectViewUrl, getDriveDirectDownloadUrl, getDriveEmbedPreviewUrl } from '../utils/drive';
 import { Chemistry1983Solutions } from './Chemistry1983Solutions';
+import { PdfAnnotationOverlay } from './PdfAnnotationOverlay';
 
 interface PdfViewerModalProps {
   isOpen: boolean;
@@ -87,6 +88,11 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
 
           {/* Quick Actions */}
           <div className="flex items-center gap-2 shrink-0">
+            <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-500/10 text-sky-400 border border-blue-500/20 text-xs font-bold">
+              <Pencil className="w-3.5 h-3.5 text-[#38BDF8]" />
+              <span>Annotate & Highlight</span>
+            </div>
+
             {/* Direct Google Drive Open Button */}
             <a
               href={directOpenUrl}
@@ -353,12 +359,17 @@ export const PdfViewerModal: React.FC<PdfViewerModalProps> = ({
               <Chemistry1983Solutions onOpenPdf={() => setViewingMode('paper')} />
             </div>
           ) : embedUrl ? (
-            <iframe
-              src={embedUrl}
-              className="w-full h-full border-0"
-              title={title}
-              allow="autoplay"
-            />
+            <PdfAnnotationOverlay
+              storageKey={`paperexpress_anno_${resource?.id || 'custom'}_${viewingMode}`}
+              documentTitle={title}
+            >
+              <iframe
+                src={embedUrl}
+                className="w-full h-full border-0"
+                title={title}
+                allow="autoplay"
+              />
+            </PdfAnnotationOverlay>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-slate-400 p-6 text-center space-y-3">
               <ShieldAlert className="w-10 h-10 text-amber-500" />
