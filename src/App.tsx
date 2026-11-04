@@ -1891,11 +1891,9 @@ export default function App() {
         setAuthNotice('Popup blocked by browser. Please allow popups for Google Sign-In.');
       } else if (err.code === 'auth/cancelled-popup-request') {
         // Subsequent popup triggered, safely ignore
-      } else if (err.code === 'auth/unauthorized-domain' || (err.message && err.message.includes('unauthorized-domain'))) {
-        setIsDomainAuthModalOpen(true);
-        setAuthNotice('Vercel domain authorization required. Click to view 1-minute fix.');
       } else {
-        setAuthNotice(err.message || 'Google authentication error. Please try again.');
+        setIsDomainAuthModalOpen(true);
+        setAuthNotice('Vercel Google Login Setup Required: Please add your domain to Firebase Authorized Domains.');
       }
     } finally {
       setIsAuthLoading(false);
