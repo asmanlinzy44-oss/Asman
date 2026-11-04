@@ -77,6 +77,7 @@ export interface VideoLesson {
   chapters: VideoChapter[];
   viewsCount: number;
   uploadedAt: string;
+  createdAt?: string;
   folderId?: string;
   folderName?: string;
   order?: number;

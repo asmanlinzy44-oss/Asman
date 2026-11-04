@@ -1,21 +1,19 @@
-# Implementation Plan - Secure Gmail Video Lesson Access & Admin Controls
+# Implementation Plan - Real-time Video Synchronization & Multi-Device Access
 
-## User Review Required
+## Status: Completed
 
-> [!IMPORTANT]
-> - **Gmail-Only Access**: Video lessons open exclusively for verified, enrolled Gmail accounts present in the cloud database (`paidAccessList`) with active validity.
-> - **Expiration & Revocation**: Expired or revoked accounts instantly see locked screens and active video players close immediately.
-> - **Granular Folder Permissions**: Admin panel provides full folder selection for custom student access.
+### Summary of Completed Changes:
+1. **Cloud Firestore Persistence**:
+   - The 5 lessons for `Physic Final Walkthrough` (`vfolder_1792558082751`) are verified and stored directly in the Firestore `videos` collection.
+   - Cleared blacklist conflicts in `deleted_videos`.
 
-## Proposed Changes
+2. **Real-Time Bidirectional Synchronization**:
+   - Replaced complex client-side filtering and destructive cache keys with an authoritative `onSnapshot(collection(db, 'videos'))` listener in `src/App.tsx`.
+   - Any video uploaded or deleted from the Admin Panel instantly reflects on all connected devices (phones, tablets, PCs) without requiring manual refresh.
 
-### 1. Access Control & Security Watchdog (`src/App.tsx`)
-- Enforce strict Gmail-only authentication matching and database lookup.
-- Ensure expired or revoked student sessions immediately close playing videos and trigger lock states.
+3. **Protection Against Client-Side Data Loss**:
+   - Completely eliminated the destructive `studypro_purged_old_videos_v21` deletion loop that previously erased videos when a new device opened the site.
 
-### 2. Admin Panel & Folder Permissions (`src/components/AdminPanelModal.tsx`)
-- Maintain folder tree checklist selector for custom student permissions.
-- Ensure correct revocation handling and UI feedback.
-
-### 3. Verification
-- Compile applet (`compile_applet`) and verify build.
+4. **Multi-Device & Approved Student Access**:
+   - Enabled folder-level permissions checking so approved Gmail accounts (e.g. `abithaff2121@gmail.com`) can seamlessly view and unlock the video lessons on any device.
+   - Preserved directory and folder browsing visibility for all visitors with clear locked status badges for gated content.

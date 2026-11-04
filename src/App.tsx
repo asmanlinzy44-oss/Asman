@@ -39,7 +39,8 @@ import { EducationalGuides } from './components/EducationalGuides';
 import { AiSearchView } from './components/AiSearchView';
 import { PaperExpressSplashLoader } from './components/PaperExpressSplashLoader';
 import { GoogleWorkspaceModal } from './components/GoogleWorkspaceModal';
-import { onAuthStateChanged, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { DragScrollManager } from './components/DragScrollManager';
+import { onAuthStateChanged, signOut, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, getDocs, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, googleProvider, setCachedAccessToken } from './firebase';
 import { cleanFirestoreData } from './utils/firestoreClean';
@@ -86,13 +87,6 @@ export default function App() {
   });
 
   const [videos, setVideos] = useState<VideoLesson[]>(() => {
-    const VIDEOS_RESET_KEY = 'studypro_videos_cleared_v20';
-    const isReset = localStorage.getItem(VIDEOS_RESET_KEY);
-    if (!isReset) {
-      localStorage.setItem(VIDEOS_RESET_KEY, 'true');
-      localStorage.setItem('studypro_videos_data', JSON.stringify([]));
-      return [];
-    }
     const saved = localStorage.getItem('studypro_videos_data');
     if (!saved) return [];
     try {
@@ -340,6 +334,12 @@ export default function App() {
     const currentEmail = user?.email?.toLowerCase().trim();
     if (!currentEmail) return false;
 
+    // Direct check: If student email is explicitly listed in folder's allowedEmails
+    const targetFolder = videoFolders.find((f) => f.id === folder.id) || folder;
+    if (targetFolder.allowedEmails && targetFolder.allowedEmails.some((e) => e.toLowerCase().trim() === currentEmail)) {
+      return true;
+    }
+
     // 4. Single source of truth: Student MUST exist in live Cloud Firestore paidAccessList!
     const studentRecord = paidAccessList.find((p) => p.email.toLowerCase().trim() === currentEmail);
     if (!studentRecord) {
@@ -428,6 +428,14 @@ export default function App() {
     // 2. MUST be logged in with Google to play video lessons!
     const currentEmail = user?.email?.toLowerCase().trim();
     if (!currentEmail) return false;
+
+    // Direct check: If video belongs to a folder that has student's email in allowedEmails
+    if (video.folderId) {
+      const targetFolder = videoFolders.find((f) => f.id === video.folderId);
+      if (targetFolder?.allowedEmails && targetFolder.allowedEmails.some((e) => e.toLowerCase().trim() === currentEmail)) {
+        return true;
+      }
+    }
 
     // 3. Single source of truth: Student MUST exist in live Cloud Firestore paidAccessList!
     const studentRecord = paidAccessList.find((p) => p.email.toLowerCase().trim() === currentEmail);
@@ -1060,62 +1068,35 @@ export default function App() {
     };
   }, []);
 
-  // Real-time synchronization of Live Videos & Deletion Blacklist from Cloud Firestore
+  // Real-time synchronization of Live Videos & Folders directly from Cloud Firestore
   useEffect(() => {
-    let firestoreVideos = new Map<string, VideoLesson>();
-    const deletedVideoIds = new Set<string>();
-
-    const rawLocalDeleted = localStorage.getItem('studypro_deleted_video_ids');
-    if (rawLocalDeleted) {
-      try {
-        const localIds: string[] = JSON.parse(rawLocalDeleted);
-        localIds.forEach((id) => deletedVideoIds.add(id));
-      } catch {}
-    }
-
-    const recomputeVideos = () => {
-      setVideos((currentVideos) => {
-        const base = INITIAL_VIDEOS.filter((v) => !deletedVideoIds.has(v.id));
-        const mergedBase = base.map((v) => (firestoreVideos.has(v.id) ? firestoreVideos.get(v.id)! : v));
-        const existingIds = new Set(mergedBase.map((v) => v.id));
-
-        const newlyAdded: VideoLesson[] = [];
-        firestoreVideos.forEach((vid, id) => {
-          if (!existingIds.has(id) && !deletedVideoIds.has(id)) {
-            newlyAdded.push(vid);
-          }
-        });
-
-        currentVideos.forEach((v) => {
-          if (!existingIds.has(v.id) && !deletedVideoIds.has(v.id) && !firestoreVideos.has(v.id)) {
-            newlyAdded.push(v);
-          }
-        });
-
-        return [...newlyAdded, ...mergedBase];
-      });
-    };
-
-    const unsubDeletedVideos = onSnapshot(collection(db, 'deleted_videos'), (snap) => {
-      snap.docs.forEach((d) => deletedVideoIds.add(d.id));
-      recomputeVideos();
-    }, (err) => {
-      console.warn('Deleted videos realtime sync notice:', err);
-    });
-
+    // 1. Direct Authoritative Live sync on Firestore 'videos' collection (All devices update instantly)
     const unsubVideos = onSnapshot(collection(db, 'videos'), (snap) => {
-      firestoreVideos = new Map();
+      const liveList: VideoLesson[] = [];
       snap.docs.forEach((d) => {
         const v = d.data() as VideoLesson;
         if (v && v.id) {
-          firestoreVideos.set(v.id, v);
+          liveList.push(v);
         }
       });
-      recomputeVideos();
+      // Sort logically: by order asc or createdAt asc
+      liveList.sort((a, b) => {
+        if (a.order !== undefined && b.order !== undefined) {
+          return a.order - b.order;
+        }
+        const timeA = a.uploadedAt || a.createdAt ? new Date(a.uploadedAt || a.createdAt || '').getTime() : 0;
+        const timeB = b.uploadedAt || b.createdAt ? new Date(b.uploadedAt || b.createdAt || '').getTime() : 0;
+        return timeA - timeB;
+      });
+      setVideos(liveList);
+      try {
+        localStorage.setItem('studypro_videos_data', JSON.stringify(liveList));
+      } catch {}
     }, (err) => {
       console.warn('Live videos realtime sync notice:', err);
     });
 
+    // 2. Direct Authoritative Live sync on Firestore 'video_folders' collection
     const unsubFolders = onSnapshot(collection(db, 'video_folders'), (snap) => {
       if (!snap.empty) {
         const fsFolders = snap.docs.map((d) => d.data() as VideoFolder).filter((f) => f && f.id);
@@ -1133,38 +1114,20 @@ export default function App() {
     });
 
     return () => {
-      unsubDeletedVideos();
       unsubVideos();
       unsubFolders();
     };
   }, []);
 
-  // One-time setup: keep all folders in Firestore and purge old mock videos so user can upload fresh videos
+  // Ensure root subject folders exist in Firestore (Safe setup, preserves all user data)
   useEffect(() => {
     const setupVideoCollections = async () => {
       try {
-        // Keep all folders intact in Firestore
         for (const folder of INITIAL_VIDEO_FOLDERS) {
           const folderRef = doc(db, 'video_folders', folder.id);
           const folderSnap = await getDoc(folderRef);
           if (!folderSnap.exists()) {
             await setDoc(folderRef, cleanFirestoreData({ ...folder, createdAt: new Date().toISOString() }));
-          }
-        }
-
-        // One-time purge of previous mock videos from Firestore and local storage
-        const purgeKey = 'studypro_purged_old_videos_v21';
-        if (!localStorage.getItem(purgeKey)) {
-          try {
-            const vSnap = await getDocs(collection(db, 'videos'));
-            for (const vDoc of vSnap.docs) {
-              await deleteDoc(doc(db, 'videos', vDoc.id));
-            }
-            localStorage.setItem(purgeKey, 'true');
-            localStorage.setItem('studypro_videos_data', JSON.stringify([]));
-            setVideos([]);
-          } catch (e) {
-            console.warn('One-time video purge notice:', e);
           }
         }
       } catch (err) {
@@ -1829,6 +1792,34 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Listen for returning redirect result (crucial for mobile devices & Vercel)
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) {
+          playRoboticUnlock();
+          const credential = GoogleAuthProvider.credentialFromResult(result);
+          if (credential?.accessToken) {
+            setCachedAccessToken(credential.accessToken);
+          }
+          const photo = result.user.photoURL || result.user.providerData?.[0]?.photoURL || '';
+          if (photo) {
+            setUser((prev) => (prev ? { ...prev, photoURL: photo } : prev));
+          }
+        }
+      })
+      .catch((err: any) => {
+        console.warn('getRedirectResult notice:', err);
+        if (err.code === 'auth/unauthorized-domain' || (err.message && err.message.includes('unauthorized-domain'))) {
+          setIsDomainAuthModalOpen(true);
+          setAuthNotice('Vercel domain authorization required. Click to view 1-minute fix.');
+        } else if (err.code === 'auth/access_denied' || (err.message && (err.message.includes('access_denied') || err.message.includes('verification process')))) {
+          setIsDomainAuthModalOpen(true);
+          setAuthNotice('Google OAuth: App is in Testing mode. Click to publish app or add tester.');
+        }
+      });
+  }, []);
+
   // Handlers
   const handleLogin = (newUser: User) => {
     setUser(newUser);
@@ -1864,11 +1855,21 @@ export default function App() {
     localStorage.removeItem('studypro_user_storage');
   };
 
-  // Direct Real Google Sign In (Using device Google Accounts via official popup)
-  const handleDirectGoogleLogin = async () => {
+  // Direct Real Google Sign In (Using device Google Accounts via popup with auto-redirect fallback)
+  const handleDirectGoogleLogin = async (forceRedirect?: boolean | React.MouseEvent) => {
     playRoboticClick();
     setIsAuthLoading(true);
     setAuthNotice(null);
+
+    const isForced = forceRedirect === true;
+    if (isForced) {
+      try {
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      } catch (err: any) {
+        console.warn('Direct redirect error:', err);
+      }
+    }
 
     try {
       const result = await signInWithPopup(auth, googleProvider);
@@ -1887,16 +1888,21 @@ export default function App() {
       console.warn('Direct Google Sign In popup notice:', err);
       if (err.code === 'auth/popup-closed-by-user') {
         // User closed the popup, do not show error
-      } else if (err.code === 'auth/popup-blocked') {
-        setAuthNotice('Popup blocked by browser. Please allow popups for Google Sign-In.');
-      } else if (err.code === 'auth/cancelled-popup-request') {
-        // Subsequent popup triggered, safely ignore
+      } else if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
+        // Mobile browser or ad blocker blocked popup - smoothly fallback to direct redirect!
+        setAuthNotice('Popup blocked by browser. Redirecting to Google Login...');
+        try {
+          await signInWithRedirect(auth, googleProvider);
+        } catch (redirErr: any) {
+          console.warn('Redirect fallback error:', redirErr);
+          setAuthNotice('Popup blocked. Click "Try Fullscreen Login" below.');
+        }
       } else if (err.code === 'auth/unauthorized-domain' || (err.message && err.message.includes('unauthorized-domain'))) {
         setIsDomainAuthModalOpen(true);
         setAuthNotice('Vercel domain authorization required. Click to view 1-minute fix.');
       } else if (err.code === 'auth/access_denied' || (err.message && (err.message.includes('access_denied') || err.message.includes('verification process')))) {
         setIsDomainAuthModalOpen(true);
-        setAuthNotice('Google OAuth verification notice: Click to view fix in Google Cloud Console.');
+        setAuthNotice('Google OAuth: App is in Testing mode. Click to publish app or add tester.');
       } else {
         setAuthNotice(err.message || 'Google authentication error. Please try again.');
       }
@@ -2606,377 +2612,143 @@ export default function App() {
           {activeTab !== 'past-papers' && activeTab !== 'theory-notes' && activeTab !== 'pilot-papers' && activeTab !== 'ai-search' && (
             activeTab === 'theory-videos' ? (
               <div className="space-y-6">
-                {!isPaidStudent ? (
-                  /* High-Converting, Bright, Premium Masterclass Showcase Lock Screen (User Friendly & Beautiful) */
-                  <div className="max-w-4xl mx-auto my-4 space-y-6 animate-in fade-in duration-200">
-                    {/* Hero Showcase Card */}
-                    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white via-sky-50/60 to-indigo-50/50 dark:from-slate-900 dark:via-slate-800/90 dark:to-indigo-950/40 border-2 border-blue-200/80 dark:border-blue-900/60 shadow-xl p-6 sm:p-10">
-                      {/* Decorative Background Elements */}
-                      <div className="absolute top-0 right-0 w-80 h-80 bg-blue-400/10 dark:bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-                      <div className="absolute bottom-0 left-0 w-80 h-80 bg-indigo-400/10 dark:bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
-                      <div className="relative z-10 text-center max-w-2xl mx-auto space-y-3">
-                        {/* Golden Verified Badge */}
-                        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-amber-500/15 border border-amber-400/50 text-amber-800 dark:text-amber-300 text-xs font-mono font-bold tracking-wider shadow-xs">
-                          <Lock className="w-3.5 h-3.5 text-amber-500" />
-                          <span>👑 PAID STUDENT MASTERCLASS • ENROLLED ACCESS ONLY</span>
-                        </div>
-
-                        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                          A/L Theory Masterclass & Practical Workshops
-                        </h2>
-                        <p className="text-sm font-semibold text-blue-700 dark:text-sky-300">
-                          உயர்தர விசேட கோட்பாட்டு விரிவுரைகள் & நேரடி செய்முறைப் பயிற்சி வகுப்புகள்
-                        </p>
-                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed pt-1">
-                          Rigorous, exam-targeted video lectures covering critical G.C.E. A/L Science syllabus derivations, real laboratory apparatus experiments, and past paper model answers.
-                        </p>
-
-                        {/* Quick Stats Badges */}
-                        <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                          <span className="px-3 py-1 rounded-xl bg-blue-100/80 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-sky-300 text-xs font-bold font-mono flex items-center gap-1.5">
-                            <Film className="w-3.5 h-3.5 text-blue-600" />
-                            50+ HD Lessons
-                          </span>
-                          <span className="px-3 py-1 rounded-xl bg-purple-100/80 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-300 text-xs font-bold font-mono flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-                            Full Syllabus Derivations
-                          </span>
-                          <span className="px-3 py-1 rounded-xl bg-emerald-100/80 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold font-mono flex items-center gap-1.5">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            Direct Teacher Support
-                          </span>
-                        </div>
+                {/* 1. Access Status & Welcome Banner */}
+                {isAdminLoggedIn || (hasVideoAccess && (!currentUserAccess || currentUserAccess.accessScope === 'all')) ? (
+                  <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-950 dark:text-emerald-200 shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                        <Unlock className="w-4 h-4" />
                       </div>
-
-                      {/* Course Curriculum Sneak Peek (What's Inside - Makes students eager to enroll!) */}
-                      <div className="relative z-10 mt-8 pt-6 border-t border-slate-200/80 dark:border-slate-800">
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
-                              Curriculum Sneak Peek • பாடநெறி விபரம்
+                      <div>
+                        <p className="font-extrabold text-sm text-emerald-900 dark:text-emerald-200">
+                          Paid Student Video Masterclasses Unlocked (All Lessons Active 🟢)
+                        </p>
+                        <p className="text-[11px] text-emerald-700 dark:text-emerald-300">
+                          Active session for: <strong className="font-mono">{user?.email || 'Platform Administrator'}</strong>
+                          {currentUserAccess?.expiresAt && (
+                            <span className="ml-2 px-2 py-0.5 rounded-full bg-emerald-200 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-bold font-mono">
+                              Valid until: {new Date(currentUserAccess.expiresAt).toLocaleDateString()}
                             </span>
-                            <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                              What's Inside the Video Masterclass (பாட உள்ளடக்கம்)
-                            </h3>
-                          </div>
-                          <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold">
-                            Enrolled Modules 🔒
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          {/* Module 1: Physics Hydrodynamics */}
-                          <div className="p-4 rounded-2xl bg-white/90 dark:bg-slate-800/80 border border-blue-200/80 dark:border-slate-700/80 shadow-xs space-y-2 hover:border-blue-400 transition-colors">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-black text-blue-900 dark:text-sky-200 flex items-center gap-1.5">
-                                <span>🌊 Physics Unit 2: Hydrodynamics (Units 1–5)</span>
-                              </span>
-                              <Lock className="w-3.5 h-3.5 text-amber-500" />
-                            </div>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                              Complete derivations: Streamline flow, Equation of Continuity (Av = const), Bernoulli’s theorem, Pitot tube, Venturi meter, and Surface Tension excess pressure formulas.
-                            </p>
-                            <div className="flex items-center gap-2 text-[10px] font-mono text-blue-600 dark:text-sky-400 font-bold">
-                              <span>8 In-Depth Lectures</span>
-                              <span>·</span>
-                              <span>Teacher: Asman Linzy</span>
-                            </div>
-                          </div>
-
-                          {/* Module 2: Chemistry Organic IUPAC */}
-                          <div className="p-4 rounded-2xl bg-white/90 dark:bg-slate-800/80 border border-emerald-200/80 dark:border-slate-700/80 shadow-xs space-y-2 hover:border-emerald-400 transition-colors">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-black text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
-                                <span>🧪 Chemistry Unit 7: IUPAC & Reaction Mechanisms</span>
-                              </span>
-                              <Lock className="w-3.5 h-3.5 text-amber-500" />
-                            </div>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                              Systematic IUPAC nomenclature, Electrophilic additions, SN1 vs SN2 kinetics, Steric hindrance, Optical inversion, and E1/E2 elimination reaction pathways.
-                            </p>
-                            <div className="flex items-center gap-2 text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                              <span>7 In-Depth Lectures</span>
-                              <span>·</span>
-                              <span>Organic Chemistry Series</span>
-                            </div>
-                          </div>
-
-                          {/* Module 3: Practical Workshops */}
-                          <div className="p-4 rounded-2xl bg-white/90 dark:bg-slate-800/80 border border-purple-200/80 dark:border-slate-700/80 shadow-xs space-y-2 hover:border-purple-400 transition-colors">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-black text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
-                                <span>🔬 A/L Practical Workshop Laboratory Series</span>
-                              </span>
-                              <Lock className="w-3.5 h-3.5 text-amber-500" />
-                            </div>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                              Real apparatus demonstrations: Vernier callipers, micrometer screw gauge, spectrometer calibration, viscosity measurement, and error percentage calculation.
-                            </p>
-                            <div className="flex items-center gap-2 text-[10px] font-mono text-purple-600 dark:text-purple-400 font-bold">
-                              <span>12 Lab Demonstrations</span>
-                              <span>·</span>
-                              <span>Practical Specialist</span>
-                            </div>
-                          </div>
-
-                          {/* Module 4: Model Essays & Marking Schemes */}
-                          <div className="p-4 rounded-2xl bg-white/90 dark:bg-slate-800/80 border border-amber-200/80 dark:border-slate-700/80 shadow-xs space-y-2 hover:border-amber-400 transition-colors">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-black text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
-                                <span>🎯 Exam Essay Breakdown & Model Answers</span>
-                              </span>
-                              <Lock className="w-3.5 h-3.5 text-amber-500" />
-                            </div>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                              Past paper question dissections, structured essay marking points, common student error pitfalls, and full mark-scoring mathematical presentation rules.
-                            </p>
-                            <div className="flex items-center gap-2 text-[10px] font-mono text-amber-600 dark:text-amber-400 font-bold">
-                              <span>Model Solutions</span>
-                              <span>·</span>
-                              <span>Exam Techniques</span>
-                            </div>
-                          </div>
-                        </div>
+                          )}
+                        </p>
                       </div>
-
-                      {/* Interactive Student Gate & Actions */}
-                      <div className="relative z-10 mt-8 p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900/95 border-2 border-blue-400/50 dark:border-blue-800 shadow-md">
-                        {user && user.email ? (
-                          /* User is logged in with non-approved or expired Gmail */
-                          <div className="space-y-4">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-sky-300 font-black flex items-center justify-center shrink-0 border border-blue-200">
-                                  {user.photoURL ? (
-                                    <img src={user.photoURL} alt={user.name || user.email} className="w-full h-full rounded-full object-cover" />
-                                  ) : (
-                                    user.email.charAt(0).toUpperCase()
-                                  )}
-                                </div>
-                                <div>
-                                  <div className="text-xs font-bold text-slate-900 dark:text-white">
-                                    {user.name || 'Student Account'}
-                                  </div>
-                                  <div className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                                    {user.email}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div>
-                                {isCurrentUserAccessExpired ? (
-                                  <span className="px-3 py-1 rounded-full bg-rose-100 dark:bg-rose-950/60 border border-rose-300 text-rose-800 dark:text-rose-300 text-xs font-bold font-mono flex items-center gap-1.5">
-                                    <Clock className="w-3.5 h-3.5 text-rose-600" />
-                                    Access Expired (காலாவதியானது)
-                                  </span>
-                                ) : (
-                                  <span className="px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950/60 border border-amber-300 text-amber-800 dark:text-amber-300 text-xs font-bold font-mono flex items-center gap-1.5">
-                                    <Lock className="w-3.5 h-3.5 text-amber-600" />
-                                    Pending Activation
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                              {isCurrentUserAccessExpired ? (
-                                <>
-                                  Your course enrollment time limit has ended. To renew your video masterclasses access, click below or contact Asman Linzy.
-                                </>
-                              ) : (
-                                <>
-                                  This Gmail account is connected, but has not been activated for the paid video lessons yet. If you have paid the course fee, submit an instant access request below or contact Asman Linzy on WhatsApp.
-                                </>
-                              )}
-                            </p>
-
-                            {/* Pending Request Banner or Request Button */}
-                            {accessRequests.some((r) => r.status === 'pending' && r.userEmail.toLowerCase().trim() === user.email.toLowerCase().trim()) ? (
-                              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 text-amber-900 dark:text-amber-200 text-xs flex items-center gap-2.5 font-medium">
-                                <Clock className="w-5 h-5 text-amber-500 shrink-0 animate-pulse" />
-                                <div>
-                                  <p className="font-bold">✓ Access Request Submitted (அனுமதி கோரிக்கை அனுப்பப்பட்டது)</p>
-                                  <p className="text-[11px] text-amber-800 dark:text-amber-300">
-                                    Your request has been delivered to Admin Asman Linzy. As soon as approved in the Admin Panel, your video lessons will immediately unlock!
-                                  </p>
-                                </div>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  playRoboticClick();
-                                  const res = await handleCreateAccessRequest({
-                                    message: 'Student requested video access activation from lock screen.'
-                                  });
-                                  alert(res.message);
-                                }}
-                                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-sm shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98"
-                              >
-                                <Send className="w-4 h-4" />
-                                <span>Request Access from Admin (அனுமதி கோரிக்கை அனுப்புக)</span>
-                              </button>
-                            )}
-
-                            {/* Secondary WhatsApp & Switch Actions */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  playRoboticClick();
-                                  setIsContactOpen(true);
-                                }}
-                                className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                              >
-                                <MessageCircle className="w-4 h-4" />
-                                <span>Enroll via WhatsApp (Asman Linzy)</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  playRoboticClick();
-                                  await handleLogout();
-                                  setTimeout(() => handleDirectGoogleLogin(), 250);
-                                }}
-                                className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer border border-slate-200 dark:border-slate-700"
-                              >
-                                <UserCheck className="w-4 h-4 text-sky-500" />
-                                <span>Switch Gmail Account</span>
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          /* User is NOT logged in: Direct Google Sign-In & WhatsApp */
-                          <div className="text-center space-y-4">
-                            <div className="space-y-1">
-                              <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
-                                Ready to Watch? Sign In with Google
-                              </h4>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                                Enrolled students must connect with their registered Google (Gmail) account to access the theory lectures and workshops.
-                              </p>
-                            </div>
-
-                            <div className="max-w-md mx-auto space-y-3 pt-1">
-                              {/* Official Google Sign-In */}
-                              <button
-                                type="button"
-                                onClick={handleDirectGoogleLogin}
-                                className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 border-2 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-extrabold text-xs sm:text-sm shadow-xs transition-all flex items-center justify-center gap-3 cursor-pointer group active:scale-98"
-                              >
-                                <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center shrink-0">
-                                  <svg className="w-full h-full" viewBox="0 0 24 24">
-                                    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z" />
-                                    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z" />
-                                    <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z" />
-                                    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
-                                  </svg>
-                                </div>
-                                <span>Sign In with Google (Gmail மூலம் இணைய)</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  playRoboticClick();
-                                  setIsContactOpen(true);
-                                }}
-                                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                              >
-                                <MessageCircle className="w-4 h-4" />
-                                <span>Want to Enroll? Contact Asman Linzy on WhatsApp</span>
-                              </button>
-                            </div>
-                          </div>
-                        )}
+                    </div>
+                  </div>
+                ) : currentUserAccess && currentUserAccess.accessScope === 'custom' ? (
+                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-950 dark:text-amber-200 shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 font-bold">
+                        <Lock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="font-extrabold text-sm text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                          <span>Course Access Active: {currentUserAccess.accessLabel || 'Selected Units Only'}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300 text-[10px] font-mono border border-amber-500/30">Enrolled Modules</span>
+                        </p>
+                        <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                          Enrolled session for <strong className="font-mono">{user?.email}</strong>. Unlocked lectures can be played ▶️.
+                          {currentUserAccess?.expiresAt && (
+                            <span className="ml-2 px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 font-bold font-mono">
+                              Valid until: {new Date(currentUserAccess.expiresAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </p>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <>
-                    {/* 1. Access Status Banner */}
-                    {isAdminLoggedIn || (hasVideoAccess && (!currentUserAccess || currentUserAccess.accessScope === 'all')) ? (
-                      <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-950 dark:text-emerald-200 shadow-2xs">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
-                            <Unlock className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="font-extrabold text-sm text-emerald-900 dark:text-emerald-200">
-                              Paid Student Video Masterclasses Unlocked (All Lessons Active 🟢)
-                            </p>
-                            <p className="text-[11px] text-emerald-700 dark:text-emerald-300">
-                              Active session for: <strong className="font-mono">{user?.email || 'Platform Administrator'}</strong>
-                              {currentUserAccess?.expiresAt && (
-                                <span className="ml-2 px-2 py-0.5 rounded-full bg-emerald-200 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 font-bold font-mono">
-                                  Valid until: {new Date(currentUserAccess.expiresAt).toLocaleDateString()}
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                        </div>
+                  /* Guest / Unregistered Student Welcome Banner */
+                  <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 border border-blue-500/30 rounded-2xl p-4 sm:p-5 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 flex items-center justify-center shrink-0 shadow-xs font-bold mt-0.5">
+                        <Lock className="w-4 h-4" />
                       </div>
-                    ) : currentUserAccess && currentUserAccess.accessScope === 'custom' ? (
-                      <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-950 dark:text-amber-200 shadow-2xs">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 font-bold">
-                            <Lock className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="font-extrabold text-sm text-amber-900 dark:text-amber-200 flex items-center gap-2">
-                              <span>Partial Course Access Active: {currentUserAccess.accessLabel || 'Selected Units Only'}</span>
-                              <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300 text-[10px] font-mono border border-amber-500/30">Custom Scope</span>
-                            </p>
-                            <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                              Enrolled session for <strong className="font-mono">{user?.email}</strong>. Unlocked lectures can be played ▶️. Other course topics show Locked 🔐.
-                              {currentUserAccess?.expiresAt && (
-                                <span className="ml-2 px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 font-bold font-mono">
-                                  Valid until: {new Date(currentUserAccess.expiresAt).toLocaleDateString()}
-                                </span>
-                              )}
-                            </p>
-                          </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400">
+                            👑 Student Masterclass Portal
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/30">
+                            Enrolled Access
+                          </span>
                         </div>
+                        <h3 className="text-sm sm:text-base font-black text-white">
+                          A/L Theory & Practical Masterclass (பாட உள்ளடக்கம் & விரிவுரைகள்)
+                        </h3>
+                        <p className="text-xs text-blue-100/90 leading-relaxed max-w-2xl">
+                          Browse all subjects, units, and lesson topics below. To play full video masterclasses, please connect with your registered Google Account.
+                        </p>
                       </div>
-                    ) : null}
-
-
-
-                    {/* Masterclass Video Folders System (Document-like Folder Navigation & My Videos) */}
-                    <div className="space-y-4">
-                      <VideoFoldersView
-                        videos={videos}
-                        folders={videoFolders}
-                        selectedFolderId={selectedVideoFolder === 'all' ? null : selectedVideoFolder}
-                        onSelectFolder={(folderId) => setSelectedVideoFolder(folderId || 'all')}
-                        user={user}
-                        onPlayVideo={handlePlayVideo}
-                        onRequireLogin={() => setIsVideoLockOpen(true)}
-                        isEffectiveVideoUnlocked={isEffectiveVideoUnlocked}
-                        isVideoLessonUnlocked={isVideoLessonUnlocked}
-                        isFolderUnlocked={isFolderUnlocked}
-                        onUnlockFolderWithCode={handleUnlockFolderWithCode}
-                        onRequireUnlock={(video) => {
-                          setTargetUnlockVideo(video);
-                          setIsVideoLockOpen(true);
-                        }}
-                        isAdmin={isAdminLoggedIn && (!user || user.email?.toLowerCase().trim() === 'asmanlinzy44@gmail.com')}
-                        onOpenAdminFolders={() => setIsAdminPanelOpen(true)}
-                        onAddSubfolder={(parentId) => {
-                          setAdminFolderDefaultParent(parentId);
-                          setIsAdminPanelOpen(true);
-                        }}
-                        accessRequests={accessRequests}
-                        onRequestAccess={handleCreateAccessRequest}
-                        onApproveAccessRequest={handleApproveAccessRequest}
-                        currentUserAccess={currentUserAccess}
-                        isCurrentUserAccessExpired={isCurrentUserAccessExpired}
-                      />
                     </div>
-                  </>
+
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0">
+                      {!user ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDirectGoogleLogin()}
+                          className="px-4 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-950 font-bold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95 whitespace-nowrap"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z" />
+                            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z" />
+                            <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z" />
+                            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" />
+                          </svg>
+                          <span>Sign In with Google</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setIsVideoLockOpen(true)}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Request Access</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsContactOpen(true)}
+                        className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>WhatsApp Help</span>
+                      </button>
+                    </div>
+                  </div>
                 )}
+
+                {/* 2. Masterclass Video Folders System (Always Accessible on All Devices) */}
+                <div className="space-y-4">
+                  <VideoFoldersView
+                    videos={videos}
+                    folders={videoFolders}
+                    selectedFolderId={selectedVideoFolder === 'all' ? null : selectedVideoFolder}
+                    onSelectFolder={(folderId) => setSelectedVideoFolder(folderId || 'all')}
+                    user={user}
+                    onPlayVideo={handlePlayVideo}
+                    onRequireLogin={() => setIsVideoLockOpen(true)}
+                    isEffectiveVideoUnlocked={isEffectiveVideoUnlocked}
+                    isVideoLessonUnlocked={isVideoLessonUnlocked}
+                    isFolderUnlocked={isFolderUnlocked}
+                    onUnlockFolderWithCode={handleUnlockFolderWithCode}
+                    onRequireUnlock={(video) => {
+                      setTargetUnlockVideo(video);
+                      setIsVideoLockOpen(true);
+                    }}
+                    isAdmin={isAdminLoggedIn && (!user || user.email?.toLowerCase().trim() === 'asmanlinzy44@gmail.com')}
+                    onOpenAdminFolders={() => setIsAdminPanelOpen(true)}
+                    onAddSubfolder={(parentId) => {
+                      setAdminFolderDefaultParent(parentId);
+                      setIsAdminPanelOpen(true);
+                    }}
+                    accessRequests={accessRequests}
+                    onRequestAccess={handleCreateAccessRequest}
+                    onApproveAccessRequest={handleApproveAccessRequest}
+                    currentUserAccess={currentUserAccess}
+                    isCurrentUserAccessExpired={isCurrentUserAccessExpired}
+                  />
+                </div>
               </div>
             ) : (
               <div id="fwc-papers-results">
@@ -3268,13 +3040,21 @@ export default function App() {
 
       {authNotice && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-amber-50 text-amber-900 shadow-2xl border border-amber-300 animate-in fade-in slide-in-from-bottom-2 max-w-md google-anno-skip">
-          <span className="text-xs font-medium">{authNotice}</span>
-          {authNotice.includes('Domain') || authNotice.includes('Vercel') ? (
+          <span className="text-xs font-medium flex-1">{authNotice}</span>
+          {authNotice.includes('Domain') || authNotice.includes('Vercel') || authNotice.includes('Testing') || authNotice.includes('OAuth') || authNotice.includes('verification') ? (
             <button
               onClick={() => setIsDomainAuthModalOpen(true)}
-              className="text-xs font-bold text-blue-700 hover:text-blue-900 underline cursor-pointer shrink-0"
+              className="px-2.5 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors cursor-pointer shrink-0 shadow-xs"
             >
               Fix in 1 Min
+            </button>
+          ) : null}
+          {authNotice.includes('Popup') || authNotice.includes('blocked') ? (
+            <button
+              onClick={() => handleDirectGoogleLogin(true)}
+              className="px-2.5 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors cursor-pointer shrink-0 shadow-xs"
+            >
+              Direct Login
             </button>
           ) : null}
           <button
@@ -3285,6 +3065,9 @@ export default function App() {
           </button>
         </div>
       )}
+
+      {/* PC Click & Drag Scroll Manager (Mobile Touch-style Scrolling on PC) */}
+      <DragScrollManager />
 
       {/* Floating Scroll to Top Button */}
       {showScrollTop && (
