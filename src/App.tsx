@@ -1891,9 +1891,14 @@ export default function App() {
         setAuthNotice('Popup blocked by browser. Please allow popups for Google Sign-In.');
       } else if (err.code === 'auth/cancelled-popup-request') {
         // Subsequent popup triggered, safely ignore
-      } else {
+      } else if (err.code === 'auth/unauthorized-domain' || (err.message && err.message.includes('unauthorized-domain'))) {
         setIsDomainAuthModalOpen(true);
-        setAuthNotice('Vercel Google Login Setup Required: Please add your domain to Firebase Authorized Domains.');
+        setAuthNotice('Vercel domain authorization required. Click to view 1-minute fix.');
+      } else if (err.code === 'auth/access_denied' || (err.message && (err.message.includes('access_denied') || err.message.includes('verification process')))) {
+        setIsDomainAuthModalOpen(true);
+        setAuthNotice('Google OAuth verification notice: Click to view fix in Google Cloud Console.');
+      } else {
+        setAuthNotice(err.message || 'Google authentication error. Please try again.');
       }
     } finally {
       setIsAuthLoading(false);

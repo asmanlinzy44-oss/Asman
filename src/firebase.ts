@@ -6,8 +6,15 @@ import firebaseConfig from '../firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
 export const auth = getAuth(app);
+// Standard Google Login Provider for Students (Basic profile & email ONLY - No sensitive scopes)
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
+  prompt: 'select_account',
+});
+
+// Dedicated Workspace Provider (ONLY for Google Workspace Hub when user explicitly connects Drive/Gmail/Calendar)
+export const workspaceProvider = new GoogleAuthProvider();
+workspaceProvider.setCustomParameters({
   prompt: 'select_account',
 });
 
@@ -23,7 +30,7 @@ export const WORKSPACE_SCOPES = [
 ];
 
 WORKSPACE_SCOPES.forEach((scope) => {
-  googleProvider.addScope(scope);
+  workspaceProvider.addScope(scope);
 });
 
 // In-memory access token storage (never stored in localStorage/sessionStorage as required)
@@ -45,7 +52,7 @@ auth.onAuthStateChanged((user) => {
 });
 
 export const signInWithGoogleWorkspace = async () => {
-  const result = await signInWithPopup(auth, googleProvider);
+  const result = await signInWithPopup(auth, workspaceProvider);
   const credential = GoogleAuthProvider.credentialFromResult(result);
   if (credential?.accessToken) {
     cachedAccessToken = credential.accessToken;

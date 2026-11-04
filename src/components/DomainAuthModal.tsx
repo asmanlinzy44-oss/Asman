@@ -14,7 +14,7 @@ export const DomainAuthModal: React.FC<DomainAuthModalProps> = ({
 }) => {
   const [copiedDomain, setCopiedDomain] = useState(false);
   const [copiedRedirectUri, setCopiedRedirectUri] = useState(false);
-  const [activeTab, setActiveTab] = useState<'domain' | 'branding'>('domain');
+  const [activeTab, setActiveTab] = useState<'domain' | 'blocked' | 'branding'>('blocked');
 
   const currentDomain = typeof window !== 'undefined' ? window.location.hostname : 'paperexpress.vercel.app';
   const redirectUri = `https://${currentDomain}/__/auth/handler`;
@@ -42,7 +42,7 @@ export const DomainAuthModal: React.FC<DomainAuthModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200 google-anno-skip">
-      <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col google-anno-skip">
+      <div className="bg-white rounded-3xl max-w-xl w-full overflow-hidden shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col google-anno-skip">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-[#0066FF] p-5 text-white relative shrink-0">
           <button
@@ -57,37 +57,105 @@ export const DomainAuthModal: React.FC<DomainAuthModalProps> = ({
               <Sparkles className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h3 className="text-base font-bold">Google Login & Custom Branding</h3>
-              <p className="text-xs text-blue-100 font-medium">Paper Express Domain & Name Setup</p>
+              <h3 className="text-base font-bold">Google Login & Verification Fix</h3>
+              <p className="text-xs text-blue-100 font-medium">Solve Error 403 & Domain Authorization</p>
             </div>
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex items-center gap-2 mt-4 pt-2 border-t border-white/20">
+          <div className="flex items-center gap-1.5 mt-4 pt-2 border-t border-white/20 overflow-x-auto">
+            <button
+              onClick={() => setActiveTab('blocked')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'blocked'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              1. Fix Error 403 (Access Blocked)
+            </button>
             <button
               onClick={() => setActiveTab('domain')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'domain'
                   ? 'bg-white text-blue-700 shadow-xs'
                   : 'text-white/80 hover:text-white hover:bg-white/10'
               }`}
             >
-              1. Fix Login Error (Vercel)
+              2. Vercel Domain
             </button>
             <button
               onClick={() => setActiveTab('branding')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'branding'
                   ? 'bg-white text-blue-700 shadow-xs'
                   : 'text-white/80 hover:text-white hover:bg-white/10'
               }`}
             >
-              2. Hide Firebase / AI Name
+              3. App Name
             </button>
           </div>
         </div>
 
-        {/* Tab 1: Fix Unauthorized Domain */}
+        {/* Tab 1: Fix Error 403: Access Blocked (Verification Process) */}
+        {activeTab === 'blocked' && (
+          <div className="p-6 space-y-4 overflow-y-auto">
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-950 text-xs leading-relaxed space-y-1.5">
+              <div className="flex items-center gap-2 font-bold text-rose-800">
+                <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>ஏன் இந்த Error 403: Access Blocked பிழை வருகிறது?</span>
+              </div>
+              <p>
+                Google Cloud-ல் உங்கள் App ஆனது <strong>"Testing"</strong> நிலையில் உள்ளதாலும், மாணவர்கள் உள்நுழையும்போது Gmail/Drive போன்ற விரிவான அனுமதிகள் கேட்கப்பட்டதாலும் Google இந்த பிழையைக் காட்டுகிறது.
+              </p>
+            </div>
+
+            {/* Step 1: Code Fix */}
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs space-y-1.5">
+              <div className="flex items-center gap-2 font-bold text-emerald-800">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>படி 1: தளத்தின் குறியீட்டில் சரிசெய்யப்பட்டது (Completed)</span>
+              </div>
+              <p className="text-emerald-950 text-[11px] leading-relaxed">
+                மாணவர்கள் சாதாரண Google Sign-in செய்யும்போது தேவையில்லாத Gmail & Drive அனுமதிகள் கேட்கப்படாமல் நீக்கப்பட்டுவிட்டது. இப்போது பெயர் மற்றும் மின்னஞ்சல் மட்டுமே கேட்கப்படும்.
+              </p>
+            </div>
+
+            {/* Step 2: Publish App in Google Cloud */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-3">
+              <h4 className="font-bold text-slate-900 text-xs">படி 2: Google Cloud-ல் "Publish App" செய்யவும் (1 நிமிடம்):</h4>
+              <ol className="space-y-2 text-slate-700 text-[11px] list-decimal list-inside">
+                <li>கீழேயுள்ள <strong>"Open OAuth Consent Screen"</strong> பொத்தானை அழுத்தவும்.</li>
+                <li>
+                  <strong>Publishing status</strong> கீழ் உள்ள <strong>"PUBLISH APP"</strong> பொத்தானை அழுத்தவும் (Testing நிலையிலிருந்து Production நிலைக்கு மாற்றவும்).
+                </li>
+                <li>
+                  (அல்லது Testing நிலையிலேயே வைத்திருக்க விரும்பினால், <strong>Test users</strong> கீழ் <strong>+ ADD USERS</strong> அழுத்தி மாணவர்களின் ஜிமெயிலை சேர்க்கலாம்).
+                </li>
+              </ol>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              <a
+                href={consentScreenUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer text-center"
+              >
+                <span>Google OAuth Consent Screen திறக்க</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+              <button
+                onClick={onClose}
+                className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer text-center"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: Fix Unauthorized Domain */}
         {activeTab === 'domain' && (
           <div className="p-6 space-y-4 overflow-y-auto">
             <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs leading-relaxed">
