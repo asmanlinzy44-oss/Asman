@@ -79,8 +79,6 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const [streamStartTime, setStreamStartTime] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [volumeLevel, setVolumeLevel] = useState<number>(100);
-  const [extraSoundBoost, setExtraSoundBoost] = useState<number>(100); // 100%, 150%, 200%, 300%
-  const [showSoundModal, setShowSoundModal] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showOverlayControls, setShowOverlayControls] = useState<boolean>(true);
   const [showDrawerInFs, setShowDrawerInFs] = useState<boolean>(false);
@@ -443,36 +441,6 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     }
   }, [isDirectStream, isMuted, sendYtCommand]);
 
-  // Set Extra Sound Booster Preset (100%, 150%, 200%, 300%)
-  const handleSetSoundBoost = (boost: number) => {
-    setExtraSoundBoost(boost);
-
-    // Unmute immediately when sound boost is engaged so sound plays loudly without delay
-    setIsMuted(false);
-    setVolumeLevel(100);
-
-    if (htmlVideoRef.current) {
-      htmlVideoRef.current.muted = false;
-      htmlVideoRef.current.volume = 1.0;
-    }
-
-    if (!isDirectStream) {
-      sendYtCommand('unMute');
-      sendYtCommand('setVolume', [100]);
-    }
-
-    if (boost === 150) {
-      flashGamingHud(`🔊 SOUND BOOST: 150% (HIGH CLARITY)`);
-    } else if (boost === 200) {
-      flashGamingHud(`🔊 SOUND BOOST: 200% (SUPER LOUD ⚡)`);
-    } else if (boost === 300) {
-      flashGamingHud(`🔥 SOUND BOOST: 300% (TURBO BOOST 🔥)`);
-    } else {
-      flashGamingHud(`🔊 SOUND: 100% (STANDARD)`);
-    }
-    resetControlsTimeout();
-  };
-
   // Set Base Volume (0% - 100%)
   const handleSetVolume = (val: number) => {
     const clamped = Math.max(0, Math.min(100, Math.round(val)));
@@ -498,42 +466,18 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
         sendYtCommand('unMute');
         sendYtCommand('setVolume', [clamped]);
       }
-      flashGamingHud(`🔊 VOLUME: ${clamped}%${extraSoundBoost > 100 ? ` (+${extraSoundBoost - 100}% BOOST)` : ''}`);
+      flashGamingHud(`🔊 VOLUME: ${clamped}%`);
     }
   };
 
   // Step volume up/down (for PC Arrow keys)
   const handleVolumeStep = (delta: number) => {
     if (delta > 0) {
-      // Volume Up
-      if (volumeLevel < 100) {
-        const nextVol = Math.min(100, volumeLevel + 10);
-        handleSetVolume(nextVol);
-      } else {
-        // If already 100%, cycle up through extra sound boost presets
-        const presets = [100, 150, 200, 300];
-        const nextIdx = presets.findIndex((p) => p > extraSoundBoost);
-        if (nextIdx !== -1) {
-          handleSetSoundBoost(presets[nextIdx]);
-        } else {
-          flashGamingHud(`🔥 SOUND BOOST MAX: 300%`);
-        }
-      }
+      const nextVol = Math.min(100, volumeLevel + 10);
+      handleSetVolume(nextVol);
     } else {
-      // Volume Down
-      if (extraSoundBoost > 100) {
-        const presets = [100, 150, 200, 300];
-        const rev = [...presets].reverse();
-        const nextIdx = rev.findIndex((p) => p < extraSoundBoost);
-        if (nextIdx !== -1) {
-          handleSetSoundBoost(rev[nextIdx]);
-        } else {
-          handleSetSoundBoost(100);
-        }
-      } else {
-        const nextVol = Math.max(0, volumeLevel - 10);
-        handleSetVolume(nextVol);
-      }
+      const nextVol = Math.max(0, volumeLevel - 10);
+      handleSetVolume(nextVol);
     }
   };
 
@@ -653,7 +597,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentTime, duration, isPlaying, isMuted, volumeLevel, extraSoundBoost, handleSkipSeconds]);
+  }, [currentTime, duration, isPlaying, isMuted, volumeLevel, handleSkipSeconds]);
 
   // Touch & tap handler on video area (YouTube-style mobile double-tap on left/right sides)
   const processVideoTap = (clientX: number, rect: DOMRect) => {
@@ -1193,23 +1137,6 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                           title={`Volume: ${volumeLevel}%`}
                         />
                       </div>
-
-                      {/* EXTRA SOUND BOOSTER BUTTON */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowSoundModal((prev) => !prev);
-                        }}
-                        className={`px-2 py-1 rounded-xl text-[10px] sm:text-xs font-black font-mono flex items-center gap-1 cursor-pointer transition-all shadow-sm active:scale-95 border ${
-                          extraSoundBoost > 100
-                            ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 text-white border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.6)] animate-pulse'
-                            : 'bg-slate-900/90 text-cyan-300 border-cyan-500/40 hover:border-cyan-300 hover:bg-slate-800'
-                        }`}
-                        title="Extra Sound Booster (அதிக சவுண்ட்)"
-                      >
-                        <Zap className={`w-3 h-3 ${extraSoundBoost > 100 ? 'text-white' : 'text-amber-400'}`} />
-                        <span>{extraSoundBoost > 100 ? `${extraSoundBoost}% BOOST` : 'SOUND BOOST'}</span>
-                      </button>
                     </div>
 
                     {/* Right: Quality, Speed, Fullscreen */}
@@ -1327,7 +1254,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   </div>
                   <div className="flex items-center gap-2 font-mono text-[10px]">
                     <span className="text-amber-400 font-black">
-                      🔊 {extraSoundBoost > 100 ? `${extraSoundBoost}% BOOST` : `${volumeLevel}%`}
+                      🔊 {volumeLevel}%
                     </span>
                     <span className="text-slate-600">|</span>
                     <span className="text-cyan-300 font-black">
@@ -1394,46 +1321,6 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                       </button>
                     );
                   })}
-                </div>
-
-                {/* Sound Boost Row on Mobile */}
-                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 w-full">
-                  <span className="text-[9px] font-mono text-amber-400 font-bold uppercase tracking-wider shrink-0 px-1 flex items-center gap-1">
-                    <Volume2 className="w-3 h-3 text-amber-400" />
-                    <span>SOUND BOOST:</span>
-                  </span>
-                  {[
-                    { level: 100, label: '100%', badge: 'NORMAL' },
-                    { level: 150, label: '150%', badge: 'BOOST' },
-                    { level: 200, label: '200%', badge: 'LOUD ⚡' },
-                    { level: 300, label: '300%', badge: 'TURBO 🔥' },
-                  ].map((sb) => {
-                    const isActive = extraSoundBoost === sb.level;
-                    return (
-                      <button
-                        key={sb.level}
-                        onClick={() => handleSetSoundBoost(sb.level)}
-                        className={`px-2.5 py-1 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer border flex items-center gap-1 active:scale-95 ${
-                          isActive
-                            ? 'bg-gradient-to-r from-amber-500 to-rose-600 text-white border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.6)] scale-102'
-                            : 'bg-slate-900/90 text-slate-300 hover:text-white border-slate-700 hover:border-amber-500/40'
-                        }`}
-                      >
-                        <span className="font-mono">{sb.label}</span>
-                        <span className={`text-[8px] font-bold uppercase tracking-wider px-1 py-0.2 rounded ${
-                          isActive ? 'bg-black/30 text-white' : 'bg-slate-800 text-slate-400'
-                        }`}>
-                          {sb.badge}
-                        </span>
-                      </button>
-                    );
-                  })}
-                  <button
-                    onClick={() => setShowSoundModal(true)}
-                    className="px-2 py-1 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-[10px] font-mono font-bold shrink-0 border border-slate-700 flex items-center gap-1"
-                  >
-                    <span>More...</span>
-                  </button>
                 </div>
               </div>
             )}
@@ -1698,115 +1585,6 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
             <div className="pt-2 border-t border-cyan-500/20 text-center">
               <span className="text-[10px] text-slate-400 font-mono">
                 Paper Express Engine · High Speed Streaming
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* EXTRA SOUND BOOSTER & VOLUME CONTROLS MODAL */}
-      {showSoundModal && (
-        <div 
-          className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150"
-          onClick={() => setShowSoundModal(false)}
-        >
-          <div 
-            className="w-full max-w-sm bg-[#081024] border-2 border-cyan-400/50 rounded-2xl p-4 sm:p-5 shadow-[0_0_50px_rgba(6,182,212,0.4)] flex flex-col gap-4 text-slate-100"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-cyan-500/30 pb-2.5">
-              <div className="flex items-center gap-2 text-cyan-400 font-mono font-black text-xs sm:text-sm">
-                <Volume2 className="w-4 h-4 text-cyan-400" />
-                <span>AUDIO & EXTRA SOUND BOOSTER</span>
-              </div>
-              <button 
-                onClick={() => setShowSoundModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-cyan-950/60 active:scale-95 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Master Volume Slider */}
-            <div className="space-y-2 bg-slate-900/80 p-3 rounded-xl border border-slate-700">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-300 font-bold">Master Volume (அடிப்படை ஒலி)</span>
-                <span className="text-cyan-300 font-black">{volumeLevel}%</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <button
-                  onClick={handleToggleMute}
-                  className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white cursor-pointer active:scale-95"
-                  title="Toggle Mute"
-                >
-                  {isMuted || volumeLevel === 0 ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-cyan-400" />}
-                </button>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={5}
-                  value={isMuted ? 0 : volumeLevel}
-                  onChange={(e) => handleSetVolume(Number(e.target.value))}
-                  className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
-                />
-              </div>
-            </div>
-
-            {/* Extra Sound Booster Presets */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-amber-400 font-bold flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                  <span>Extra Sound Booster (கூடுதல் சவுண்ட்)</span>
-                </span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  extraSoundBoost > 100 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-slate-400'
-                }`}>
-                  {extraSoundBoost}% Boost
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
-                வகுப்பறை வீடியோக்களின் குறைந்த சவுண்டை அதிகப்படுத்தி தெளிவாகக் கேட்க 150%, 200% அல்லது 300% ஐ தெரிவு செய்யவும்.
-              </p>
-
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                {[
-                  { level: 100, label: '100% Standard', desc: 'இயல்பான ஒலி', color: 'from-blue-600 to-cyan-600' },
-                  { level: 150, label: '150% Boost 🔊', desc: '+50% தெளிவான ஒலி', color: 'from-cyan-500 to-blue-600' },
-                  { level: 200, label: '200% Super ⚡', desc: '+100% இரட்டிப்பு சவுண்ட்', color: 'from-amber-500 to-orange-600' },
-                  { level: 300, label: '300% Turbo 🔥', desc: '+200% உச்சபட்ச சவுண்ட்', color: 'from-rose-500 to-red-600' },
-                ].map((item) => {
-                  const isSelected = extraSoundBoost === item.level;
-                  return (
-                    <button
-                      key={item.level}
-                      onClick={() => {
-                        handleSetSoundBoost(item.level);
-                        setShowSoundModal(false);
-                      }}
-                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-0.5 active:scale-95 ${
-                        isSelected
-                          ? `bg-gradient-to-r ${item.color} text-white border-white/60 shadow-[0_0_15px_rgba(245,158,11,0.5)] ring-1 ring-white/50`
-                          : 'bg-slate-900/90 border-slate-700 hover:border-cyan-500/50 text-slate-300 hover:bg-slate-800'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono font-black text-xs">{item.label}</span>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
-                      </div>
-                      <span className={`text-[10px] ${isSelected ? 'text-white/90' : 'text-slate-400'}`}>
-                        {item.desc}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-cyan-500/20 text-center">
-              <span className="text-[10px] text-slate-400 font-mono">
-                Hardware DSP Volume Amplification · Paper Express
               </span>
             </div>
           </div>
