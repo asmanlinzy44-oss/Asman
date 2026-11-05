@@ -32,6 +32,7 @@ import { ContactUsModal } from './components/ContactUsModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { VideoLockModal } from './components/VideoLockModal';
 import { AdUnlockModal } from './components/AdUnlockModal';
+import { AdsterraBannerAd } from './components/AdsterraBannerAd';
 import { ResourcesFoldersView } from './components/ResourcesFoldersView';
 import { OtherPilotPapersView } from './components/OtherPilotPapersView';
 import { UserProfileModal } from './components/UserProfileModal';
@@ -2893,8 +2894,11 @@ export default function App() {
             )
           )}
 
+          {/* Clean Non-Intrusive Bottom Banner Ad */}
+          <AdsterraBannerAd className="mt-12 mb-4" />
+
           {/* Category View Compliance Footer */}
-          <footer className="mt-16 pt-8 border-t border-slate-200 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <footer className="mt-8 pt-8 border-t border-slate-200 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <span className="font-bold text-slate-700">Paper Express</span>
               <span>· Sri Lankan G.C.E. A/L Academic Portal</span>

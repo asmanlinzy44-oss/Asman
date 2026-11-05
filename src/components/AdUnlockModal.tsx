@@ -4,8 +4,9 @@ import {
   Clock, ShieldCheck, Flame, Gift, ArrowRight, Check, AlertCircle 
 } from 'lucide-react';
 import { User, UserAdProgress } from '../types';
-import { ADSTERRA_SMART_LINK, TARGET_ADS_REQUIRED, getStudentAdProgress, recordAdWatched } from '../utils/adReward';
+import { ADSTERRA_SMART_LINK, ADSTERRA_SCRIPT_URL, TARGET_ADS_REQUIRED, getStudentAdProgress, recordAdWatched } from '../utils/adReward';
 import { playRoboticClick, playRoboticUnlock } from '../utils/audio';
+import { AdsterraBannerAd } from './AdsterraBannerAd';
 
 interface AdUnlockModalProps {
   isOpen: boolean;
@@ -87,6 +88,20 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
       setToastMessage('🎉 All 20 Ads completed! Your access is already unlocked.');
       setTimeout(() => setToastMessage(null), 3000);
       return;
+    }
+
+    // Inject & trigger Adsterra script tag
+    try {
+      const existingScript = document.querySelector(`script[src="${ADSTERRA_SCRIPT_URL}"]`);
+      if (!existingScript) {
+        const s = document.createElement('script');
+        s.type = 'text/javascript';
+        s.src = ADSTERRA_SCRIPT_URL;
+        s.async = true;
+        document.body.appendChild(s);
+      }
+    } catch (e) {
+      console.warn('Adsterra script injection error:', e);
     }
 
     // Open the sponsor smart link in a new window/tab
@@ -265,6 +280,9 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
               })}
             </div>
           </div>
+
+          {/* Sponsored Adsterra Banner Ad */}
+          <AdsterraBannerAd className="my-3" />
 
           {/* Verification Active Screen */}
           {isVerifyingAd && (
