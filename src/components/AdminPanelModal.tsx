@@ -7,11 +7,11 @@ import {
   RefreshCw, Database, Shield, BookOpen, Layers, ArrowLeft,
   Copy, Award, CheckCircle2, ChevronRight, MessageCircle, 
   Send, CheckCheck, Megaphone, FolderGit2, Sparkles, Folder, Bot,
-  Mail, UserCheck, FolderPlus, CheckSquare, Square, FolderCheck, Unlock, Image as ImageIcon, Film
+  Mail, UserCheck, FolderPlus, CheckSquare, Square, FolderCheck, Unlock, Image as ImageIcon, Film, Flame
 } from 'lucide-react';
 import { collection, onSnapshot, deleteDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { PaperResource, VideoLesson, VideoFolder, UserReport, StreamId, ResourceCategory, User, PaidStudentAccess, VideoAccessRequest } from '../types';
+import { PaperResource, VideoLesson, VideoFolder, UserReport, StreamId, ResourceCategory, User, PaidStudentAccess, VideoAccessRequest, UserAdProgress, AdStats } from '../types';
 import { extractYoutubeId } from '../utils/drive';
 import { cleanFirestoreData } from '../utils/firestoreClean';
 import { playRoboticClick, playRoboticTab, playRoboticUnlock } from '../utils/audio';
@@ -69,6 +69,8 @@ interface AdminPanelModalProps {
     }
   ) => Promise<boolean> | boolean;
   onRejectAccessRequest?: (requestId: string) => Promise<boolean> | boolean;
+  adStats?: AdStats;
+  adProgressList?: UserAdProgress[];
 }
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
@@ -109,6 +111,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   accessRequests = [],
   onApproveAccessRequest,
   onRejectAccessRequest,
+  adStats = { totalAdViews: 0, totalUnlockedUsers: 0 },
+  adProgressList = [],
 }) => {
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<'papers' | 'resources' | 'videos' | 'reports' | 'announcement' | 'publish' | 'security' | 'ai-copilot' | 'video-access'>('papers');
@@ -127,6 +131,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   const [searchEmailQuery, setSearchEmailQuery] = useState('');
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
+  const [studentDirectoryTab, setStudentDirectoryTab] = useState<'all' | 'ads_20' | 'paid' | 'ad_watchers'>('all');
 
   // Time Limit & Expiration State
   const [durationPreset, setDurationPreset] = useState<'7days' | '30days' | '90days' | '180days' | '365days' | 'lifetime' | 'custom'>('30days');
@@ -748,14 +753,22 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   };
 
   const filteredStudents = useMemo(() => {
+    let list = paidAccessList;
+
+    if (studentDirectoryTab === 'ads_20') {
+      list = paidAccessList.filter((item) => item.unlockedVia === 'ads_20' || item.note?.includes('20 Ads'));
+    } else if (studentDirectoryTab === 'paid') {
+      list = paidAccessList.filter((item) => item.unlockedVia !== 'ads_20' && !item.note?.includes('20 Ads'));
+    }
+
     const q = searchEmailQuery.trim().toLowerCase();
-    if (!q) return paidAccessList;
-    return paidAccessList.filter((item) => 
+    if (!q) return list;
+    return list.filter((item) => 
       item.email.toLowerCase().includes(q) ||
       (item.studentName && item.studentName.toLowerCase().includes(q)) ||
       (item.note && item.note.toLowerCase().includes(q))
     );
-  }, [paidAccessList, searchEmailQuery]);
+  }, [paidAccessList, searchEmailQuery, studentDirectoryTab]);
 
   // Handle Multiple / Batch Video Publish (1-Click)
   const handleBatchPublishVideos = async (e?: React.FormEvent) => {
@@ -3505,10 +3518,26 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2 self-start sm:self-auto">
-                        <div className="px-4 py-2.5 rounded-2xl bg-[#050A17] border border-amber-500/30 text-center">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 self-start sm:self-auto w-full sm:w-auto">
+                        <div className="px-3 py-2 rounded-2xl bg-[#050A17] border border-amber-500/30 text-center">
                           <span className="text-[10px] text-amber-300/80 uppercase font-mono block">Enrolled Students</span>
-                          <span className="text-xl font-black text-amber-300 font-mono">{paidAccessList.length}</span>
+                          <span className="text-lg font-black text-amber-300 font-mono">{paidAccessList.length}</span>
+                        </div>
+                        <div className="px-3 py-2 rounded-2xl bg-[#050A17] border border-amber-500/30 text-center">
+                          <span className="text-[10px] text-amber-300/80 uppercase font-mono block">🎯 20 Ads Unlocked</span>
+                          <span className="text-lg font-black text-amber-400 font-mono">
+                            {paidAccessList.filter(p => p.unlockedVia === 'ads_20' || p.note?.includes('20 Ads')).length}
+                          </span>
+                        </div>
+                        <div className="px-3 py-2 rounded-2xl bg-[#050A17] border border-cyan-500/30 text-center">
+                          <span className="text-[10px] text-cyan-300/80 uppercase font-mono block">👁️ Adsterra Views</span>
+                          <span className="text-lg font-black text-cyan-300 font-mono">{adStats.totalAdViews || 0}</span>
+                        </div>
+                        <div className="px-3 py-2 rounded-2xl bg-[#050A17] border border-purple-500/30 text-center">
+                          <span className="text-[10px] text-purple-300/80 uppercase font-mono block">👥 In-Progress Watchers</span>
+                          <span className="text-lg font-black text-purple-300 font-mono">
+                            {adProgressList.filter(p => !p.isUnlocked && p.adsWatched > 0).length}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -4431,7 +4460,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
                   {/* Enrolled Students Directory */}
                   <div className="p-6 rounded-3xl bg-[#091228] border border-slate-800 shadow-xl space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-3">
                       <div>
                         <h4 className="text-sm font-bold text-white flex items-center gap-2">
                           <span>Active Authorized Student Accounts</span>
@@ -4444,21 +4473,165 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         </p>
                       </div>
 
-                      {/* Search Filter */}
-                      <div className="relative min-w-[240px]">
-                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-                        <input
-                          type="text"
-                          value={searchEmailQuery}
-                          onChange={(e) => setSearchEmailQuery(e.target.value)}
-                          placeholder="Search by Gmail or name..."
-                          className="w-full pl-8 pr-3 py-1.5 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
-                        />
+                      {/* Sub-tab Filter Buttons & Search */}
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <div className="flex items-center gap-1 bg-[#050A17] p-1 rounded-xl border border-slate-800 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => setStudentDirectoryTab('all')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                              studentDirectoryTab === 'all'
+                                ? 'bg-amber-500 text-slate-950 shadow-md'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            All ({paidAccessList.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setStudentDirectoryTab('ads_20')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                              studentDirectoryTab === 'ads_20'
+                                ? 'bg-amber-400 text-slate-950 shadow-md'
+                                : 'text-amber-300/80 hover:text-amber-200'
+                            }`}
+                          >
+                            🎯 20 Ads ({paidAccessList.filter(p => p.unlockedVia === 'ads_20' || p.note?.includes('20 Ads')).length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setStudentDirectoryTab('paid')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                              studentDirectoryTab === 'paid'
+                                ? 'bg-emerald-500 text-slate-950 shadow-md'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            💳 Direct ({paidAccessList.filter(p => p.unlockedVia !== 'ads_20' && !p.note?.includes('20 Ads')).length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setStudentDirectoryTab('ad_watchers')}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                              studentDirectoryTab === 'ad_watchers'
+                                ? 'bg-purple-500 text-white shadow-md'
+                                : 'text-purple-300 hover:text-white'
+                            }`}
+                          >
+                            📊 Watchers ({adProgressList.filter(p => !p.isUnlocked && p.adsWatched > 0).length})
+                          </button>
+                        </div>
+
+                        {studentDirectoryTab !== 'ad_watchers' && (
+                          <div className="relative min-w-[200px]">
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                            <input
+                              type="text"
+                              value={searchEmailQuery}
+                              onChange={(e) => setSearchEmailQuery(e.target.value)}
+                              placeholder="Search Gmail..."
+                              className="w-full pl-8 pr-3 py-1.5 bg-[#050A17] border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    {/* Table / List */}
-                    <div className="space-y-2">
+                    {/* Render In-Progress Ad Watchers Table if tab selected */}
+                    {studentDirectoryTab === 'ad_watchers' ? (
+                      <div className="space-y-3">
+                        <div className="p-3.5 rounded-2xl bg-[#050A17] border border-purple-500/30 text-xs text-purple-200 flex items-center justify-between">
+                          <span>Real-time Adsterra 20-Ads Watch Progress by Students</span>
+                          <span className="font-mono font-bold text-amber-300">{adProgressList.length} Total Registered Watchers</span>
+                        </div>
+
+                        {adProgressList.length === 0 ? (
+                          <div className="p-8 text-center bg-[#050A17] rounded-2xl border border-slate-800 text-slate-400 text-xs">
+                            No students have started watching ads yet.
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {adProgressList.map((watcher) => {
+                              const pct = Math.min(100, Math.round((watcher.adsWatched / 20) * 100));
+                              const isFinished = watcher.isUnlocked || watcher.adsWatched >= 20;
+
+                              return (
+                                <div
+                                  key={watcher.userEmail}
+                                  className={`p-3.5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                    isFinished
+                                      ? 'bg-amber-950/20 border-amber-500/40'
+                                      : 'bg-[#050A17] border-slate-800/90'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                                      isFinished ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                                    }`}>
+                                      <Flame className="w-4 h-4 text-amber-400" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-mono text-xs font-bold text-white truncate">
+                                          {watcher.userEmail}
+                                        </span>
+                                        {watcher.userName && (
+                                          <span className="text-[11px] text-cyan-300">({watcher.userName})</span>
+                                        )}
+                                        {isFinished ? (
+                                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40">
+                                            🎯 20 Ads Mission Completed (Unlocked)
+                                          </span>
+                                        ) : (
+                                          <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/40">
+                                            ⏳ {watcher.adsWatched} / 20 Ads Watched ({pct}%)
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="w-full max-w-xs bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1.5">
+                                        <div
+                                          className={`h-full transition-all duration-500 ${
+                                            isFinished ? 'bg-gradient-to-r from-amber-400 to-orange-400' : 'bg-purple-500'
+                                          }`}
+                                          style={{ width: `${pct}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                                    {watcher.lastAdWatchedAt && (
+                                      <span className="text-[10px] text-slate-500 font-mono">
+                                        Last: {new Date(watcher.lastAdWatchedAt).toLocaleTimeString()}
+                                      </span>
+                                    )}
+                                    {!isFinished && onGrantVideoAccess && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          onGrantVideoAccess(watcher.userEmail, watcher.userName, 'Admin Granted from Watchers', {
+                                            accessScope: 'all',
+                                            accessLabel: '🎯 20 Ads Mission Unlocked (Admin Granted)',
+                                            unlockedVia: 'ads_20',
+                                            adsWatchedCount: 20,
+                                          });
+                                          showSuccess(`Unlocked video access for ${watcher.userEmail}!`);
+                                        }}
+                                        className="px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] font-bold cursor-pointer transition-colors"
+                                      >
+                                        Grant Full Access Now
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Table / List */
+                      <div className="space-y-2">
                       {filteredStudents.map((item) => {
                         const isOwner = item.email.toLowerCase().trim() === 'asmanlinzy44@gmail.com';
                         const isCopied = copiedEmail === item.email;
@@ -4489,6 +4662,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                     <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-bold border border-indigo-500/30 flex items-center gap-1">
                                       <Lock className="w-2.5 h-2.5" />
                                       Permanent Super Admin
+                                    </span>
+                                  ) : (item.unlockedVia === 'ads_20' || item.note?.includes('20 Ads')) ? (
+                                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40 flex items-center gap-1">
+                                      🎯 20 Ads Mission Unlocked
                                     </span>
                                   ) : item.accessScope === 'custom' ? (
                                     <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30 flex items-center gap-1">
@@ -4599,7 +4776,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         </div>
                       )}
                     </div>
-                  </div>
+                  )}
+                </div>
 
                   {/* Edit Student Permission Modal */}
                   {editingStudent && (

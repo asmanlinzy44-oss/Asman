@@ -13,7 +13,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   PaperResource, VideoLesson, VideoFolder, User, ResourceCategory, 
-  StreamId, UserNote, PaidStudentAccess, VideoAccessRequest 
+  StreamId, UserNote, PaidStudentAccess, VideoAccessRequest,
+  UserAdProgress, AdStats
 } from './types';
 import { INITIAL_PAPERS, INITIAL_VIDEOS, INITIAL_VIDEO_FOLDERS, SUBJECTS, STREAMS, CATEGORIES } from './data/mockData';
 import { Header } from './components/Header';
@@ -30,6 +31,7 @@ import { PastPaperFoldersView } from './components/PastPaperFoldersView';
 import { ContactUsModal } from './components/ContactUsModal';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { VideoLockModal } from './components/VideoLockModal';
+import { AdUnlockModal } from './components/AdUnlockModal';
 import { ResourcesFoldersView } from './components/ResourcesFoldersView';
 import { OtherPilotPapersView } from './components/OtherPilotPapersView';
 import { UserProfileModal } from './components/UserProfileModal';
@@ -38,6 +40,7 @@ import { LegalModal, LegalModalType } from './components/LegalModal';
 import { EducationalGuides } from './components/EducationalGuides';
 import { AiSearchView } from './components/AiSearchView';
 import { PaperExpressSplashLoader } from './components/PaperExpressSplashLoader';
+import { getStudentAdProgress } from './utils/adReward';
 import { GoogleWorkspaceModal } from './components/GoogleWorkspaceModal';
 import { DragScrollManager } from './components/DragScrollManager';
 import { onAuthStateChanged, signOut, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
@@ -238,6 +241,65 @@ export default function App() {
     });
     return () => unsub();
   }, []);
+
+  // Ad Mission & Global Ad Statistics State
+  const [isAdUnlockOpen, setIsAdUnlockOpen] = useState(false);
+  const [adStats, setAdStats] = useState<AdStats>({ totalAdViews: 0, totalUnlockedUsers: 0 });
+  const [adProgressList, setAdProgressList] = useState<UserAdProgress[]>([]);
+  const [currentUserAdCount, setCurrentUserAdCount] = useState<number>(0);
+
+  // Real-time synchronization of Global Ad Stats & User Ad Progress from Firestore
+  useEffect(() => {
+    // 1. settings/ad_stats listener
+    const unsubStats = onSnapshot(doc(db, 'settings', 'ad_stats'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as AdStats;
+        setAdStats({
+          totalAdViews: data.totalAdViews || 0,
+          totalUnlockedUsers: data.totalUnlockedUsers || 0,
+          lastUpdated: data.lastUpdated,
+        });
+      }
+    }, (err) => {
+      console.warn('Ad stats live sync notice:', err);
+    });
+
+    // 2. ad_progress collection listener for Admin View
+    const unsubProgress = onSnapshot(collection(db, 'ad_progress'), (snapshot) => {
+      if (!snapshot.empty) {
+        const list: UserAdProgress[] = [];
+        snapshot.forEach((d) => {
+          list.push(d.data() as UserAdProgress);
+        });
+        list.sort((a, b) => (b.adsWatched || 0) - (a.adsWatched || 0));
+        setAdProgressList(list);
+      }
+    }, (err) => {
+      console.warn('Ad progress list live sync notice:', err);
+    });
+
+    return () => {
+      unsubStats();
+      unsubProgress();
+    };
+  }, []);
+
+  // Sync current logged-in user's ad watched count
+  useEffect(() => {
+    if (!user || !user.email) {
+      setCurrentUserAdCount(0);
+      return;
+    }
+    const cleanEmail = user.email.toLowerCase().trim();
+    const found = adProgressList.find((p) => p.userEmail.toLowerCase().trim() === cleanEmail);
+    if (found) {
+      setCurrentUserAdCount(found.adsWatched || 0);
+    } else {
+      getStudentAdProgress(cleanEmail).then((p) => {
+        setCurrentUserAdCount(p.adsWatched || 0);
+      });
+    }
+  }, [user, adProgressList]);
 
   // State to track folders unlocked in current user session
   const [unlockedFolderIds, setUnlockedFolderIds] = useState<string[]>(() => {
@@ -1354,6 +1416,23 @@ export default function App() {
     }
 
     return true;
+  };
+
+  const handleAdUnlockSuccess = async (email: string) => {
+    const cleanEmail = email.toLowerCase().trim();
+    if (!cleanEmail) return;
+    await handleGrantVideoAccess(
+      cleanEmail,
+      user?.name || cleanEmail.split('@')[0],
+      'Unlocked via 20 Ads Watch Mission (Adsterra)',
+      {
+        accessScope: 'all',
+        accessLabel: '🎯 20 Ads Mission Unlocked (All Videos)',
+        unlockedVia: 'ads_20',
+        adsWatchedCount: 20,
+      }
+    );
+    playRoboticUnlock();
   };
 
   const handleRevokeVideoAccess = async (email: string) => {
@@ -2747,6 +2826,8 @@ export default function App() {
                     onApproveAccessRequest={handleApproveAccessRequest}
                     currentUserAccess={currentUserAccess}
                     isCurrentUserAccessExpired={isCurrentUserAccessExpired}
+                    onOpenAdUnlock={() => setIsAdUnlockOpen(true)}
+                    userAdWatchedCount={currentUserAdCount}
                   />
                 </div>
               </div>
@@ -2907,6 +2988,21 @@ export default function App() {
         }}
         accessRequests={accessRequests}
         onRequestAccess={handleCreateAccessRequest}
+        onOpenAdUnlock={() => {
+          setIsVideoLockOpen(false);
+          setIsAdUnlockOpen(true);
+        }}
+        userAdWatchedCount={currentUserAdCount}
+      />
+
+      {/* 20 Ads Mission Free Video Unlock Modal */}
+      <AdUnlockModal
+        isOpen={isAdUnlockOpen}
+        onClose={() => setIsAdUnlockOpen(false)}
+        user={user}
+        onGoogleLogin={handleDirectGoogleLogin}
+        onUnlockSuccess={handleAdUnlockSuccess}
+        isAlreadyUnlocked={hasVideoAccess}
       />
       {/* Focus Timer Modal (Pomodoro) */}
       <StudyTimerModal
@@ -3005,6 +3101,8 @@ export default function App() {
         accessRequests={accessRequests}
         onApproveAccessRequest={handleApproveAccessRequest}
         onRejectAccessRequest={handleRejectAccessRequest}
+        adStats={adStats}
+        adProgressList={adProgressList}
       />
 
       {/* Vercel Firebase Domain Authorization Guide Modal */}

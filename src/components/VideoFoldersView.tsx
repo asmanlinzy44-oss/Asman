@@ -3,7 +3,7 @@ import {
   Folder, Film, Lock, CheckCircle2, ChevronRight, Clock, 
   ArrowLeft, Search, Sparkles, Send, MessageCircle, UserCheck, 
   BookOpen, GraduationCap, ShieldCheck, Plus, Layers, FolderPlus,
-  AlertTriangle, ExternalLink
+  AlertTriangle, ExternalLink, Gift, Flame
 } from 'lucide-react';
 import { VideoFolder, VideoLesson, User, VideoAccessRequest, PaidStudentAccess } from '../types';
 import { formatVideoDuration } from '../utils/drive';
@@ -38,6 +38,8 @@ interface VideoFoldersViewProps {
   onApproveAccessRequest?: (requestId: string) => Promise<boolean> | boolean;
   currentUserAccess?: PaidStudentAccess | null;
   isCurrentUserAccessExpired?: boolean;
+  onOpenAdUnlock?: () => void;
+  userAdWatchedCount?: number;
 }
 
 export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
@@ -58,6 +60,8 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
   onRequestAccess,
   currentUserAccess,
   isCurrentUserAccessExpired = false,
+  onOpenAdUnlock,
+  userAdWatchedCount = 0,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [requestNotice, setRequestNotice] = useState<{ id: string; msg: string } | null>(null);
@@ -399,6 +403,48 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
               <span className="text-[11px] font-mono text-amber-400 font-bold">Locked 🔐</span>
             </div>
           ) : null}
+        </div>
+      )}
+
+      {/* 20 ADS UNLOCK MISSION BANNER (Free unlock option for all students) */}
+      {!currentUserAccess && !isAdmin && onOpenAdUnlock && (
+        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-950/70 via-slate-900 to-cyan-950/70 border-2 border-cyan-400/40 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-white animate-in fade-in duration-200">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
+              <Gift className="w-6 h-6 text-cyan-400" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-wider text-cyan-300 font-mono flex items-center gap-1">
+                  <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                  <span>Free Masterclass Unlock Mission</span>
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-mono font-bold border border-cyan-400/30">
+                  {userAdWatchedCount} / 20 Ads Completed
+                </span>
+              </div>
+              <h4 className="text-sm sm:text-base font-black text-white mt-0.5 truncate">
+                Watch 20 Ads to Unlock All Video Lessons for Free!
+              </h4>
+              <p className="text-xs text-slate-300 truncate">
+                20 விளம்பரங்களைப் பார்த்து உங்கள் Gmail கணக்கிற்கு அனைத்து வீடியோ பாடங்களையும் இலவசமாக Unlock செய்யுங்கள்.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              playRoboticClick();
+              onOpenAdUnlock();
+            }}
+            className="px-5 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 active:scale-95 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shrink-0 transition-transform shadow-[0_0_20px_rgba(6,182,212,0.4)] cursor-pointer"
+          >
+            <Gift className="w-4 h-4 text-slate-950" />
+            <span>
+              {userAdWatchedCount >= 20 ? '🎉 Access Unlocked' : `Watch Ads (${userAdWatchedCount}/20)`}
+            </span>
+          </button>
         </div>
       )}
 

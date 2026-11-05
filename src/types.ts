@@ -183,6 +183,25 @@ export interface PaidStudentAccess {
   accessLabel?: string; // e.g. 'All Videos', 'Physics Hydrodynamics Only', 'Chemistry IUPAC Only'
   expiresAt?: string; // ISO date string e.g. "2026-11-18T10:00:00.000Z" (null or undefined = lifetime)
   durationPreset?: string; // '7days' | '30days' | '90days' | '180days' | '365days' | 'lifetime' | 'custom'
+  unlockedVia?: 'payment' | 'ads_20' | 'admin_grant' | string;
+  adsWatchedCount?: number;
+}
+
+export interface UserAdProgress {
+  userEmail: string;
+  userName?: string;
+  adsWatched: number; // 0 to 20
+  targetAds: number; // 20
+  isUnlocked: boolean;
+  unlockedAt?: string;
+  lastAdWatchedAt?: string;
+  lastIpOrDevice?: string;
+}
+
+export interface AdStats {
+  totalAdViews: number;
+  totalUnlockedUsers: number;
+  lastUpdated?: string;
 }
 
 export interface VideoAccessRequest {
@@ -203,4 +222,5 @@ export interface VideoAccessRequest {
   durationPreset?: string;
   allowedFolderIds?: string[]; // Specific folder IDs granted for this request
 }
+
 

@@ -154,5 +154,18 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true;
     }
+
+    // Student ad watch progress & 20-ads mission unlock state
+    match /ad_progress/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Ad views analytics and overall counter statistics
+    match /ad_stats/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 }
+
