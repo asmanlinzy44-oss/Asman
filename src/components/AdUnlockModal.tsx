@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  X, Sparkles, CheckCircle2, Lock, Unlock, ExternalLink, 
-  Clock, ShieldCheck, Flame, Gift, ArrowRight, Check, AlertCircle 
+  X, Sparkles, Unlock, ExternalLink, 
+  Clock, ShieldCheck, Flame, Gift, ArrowRight, Check, AlertCircle
 } from 'lucide-react';
 import { User, UserAdProgress } from '../types';
-import { ADSTERRA_SMART_LINK, ADSTERRA_SCRIPT_URL, TARGET_ADS_REQUIRED, getStudentAdProgress, recordAdWatched } from '../utils/adReward';
+import { AD_SMART_LINK, AD_SCRIPT_URL, TARGET_ADS_REQUIRED, getStudentAdProgress, recordAdWatched } from '../utils/adReward';
 import { playRoboticClick, playRoboticUnlock } from '../utils/audio';
 import { AdsterraBannerAd } from './AdsterraBannerAd';
 
@@ -35,7 +35,7 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
   const [isVerifyingAd, setIsVerifyingAd] = useState(false);
   const [countdown, setCountdown] = useState(10);
   const [canClaim, setCanClaim] = useState(false);
-  const [justCelebrated, setJustCelebrated] = useState(false);
+  const [, setJustCelebrated] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Sync progress from Firestore on open or user change
@@ -57,7 +57,7 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
     };
   }, [isOpen, user?.email, isAlreadyUnlocked]);
 
-  // Timer countdown while user is visiting the ad
+  // Timer countdown while user is visiting the external smart link ad
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (isVerifyingAd && countdown > 0) {
@@ -76,7 +76,7 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
   const isCompleted = currentCount >= TARGET_ADS_REQUIRED || adProgress.isUnlocked || isAlreadyUnlocked;
   const progressPercent = Math.min(100, Math.round((currentCount / TARGET_ADS_REQUIRED) * 100));
 
-  // Step 1: Open the Adsterra Smart Link
+  // Step 1: Open the Sponsor Smart Link
   const handleWatchAdClick = () => {
     playRoboticClick();
     if (!user || !user.email) {
@@ -85,30 +85,30 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
     }
 
     if (isCompleted) {
-      setToastMessage('🎉 All 20 Ads completed! Your access is already unlocked.');
+      setToastMessage(`🎉 All ${TARGET_ADS_REQUIRED} Ads completed! Your access is already unlocked.`);
       setTimeout(() => setToastMessage(null), 3000);
       return;
     }
 
-    // Inject & trigger Adsterra script tag
+    // Inject sponsor ad script tag if not present
     try {
-      const existingScript = document.querySelector(`script[src="${ADSTERRA_SCRIPT_URL}"]`);
+      const existingScript = document.querySelector(`script[src="${AD_SCRIPT_URL}"]`);
       if (!existingScript) {
         const s = document.createElement('script');
         s.type = 'text/javascript';
-        s.src = ADSTERRA_SCRIPT_URL;
+        s.src = AD_SCRIPT_URL;
         s.async = true;
         document.body.appendChild(s);
       }
     } catch (e) {
-      console.warn('Adsterra script injection error:', e);
+      console.warn('Ad script injection error:', e);
     }
 
     // Open the sponsor smart link in a new window/tab
     try {
-      window.open(ADSTERRA_SMART_LINK, '_blank', 'noopener,noreferrer');
+      window.open(AD_SMART_LINK, '_blank', 'noopener,noreferrer');
     } catch {
-      window.location.href = ADSTERRA_SMART_LINK;
+      window.location.href = AD_SMART_LINK;
     }
 
     // Start verification countdown
@@ -117,7 +117,7 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
     setCanClaim(false);
   };
 
-  // Step 2: Claim credit (+1) after visiting
+  // Step 2: Claim credit (+1) after visiting external link
   const handleClaimAdCredit = async () => {
     if (!user || !user.email) return;
     playRoboticClick();
@@ -134,38 +134,38 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
         if (onUnlockSuccess) {
           await onUnlockSuccess(user.email);
         }
-        setToastMessage('🎉 Congratulations! 20 Ads completed! Video Lessons unlocked for your Gmail!');
+        setToastMessage(`🎉 Congratulations! ${TARGET_ADS_REQUIRED} Ads completed! Video Lessons unlocked for 30 Days!`);
       } else {
         setToastMessage(`✅ Ad credit added! Progress: ${updated.adsWatched} / ${TARGET_ADS_REQUIRED}`);
         setTimeout(() => setToastMessage(null), 3000);
       }
     } catch (err) {
       console.warn('Error recording ad watched:', err);
-      setToastMessage('Credit saved! Keep going towards 20 ads.');
+      setToastMessage(`Credit saved! Keep going towards ${TARGET_ADS_REQUIRED} ads.`);
       setTimeout(() => setToastMessage(null), 3000);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 google-anno-skip">
-      <div className="relative w-full max-w-lg bg-[#081028] text-white rounded-3xl shadow-2xl border-2 border-cyan-500/40 overflow-hidden flex flex-col">
-        {/* Glow ambient backgrounds */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200 google-anno-skip">
+      <div className="relative w-full max-w-xl bg-[#081028] text-white rounded-3xl shadow-2xl border-2 border-cyan-500/40 overflow-hidden flex flex-col">
+        {/* Ambient background glow */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
 
         {/* Top Header */}
-        <div className="p-5 pb-3 border-b border-slate-800/80 flex items-center justify-between gap-3 relative z-10">
+        <div className="p-4 sm:p-5 pb-3 border-b border-slate-800/80 flex items-center justify-between gap-3 relative z-10">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
               <Gift className="w-5 h-5 text-cyan-400" />
             </div>
             <div>
               <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-[10px] font-mono font-bold">
                 <Sparkles className="w-3 h-3 text-cyan-400" />
-                <span>FREE VIDEO ACCESS MISSION</span>
+                <span>30-DAY FREE ACCESS MISSION</span>
               </div>
               <h3 className="text-base sm:text-lg font-black text-white">
-                Watch 20 Ads to Unlock All Videos
+                Watch {TARGET_ADS_REQUIRED} Ads to Unlock All Videos
               </h3>
             </div>
           </div>
@@ -183,14 +183,14 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 sm:p-6 space-y-4 relative z-10 overflow-y-auto max-h-[80vh]">
+        <div className="p-4 sm:p-6 space-y-4 relative z-10 overflow-y-auto max-h-[80vh]">
           {/* Explanation Text */}
           <div className="text-xs text-slate-300 leading-relaxed space-y-1">
             <p className="font-semibold text-slate-100">
-              20 ஸ்பான்சர் விளம்பரங்களைப் பார்த்து உங்கள் Gmail கணக்கிற்கு அனைத்து வீடியோ பாடங்களையும் முற்றிலும் இலவசமாக அன்லாக் செய்யலாம்!
+              {TARGET_ADS_REQUIRED} ஸ்பான்சர் விளம்பரங்களைப் பார்த்து உங்கள் Gmail கணக்கிற்கு அனைத்து வீடியோ பாடங்களையும் 30 நாட்களுக்கு முற்றிலும் இலவசமாக அன்லாக் செய்யலாம்!
             </p>
             <p className="text-[11px] text-slate-400">
-              ஒவ்வொரு விளம்பரத்தையும் கிளிக் செய்து சில நொடிகள் பார்த்தபின் உங்கள் கணக்கில் +1 பாயிண்ட் சேரும். 20 விளம்பரங்கள் முடிந்ததும் உடனே அன்லாக் ஆகும்.
+              ஸ்மார்ட் லிங்க் மூலம் விளம்பரங்களைப் பார்த்து சுலபமாக பாயிண்டுகளைப் பெறலாம்.
             </p>
           </div>
 
@@ -203,7 +203,7 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
                 <span className="font-mono font-bold text-cyan-300 truncate">{user.email}</span>
               </div>
               <span className="px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 text-[10px] font-mono font-bold shrink-0">
-                Live Sync
+                Live Cloud Sync
               </span>
             </div>
           ) : (
@@ -213,7 +213,7 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
                 <span>Google Sign-In Required (Gmail லாகின் தேவை)</span>
               </div>
               <p className="text-[11px] text-amber-300/90 leading-relaxed">
-                நீங்கள் பார்க்கும் 20 விளம்பரங்களின் புள்ளிகள் பாதுகாப்பாக சேமிக்கப்படவும், உங்கள் கணக்கிற்கு வீடியோக்கள் அன்லாக் ஆகவும் தயவுசெய்து Google மூலம் லாகின் செய்யவும்.
+                நீங்கள் பார்க்கும் {TARGET_ADS_REQUIRED} விளம்பரங்களின் புள்ளிகள் பாதுகாப்பாக சேமிக்கப்படவும், உங்கள் கணக்கிற்கு வீடியோக்கள் அன்லாக் ஆகவும் தயவுசெய்து Google மூலம் லாகின் செய்யவும்.
               </p>
               {onGoogleLogin && (
                 <button
@@ -241,7 +241,7 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
             <div className="flex items-center justify-between text-xs font-mono">
               <span className="text-slate-300 font-bold flex items-center gap-1.5">
                 <Flame className="w-4 h-4 text-amber-400" />
-                <span>Mission Progress:</span>
+                <span>Reward Mission Progress:</span>
               </span>
               <span className="font-black text-sm text-cyan-300">
                 {currentCount} / {TARGET_ADS_REQUIRED} Ads ({progressPercent}%)
@@ -259,10 +259,10 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
             {/* Milestones row */}
             <div className="grid grid-cols-4 gap-1 text-[10px] font-mono text-center pt-1">
               {[
-                { count: 5, label: '5 Ads (25%)' },
-                { count: 10, label: '10 Ads (50%)' },
-                { count: 15, label: '15 Ads (75%)' },
-                { count: 20, label: '20 Ads (Unlock! 🔓)' },
+                { count: 10, label: '10 Ads (25%)' },
+                { count: 20, label: '20 Ads (50%)' },
+                { count: 30, label: '30 Ads (75%)' },
+                { count: 40, label: '40 Ads (30d! 🔓)' },
               ].map((m) => {
                 const reached = currentCount >= m.count;
                 return (
@@ -281,48 +281,6 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
             </div>
           </div>
 
-          {/* Sponsored Adsterra Banner Ad */}
-          <AdsterraBannerAd className="my-3" />
-
-          {/* Verification Active Screen */}
-          {isVerifyingAd && (
-            <div className="p-4 rounded-2xl bg-cyan-950/50 border border-cyan-400/50 space-y-3 animate-in fade-in duration-150 text-center">
-              <div className="flex items-center justify-center gap-2 text-cyan-300 font-bold text-xs sm:text-sm">
-                <Clock className="w-4 h-4 text-cyan-400 animate-spin" />
-                <span>Verifying Advertisement Visit...</span>
-              </div>
-              <p className="text-[11px] text-slate-300">
-                விளம்பரம் புதிய tab-இல் திறக்கப்பட்டுள்ளது. விளம்பரத்தை சில நொடிகள் பார்த்துவிட்டு வந்து கீழே உள்ள பட்டனை அழுத்தவும்.
-              </p>
-
-              <div className="flex items-center justify-center gap-3">
-                <span className="text-2xl font-black font-mono text-cyan-300">
-                  {countdown > 0 ? `${countdown}s` : 'Ready! ✅'}
-                </span>
-              </div>
-
-              {canClaim ? (
-                <button
-                  type="button"
-                  onClick={handleClaimAdCredit}
-                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs sm:text-sm transition-all shadow-[0_0_20px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2 cursor-pointer active:scale-98 animate-bounce"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Claim Ad Point (+1) • உறுதி செய்</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="w-full py-2.5 px-4 rounded-xl bg-slate-800 text-slate-400 font-bold text-xs flex items-center justify-center gap-2 opacity-70 cursor-not-allowed"
-                >
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Please wait {countdown} seconds to verify...</span>
-                </button>
-              )}
-            </div>
-          )}
-
           {/* Toast Message Notification */}
           {toastMessage && (
             <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-400/50 text-emerald-200 text-xs font-bold text-center animate-in fade-in duration-200 shadow-md">
@@ -338,10 +296,10 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
               </div>
               <div className="space-y-1">
                 <h4 className="text-base font-black text-emerald-300">
-                  All Video Lessons Unlocked! 🔓
+                  All Video Lessons Unlocked for 30 Days! 🔓
                 </h4>
                 <p className="text-xs text-slate-300">
-                  நீங்கள் 20 விளம்பரங்களை வெற்றிகரமாக முடித்துவிட்டீர்கள். உங்கள் Gmail கணக்கிற்கு அனைத்து வீடியோ பாடங்களும் அன்லாக் செய்யப்பட்டுள்ளன!
+                  நீங்கள் {TARGET_ADS_REQUIRED} விளம்பரங்களை வெற்றிகரமாக முடித்துவிட்டீர்கள். உங்கள் Gmail கணக்கிற்கு அனைத்து வீடியோ பாடங்களும் 30 நாட்களுக்கு அன்லாக் செய்யப்பட்டுள்ளன!
                 </p>
               </div>
               <button
@@ -356,33 +314,76 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
-          ) : !isVerifyingAd && (
-            /* Main Watch Next Ad Action Button */
-            <div className="space-y-2 pt-1">
-              <button
-                type="button"
-                onClick={handleWatchAdClick}
-                className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 hover:from-blue-500 hover:to-cyan-400 active:scale-[0.98] text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer group"
-              >
-                <ExternalLink className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                <span>
-                  Watch Ad #{currentCount + 1} of 20 (விளம்பரம் பார்)
-                </span>
-              </button>
+          ) : (
+            /* External Smart Link with 10s Verification Timer */
+            <div className="space-y-3">
+              {isVerifyingAd ? (
+                <div className="p-4 rounded-2xl bg-cyan-950/50 border border-cyan-400/50 space-y-3 animate-in fade-in duration-150 text-center">
+                  <div className="flex items-center justify-center gap-2 text-cyan-300 font-bold text-xs sm:text-sm">
+                    <Clock className="w-4 h-4 text-cyan-400 animate-spin" />
+                    <span>Verifying Advertisement Visit...</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    விளம்பரம் புதிய tab-இல் திறக்கப்பட்டுள்ளது. விளம்பரத்தை சில நொடிகள் பார்த்துவிட்டு வந்து கீழே உள்ள பட்டனை அழுத்தவும்.
+                  </p>
 
-              <p className="text-[10px] text-center text-slate-400">
-                Official Adsterra sponsor link opens safely in a new tab. No payment required.
-              </p>
+                  <div className="flex items-center justify-center gap-3">
+                    <span className="text-2xl font-black font-mono text-cyan-300">
+                      {countdown > 0 ? `${countdown}s` : 'Ready! ✅'}
+                    </span>
+                  </div>
+
+                  {canClaim ? (
+                    <button
+                      type="button"
+                      onClick={handleClaimAdCredit}
+                      className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs sm:text-sm transition-all shadow-[0_0_20px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2 cursor-pointer active:scale-98 animate-bounce"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>Claim Ad Point (+1) • உறுதி செய்</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full py-2.5 px-4 rounded-xl bg-slate-800 text-slate-400 font-bold text-xs flex items-center justify-center gap-2 opacity-70 cursor-not-allowed"
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Please wait {countdown} seconds to verify...</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleWatchAdClick}
+                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-blue-600 via-cyan-500 to-indigo-600 hover:from-blue-500 hover:to-cyan-400 active:scale-[0.98] text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer group"
+                  >
+                    <ExternalLink className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                    <span>
+                      Watch Ad #{currentCount + 1} of {TARGET_ADS_REQUIRED} (Smart Link)
+                    </span>
+                  </button>
+
+                  <p className="text-[10px] text-center text-slate-400">
+                    Sponsor link opens safely in a new tab. No payment required.
+                  </p>
+                </div>
+              )}
             </div>
           )}
+
+          {/* Sponsored Banner Ad */}
+          <AdsterraBannerAd className="my-2" showSkyscraper={false} />
 
           {/* Footer security tag */}
           <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
             <span className="flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Safe Adsterra Verified Smart Link</span>
+              <span>Paper Express Ad Engine</span>
             </span>
-            <span className="font-mono text-cyan-400 font-bold">Paper Express 20-Ads Mission</span>
+            <span className="font-mono text-cyan-400 font-bold">Paper Express {TARGET_ADS_REQUIRED}-Ads Reward Mission</span>
           </div>
         </div>
       </div>

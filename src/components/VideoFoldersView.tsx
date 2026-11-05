@@ -420,14 +420,14 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
                   <span>Free Masterclass Unlock Mission</span>
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-mono font-bold border border-cyan-400/30">
-                  {userAdWatchedCount} / 20 Ads Completed
+                  {userAdWatchedCount} / 40 Ads Completed
                 </span>
               </div>
               <h4 className="text-sm sm:text-base font-black text-white mt-0.5 truncate">
-                Watch 20 Ads to Unlock All Video Lessons for Free!
+                Watch 40 Ads to Unlock All Video Lessons for Free!
               </h4>
               <p className="text-xs text-slate-300 truncate">
-                20 விளம்பரங்களைப் பார்த்து உங்கள் Gmail கணக்கிற்கு அனைத்து வீடியோ பாடங்களையும் இலவசமாக Unlock செய்யுங்கள்.
+                40 விளம்பரங்களைப் பார்த்து உங்கள் Gmail கணக்கிற்கு அனைத்து வீடியோ பாடங்களையும் இலவசமாக Unlock செய்யுங்கள்.
               </p>
             </div>
           </div>
@@ -442,7 +442,7 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
           >
             <Gift className="w-4 h-4 text-slate-950" />
             <span>
-              {userAdWatchedCount >= 20 ? '🎉 Access Unlocked' : `Watch Ads (${userAdWatchedCount}/20)`}
+              {userAdWatchedCount >= 40 ? '🎉 Access Unlocked' : `Watch Ads (${userAdWatchedCount}/40)`}
             </span>
           </button>
         </div>

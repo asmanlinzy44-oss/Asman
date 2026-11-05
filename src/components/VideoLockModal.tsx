@@ -128,7 +128,7 @@ export const VideoLockModal: React.FC<VideoLockModalProps> = ({
             </div>
           </div>
 
-          {/* Free 20 Ads Watch Mission Card */}
+          {/* Free 40 Ads Watch Mission Card */}
           {onOpenAdUnlock && (
             <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-900/40 via-slate-900 to-cyan-900/40 border-2 border-cyan-400/50 shadow-md space-y-2.5 text-left">
               <div className="flex items-center justify-between">
@@ -142,24 +142,24 @@ export const VideoLockModal: React.FC<VideoLockModalProps> = ({
                       <span>Free Access Option • இலவச வழிமுறை</span>
                     </span>
                     <h5 className="text-xs sm:text-sm font-black text-white">
-                      Watch 20 Ads to Unlock All Videos
+                      Watch 40 Ads to Unlock All Videos
                     </h5>
                   </div>
                 </div>
                 <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-mono font-bold border border-cyan-400/30">
-                  {userAdWatchedCount} / 20 Ads
+                  {userAdWatchedCount} / 40 Ads
                 </span>
               </div>
 
               <p className="text-[11px] text-slate-300 leading-snug">
-                20 ஸ்பான்சர் விளம்பரங்களை ஒவ்வொன்றாகப் பார்த்து முடித்தால், உங்கள் Gmail கணக்கிற்கு இந்த வீடியோ பாடங்கள் தானாக அன்லாக் ஆகிவிடும்!
+                40 ஸ்பான்சர் விளம்பரங்களை ஒவ்வொன்றாகப் பார்த்து முடித்தால், உங்கள் Gmail கணக்கிற்கு இந்த வீடியோ பாடங்கள் தானாக அன்லாக் ஆகிவிடும்!
               </p>
 
               {/* Progress Bar */}
               <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
                 <div
                   className="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 transition-all duration-300"
-                  style={{ width: `${Math.min(100, (userAdWatchedCount / 20) * 100)}%` }}
+                  style={{ width: `${Math.min(100, (userAdWatchedCount / 40) * 100)}%` }}
                 />
               </div>
 
@@ -173,9 +173,9 @@ export const VideoLockModal: React.FC<VideoLockModalProps> = ({
               >
                 <ExternalLink className="w-3.5 h-3.5 text-slate-950" />
                 <span>
-                  {userAdWatchedCount >= 20 
-                    ? '🎉 20 Ads Completed - Open Access' 
-                    : `Open 20 Ads Mission (${userAdWatchedCount}/20 Completed)`}
+                  {userAdWatchedCount >= 40 
+                    ? '🎉 40 Ads Completed - Open Access' 
+                    : `Open 40 Ads Mission (${userAdWatchedCount}/40 Completed)`}
                 </span>
               </button>
             </div>

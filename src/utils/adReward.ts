@@ -3,9 +3,13 @@ import { db } from '../firebase';
 import { UserAdProgress, AdStats } from '../types';
 import { cleanFirestoreData } from './firestoreClean';
 
-export const ADSTERRA_SMART_LINK = 'https://www.profitableratecpmnetwork.com/stcczpa5?key=f6cfae61e2eead30a4cf19c544c5f6cd';
-export const ADSTERRA_SCRIPT_URL = 'https://pl32196932.profitableratecpmnetwork.com/f9/4c/a2/f94ca273d4170805f1944e71fc19c070.js';
-export const TARGET_ADS_REQUIRED = 20;
+export const AD_SMART_LINK = 'https://www.profitableratecpmnetwork.com/stcczpa5?key=f6cfae61e2eead30a4cf19c544c5f6cd';
+export const AD_SCRIPT_URL = 'https://pl32196932.profitableratecpmnetwork.com/f9/4c/a2/f94ca273d4170805f1944e71fc19c070.js';
+export const TARGET_ADS_REQUIRED = 40;
+
+// Aliases for compatibility
+export const ADSTERRA_SMART_LINK = AD_SMART_LINK;
+export const ADSTERRA_SCRIPT_URL = AD_SCRIPT_URL;
 
 export const sanitizeEmailForDocId = (email: string): string => {
   return email.toLowerCase().trim().replace(/[^a-zA-Z0-9]/g, '_');

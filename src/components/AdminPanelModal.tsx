@@ -756,9 +756,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     let list = paidAccessList;
 
     if (studentDirectoryTab === 'ads_20') {
-      list = paidAccessList.filter((item) => item.unlockedVia === 'ads_20' || item.note?.includes('20 Ads'));
+      list = paidAccessList.filter((item) => item.unlockedVia === 'ads_20' || item.unlockedVia === 'ads_40' || item.note?.includes('Ads'));
     } else if (studentDirectoryTab === 'paid') {
-      list = paidAccessList.filter((item) => item.unlockedVia !== 'ads_20' && !item.note?.includes('20 Ads'));
+      list = paidAccessList.filter((item) => item.unlockedVia !== 'ads_20' && item.unlockedVia !== 'ads_40' && !item.note?.includes('Ads'));
     }
 
     const q = searchEmailQuery.trim().toLowerCase();
@@ -3524,13 +3524,13 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           <span className="text-lg font-black text-amber-300 font-mono">{paidAccessList.length}</span>
                         </div>
                         <div className="px-3 py-2 rounded-2xl bg-[#050A17] border border-amber-500/30 text-center">
-                          <span className="text-[10px] text-amber-300/80 uppercase font-mono block">🎯 20 Ads Unlocked</span>
+                          <span className="text-[10px] text-amber-300/80 uppercase font-mono block">🎯 40 Ads Unlocked</span>
                           <span className="text-lg font-black text-amber-400 font-mono">
-                            {paidAccessList.filter(p => p.unlockedVia === 'ads_20' || p.note?.includes('20 Ads')).length}
+                            {paidAccessList.filter(p => p.unlockedVia === 'ads_20' || p.unlockedVia === 'ads_40' || p.note?.includes('Ads')).length}
                           </span>
                         </div>
                         <div className="px-3 py-2 rounded-2xl bg-[#050A17] border border-cyan-500/30 text-center">
-                          <span className="text-[10px] text-cyan-300/80 uppercase font-mono block">👁️ Adsterra Views</span>
+                          <span className="text-[10px] text-cyan-300/80 uppercase font-mono block">👁️ Reward Ad Views</span>
                           <span className="text-lg font-black text-cyan-300 font-mono">{adStats.totalAdViews || 0}</span>
                         </div>
                         <div className="px-3 py-2 rounded-2xl bg-[#050A17] border border-purple-500/30 text-center">
@@ -4496,7 +4496,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                 : 'text-amber-300/80 hover:text-amber-200'
                             }`}
                           >
-                            🎯 20 Ads ({paidAccessList.filter(p => p.unlockedVia === 'ads_20' || p.note?.includes('20 Ads')).length})
+                            🎯 40 Ads ({paidAccessList.filter(p => p.unlockedVia === 'ads_20' || p.unlockedVia === 'ads_40' || p.note?.includes('Ads')).length})
                           </button>
                           <button
                             type="button"
@@ -4507,7 +4507,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                 : 'text-slate-400 hover:text-white'
                             }`}
                           >
-                            💳 Direct ({paidAccessList.filter(p => p.unlockedVia !== 'ads_20' && !p.note?.includes('20 Ads')).length})
+                            💳 Direct ({paidAccessList.filter(p => p.unlockedVia !== 'ads_20' && p.unlockedVia !== 'ads_40' && !p.note?.includes('Ads')).length})
                           </button>
                           <button
                             type="button"
@@ -4541,7 +4541,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                     {studentDirectoryTab === 'ad_watchers' ? (
                       <div className="space-y-3">
                         <div className="p-3.5 rounded-2xl bg-[#050A17] border border-purple-500/30 text-xs text-purple-200 flex items-center justify-between">
-                          <span>Real-time Adsterra 20-Ads Watch Progress by Students</span>
+                          <span>Real-time 40-Ads Reward Progress by Students</span>
                           <span className="font-mono font-bold text-amber-300">{adProgressList.length} Total Registered Watchers</span>
                         </div>
 
@@ -4552,8 +4552,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         ) : (
                           <div className="space-y-2">
                             {adProgressList.map((watcher) => {
-                              const pct = Math.min(100, Math.round((watcher.adsWatched / 20) * 100));
-                              const isFinished = watcher.isUnlocked || watcher.adsWatched >= 20;
+                              const pct = Math.min(100, Math.round((watcher.adsWatched / 40) * 100));
+                              const isFinished = watcher.isUnlocked || watcher.adsWatched >= 40;
 
                               return (
                                 <div
@@ -4580,11 +4580,11 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                         )}
                                         {isFinished ? (
                                           <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40">
-                                            🎯 20 Ads Mission Completed (Unlocked)
+                                            🎯 40 Ads Mission Completed (Unlocked)
                                           </span>
                                         ) : (
                                           <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/40">
-                                            ⏳ {watcher.adsWatched} / 20 Ads Watched ({pct}%)
+                                            ⏳ {watcher.adsWatched} / 40 Ads Watched ({pct}%)
                                           </span>
                                         )}
                                       </div>
@@ -4611,9 +4611,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                         onClick={() => {
                                           onGrantVideoAccess(watcher.userEmail, watcher.userName, 'Admin Granted from Watchers', {
                                             accessScope: 'all',
-                                            accessLabel: '🎯 20 Ads Mission Unlocked (Admin Granted)',
+                                            accessLabel: '🎯 40 Ads Mission Unlocked (Admin Granted)',
                                             unlockedVia: 'ads_20',
-                                            adsWatchedCount: 20,
+                                            adsWatchedCount: 40,
                                           });
                                           showSuccess(`Unlocked video access for ${watcher.userEmail}!`);
                                         }}
@@ -4663,9 +4663,9 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                                       <Lock className="w-2.5 h-2.5" />
                                       Permanent Super Admin
                                     </span>
-                                  ) : (item.unlockedVia === 'ads_20' || item.note?.includes('20 Ads')) ? (
+                                  ) : (item.unlockedVia === 'ads_20' || item.unlockedVia === 'ads_40' || item.note?.includes('Ads')) ? (
                                     <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40 flex items-center gap-1">
-                                      🎯 20 Ads Mission Unlocked
+                                      🎯 40 Ads Mission Unlocked
                                     </span>
                                   ) : item.accessScope === 'custom' ? (
                                     <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30 flex items-center gap-1">

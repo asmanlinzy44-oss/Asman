@@ -15,7 +15,7 @@ export const AdBanner: React.FC<AdBannerProps> = () => {
       localStorage.removeItem('studypro_video_ad_link');
       
       // Clean up any dynamic ad scripts if still present in DOM
-      const existingScript = document.getElementById('adsterra-native-banner-script');
+      const existingScript = document.getElementById('banner-native-script');
       if (existingScript && existingScript.parentNode) {
         existingScript.parentNode.removeChild(existingScript.parentNode);
       }

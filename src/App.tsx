@@ -33,6 +33,7 @@ import { AdminPanelModal } from './components/AdminPanelModal';
 import { VideoLockModal } from './components/VideoLockModal';
 import { AdUnlockModal } from './components/AdUnlockModal';
 import { AdsterraBannerAd } from './components/AdsterraBannerAd';
+
 import { ResourcesFoldersView } from './components/ResourcesFoldersView';
 import { OtherPilotPapersView } from './components/OtherPilotPapersView';
 import { UserProfileModal } from './components/UserProfileModal';
@@ -1428,12 +1429,12 @@ export default function App() {
     await handleGrantVideoAccess(
       cleanEmail,
       user?.name || cleanEmail.split('@')[0],
-      'Unlocked via 20 Ads Watch Mission (30 Days)',
+      'Unlocked via 40 Ads Watch Mission (30 Days)',
       {
         accessScope: 'all',
-        accessLabel: '🎯 20 Ads Mission Unlocked (30 Days)',
+        accessLabel: '🎯 40 Ads Mission Unlocked (30 Days)',
         unlockedVia: 'ads_20',
-        adsWatchedCount: 20,
+        adsWatchedCount: 40,
         expiresAt: expiresAt,
         durationPreset: '30days',
       }
@@ -2900,7 +2901,7 @@ export default function App() {
           )}
 
           {/* Clean Non-Intrusive Bottom Banner Ad */}
-          <AdsterraBannerAd className="mt-12 mb-4" />
+          <AdsterraBannerAd className="mt-12 mb-3" />
 
           {/* Category View Compliance Footer */}
           <footer className="mt-8 pt-8 border-t border-slate-200 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -3004,7 +3005,7 @@ export default function App() {
         userAdWatchedCount={currentUserAdCount}
       />
 
-      {/* 20 Ads Mission Free Video Unlock Modal */}
+      {/* 40 Ads Mission Free Video Unlock Modal */}
       <AdUnlockModal
         isOpen={isAdUnlockOpen}
         onClose={() => setIsAdUnlockOpen(false)}

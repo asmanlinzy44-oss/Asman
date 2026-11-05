@@ -25,7 +25,6 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
   // Simple Ad-blocker detection check
   useEffect(() => {
     const timer = setTimeout(() => {
-      // Check if any ad container iframe is blocked or empty after 3 seconds
       const hasAnyAd = ad1Loaded || ad2Loaded || adTopLoaded;
       if (!hasAnyAd) {
         setAdBlockDetected(true);
@@ -57,7 +56,6 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
       srcScript.type = 'text/javascript';
       srcScript.src = 'https://bauval.org/22/2896df15d30e5bd79f502e655ffb4da0';
       srcScript.async = true;
-
       srcScript.onerror = () => setAdTopLoaded(false);
 
       container.appendChild(confScript);
@@ -204,7 +202,7 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
       {adTopLoaded && (
         <div className="flex flex-col items-center">
           <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 opacity-70">
-            Sponsor Top Banner (160x600)
+            Sponsor Top (160x600)
           </span>
           <div 
             ref={containerRefTop} 
@@ -216,26 +214,26 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
 
       {/* Banner 1: 468x60 (Auto-hide if adblocked or unavailable) */}
       {ad1Loaded && (
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center w-full max-w-[468px]">
           <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 opacity-70">
             Sponsor Banner 1 (468x60)
           </span>
           <div 
             ref={containerRef1} 
-            className="w-full max-w-[468px] min-h-[60px] flex items-center justify-center rounded-xl bg-slate-900/40 border border-slate-800/60 p-1 overflow-hidden"
+            className="w-full min-h-[60px] flex items-center justify-center rounded-xl bg-slate-900/40 border border-slate-800/60 p-1 overflow-hidden"
           />
         </div>
       )}
 
       {/* Banner 2: 300x250 (Auto-hide if adblocked or unavailable) */}
       {showSkyscraper && ad2Loaded && (
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center w-full max-w-[300px]">
           <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 opacity-70">
             Sponsor Banner 2 (300x250)
           </span>
           <div 
             ref={containerRef2} 
-            className="w-full max-w-[300px] min-h-[250px] flex items-center justify-center rounded-2xl bg-slate-900/40 border border-slate-800/60 p-1 overflow-hidden"
+            className="w-full min-h-[250px] flex items-center justify-center rounded-2xl bg-slate-900/40 border border-slate-800/60 p-1 overflow-hidden"
           />
         </div>
       )}
