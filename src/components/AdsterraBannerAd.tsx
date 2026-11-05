@@ -11,6 +11,7 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
 }) => {
   const containerRef1 = useRef<HTMLDivElement>(null);
   const containerRef2 = useRef<HTMLDivElement>(null);
+  const nativeRef = useRef<HTMLDivElement>(null);
 
   // Load 468x60 Horizontal Banner Ad 1
   useEffect(() => {
@@ -86,8 +87,37 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
     };
   }, [showSkyscraper]);
 
+  // Load Native Banner Ad 3 (Right Below Banner 2)
+  useEffect(() => {
+    if (!nativeRef.current) return;
+    const parent = nativeRef.current;
+    parent.innerHTML = '';
+
+    try {
+      const containerDiv = document.createElement('div');
+      containerDiv.id = 'container-fa6bf9477ba924f59983d1515f1d1e14';
+
+      const script = document.createElement('script');
+      script.type = 'text/javascript';
+      script.async = true;
+      script.setAttribute('data-cfasync', 'false');
+      script.src = 'https://pl32201276.profitableratecpmnetwork.com/fa6bf9477ba924f59983d1515f1d1e14/invoke.js';
+
+      parent.appendChild(containerDiv);
+      parent.appendChild(script);
+    } catch (err) {
+      console.warn('Native banner script error:', err);
+    }
+
+    return () => {
+      if (parent) {
+        parent.innerHTML = '';
+      }
+    };
+  }, []);
+
   return (
-    <div className={`flex flex-col items-center justify-center gap-3 my-4 overflow-hidden google-anno-skip ${className}`}>
+    <div className={`flex flex-col items-center justify-center gap-4 my-4 overflow-hidden google-anno-skip ${className}`}>
       {/* Banner 1: 468x60 */}
       <div className="flex flex-col items-center">
         <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 opacity-70">
@@ -101,7 +131,7 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
 
       {/* Banner 2: 160x300 (Right Below Banner 1) */}
       {showSkyscraper && (
-        <div className="flex flex-col items-center mt-1">
+        <div className="flex flex-col items-center">
           <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 opacity-70">
             Sponsor Banner 2 (160x300)
           </span>
@@ -111,6 +141,17 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
           />
         </div>
       )}
+
+      {/* Banner 3: Native Banner Ad (Right Below Banner 2) */}
+      <div className="flex flex-col items-center w-full max-w-lg">
+        <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 opacity-70">
+          Native Sponsor Banner
+        </span>
+        <div 
+          ref={nativeRef} 
+          className="w-full min-h-[100px] flex items-center justify-center rounded-2xl bg-slate-900/40 border border-slate-800/60 p-2 overflow-hidden shadow-inner"
+        />
+      </div>
     </div>
   );
 };
