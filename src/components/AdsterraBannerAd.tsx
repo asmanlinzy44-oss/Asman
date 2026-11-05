@@ -208,7 +208,8 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
           </span>
           <div 
             ref={containerRefTop} 
-            className="w-full max-w-[160px] min-h-[600px] flex items-center justify-center rounded-2xl bg-slate-900/40 border border-slate-800/60 p-1 overflow-hidden"
+            style={{ width: '160px', height: '600px', maxWidth: '160px', maxHeight: '600px' }}
+            className="flex items-center justify-center rounded-2xl bg-slate-900/40 border border-slate-800/60 p-0 overflow-hidden shrink-0"
           />
         </div>
       )}
