@@ -1422,15 +1422,20 @@ export default function App() {
   const handleAdUnlockSuccess = async (email: string) => {
     const cleanEmail = email.toLowerCase().trim();
     if (!cleanEmail) return;
+
+    const expiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
+
     await handleGrantVideoAccess(
       cleanEmail,
       user?.name || cleanEmail.split('@')[0],
-      'Unlocked via 20 Ads Watch Mission (Adsterra)',
+      'Unlocked via 20 Ads Watch Mission (30 Days)',
       {
         accessScope: 'all',
-        accessLabel: '🎯 20 Ads Mission Unlocked (All Videos)',
+        accessLabel: '🎯 20 Ads Mission Unlocked (30 Days)',
         unlockedVia: 'ads_20',
         adsWatchedCount: 20,
+        expiresAt: expiresAt,
+        durationPreset: '30days',
       }
     );
     playRoboticUnlock();

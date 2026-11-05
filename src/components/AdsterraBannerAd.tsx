@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { ShieldAlert, X } from 'lucide-react';
 
 interface AdsterraBannerAdProps {
   className?: string;
@@ -18,6 +19,20 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
   const [ad1Loaded, setAd1Loaded] = useState(true);
   const [ad2Loaded, setAd2Loaded] = useState(true);
   const [adTopLoaded, setAdTopLoaded] = useState(true);
+  const [adBlockDetected, setAdBlockDetected] = useState(false);
+  const [showAdBlockToast, setShowAdBlockToast] = useState(true);
+
+  // Simple Ad-blocker detection check
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // Check if any ad container iframe is blocked or empty after 3 seconds
+      const hasAnyAd = ad1Loaded || ad2Loaded || adTopLoaded;
+      if (!hasAnyAd) {
+        setAdBlockDetected(true);
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [ad1Loaded, ad2Loaded, adTopLoaded]);
 
   // Load Top 160x600 Banner Ad
   useEffect(() => {
@@ -43,13 +58,11 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
       srcScript.src = 'https://bauval.org/22/2896df15d30e5bd79f502e655ffb4da0';
       srcScript.async = true;
 
-      // Check if iframe loads successfully or fails
       srcScript.onerror = () => setAdTopLoaded(false);
 
       container.appendChild(confScript);
       container.appendChild(srcScript);
 
-      // Timeout check for empty / blocked iframe
       const timer = setTimeout(() => {
         const iframe = container.querySelector('iframe');
         if (!iframe || iframe.offsetHeight === 0) {
@@ -170,6 +183,23 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
 
   return (
     <div className={`flex flex-col items-center justify-center gap-4 my-4 overflow-hidden google-anno-skip ${className}`}>
+      {/* Polite Ad-Blocker Notice Bar */}
+      {adBlockDetected && showAdBlockToast && (
+        <div className="w-full max-w-md p-3.5 rounded-2xl bg-amber-950/90 border border-amber-500/50 text-amber-200 text-xs shadow-xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5">
+            <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Please disable ad-blocker to support free A/L resources</span>
+          </div>
+          <button
+            onClick={() => setShowAdBlockToast(false)}
+            className="p-1 rounded-lg text-amber-300 hover:text-white hover:bg-amber-900 transition-colors cursor-pointer"
+            aria-label="Dismiss"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Top Banner: 160x600 (Auto-hide if adblocked or unavailable) */}
       {adTopLoaded && (
         <div className="flex flex-col items-center">
