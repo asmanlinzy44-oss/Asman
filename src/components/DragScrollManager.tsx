@@ -10,7 +10,7 @@ export const DragScrollManager: React.FC<DragScrollManagerProps> = ({ onToggleCh
   const [isEnabled, setIsEnabled] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
     const saved = localStorage.getItem('studypro_drag_scroll_enabled');
-    return saved !== null ? saved === 'true' : true; // Enabled by default for PC
+    return saved !== null ? saved === 'true' : true;
   });
 
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -49,7 +49,7 @@ export const DragScrollManager: React.FC<DragScrollManagerProps> = ({ onToggleCh
 
       setToastMessage(
         next
-          ? '🖐️ PC Click & Drag Horizontal Scroll Enabled! Drag mouse to swipe.'
+          ? '🖐️ PC Drag & Horizontal Swipe Scroll Enabled! Click and drag anywhere.'
           : '🖱️ Standard PC Mouse Cursor Restored.'
       );
       setShowToast(true);
@@ -63,12 +63,12 @@ export const DragScrollManager: React.FC<DragScrollManagerProps> = ({ onToggleCh
     let curr = element;
     while (curr && curr !== document.body && curr !== document.documentElement) {
       const style = window.getComputedStyle(curr);
-      const overflowY = style.overflowY;
       const overflowX = style.overflowX;
+      const overflowY = style.overflowY;
       const isScrollableX = (overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'overlay') && curr.scrollWidth > curr.clientWidth + 2;
       const isScrollableY = (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') && curr.scrollHeight > curr.clientHeight + 2;
 
-      // Prioritize horizontal containers if user clicks inside a tab bar
+      // Prioritize horizontal scroll container if clicked inside tab bar / nav bar
       if (isScrollableX || isScrollableY) {
         return curr;
       }
@@ -77,7 +77,7 @@ export const DragScrollManager: React.FC<DragScrollManagerProps> = ({ onToggleCh
     return window;
   };
 
-  // Convert vertical mouse wheel into horizontal scroll when hovering horizontal tab bars
+  // 1. Convert vertical mouse wheel into horizontal scroll when hovering horizontal tab bars
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       let curr = e.target as HTMLElement | null;
@@ -88,7 +88,6 @@ export const DragScrollManager: React.FC<DragScrollManagerProps> = ({ onToggleCh
 
         if (isScrollableX) {
           const isScrollableY = (style.overflowY === 'auto' || style.overflowY === 'scroll') && curr.scrollHeight > curr.clientHeight + 2;
-          // If purely horizontal bar or height is small (like tab bars / nav headers)
           if (!isScrollableY || Math.abs(e.deltaX) > Math.abs(e.deltaY) || curr.clientHeight < 120) {
             if (e.deltaY !== 0) {
               curr.scrollLeft += e.deltaY;
@@ -107,7 +106,7 @@ export const DragScrollManager: React.FC<DragScrollManagerProps> = ({ onToggleCh
     };
   }, []);
 
-  // PC Mouse Click & Drag Horizontal Swiping
+  // 2. PC Mouse Click & Drag Horizontal Swiping
   useEffect(() => {
     if (!isEnabled) return;
 
@@ -162,7 +161,7 @@ export const DragScrollManager: React.FC<DragScrollManagerProps> = ({ onToggleCh
       const deltaY = e.clientY - dragRef.current.startY;
       const dist = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-      if (dist > 5) {
+      if (dist > 4) {
         dragRef.current.hasMoved = true;
         dragRef.current.draggedDistance = dist;
         dragRef.current.preventClick = true;
@@ -218,60 +217,23 @@ export const DragScrollManager: React.FC<DragScrollManagerProps> = ({ onToggleCh
     };
   }, [isEnabled]);
 
-  const [isDesktop, setIsDesktop] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    const hasFinePointer = window.matchMedia('(pointer: fine)').matches;
-    const isLargeScreen = window.innerWidth >= 1024;
-    return hasFinePointer || isLargeScreen;
-  });
-
+  // Set body cursor class when dragging
   useEffect(() => {
-    const checkDesktop = () => {
-      const hasFinePointer = window.matchMedia('(pointer: fine)').matches;
-      const isLargeScreen = window.innerWidth >= 1024;
-      setIsDesktop(hasFinePointer || isLargeScreen);
-    };
-
-    window.addEventListener('resize', checkDesktop);
-    return () => window.removeEventListener('resize', checkDesktop);
-  }, []);
-
-  // Set body cursor class when enabled or dragging
-  useEffect(() => {
-    if (isEnabled && isDesktop) {
-      document.body.classList.add('drag-scroll-active');
-    } else {
-      document.body.classList.remove('drag-scroll-active');
-    }
-
-    if (isDragging && isDesktop) {
+    if (isDragging) {
       document.body.classList.add('is-dragging-scroll');
     } else {
       document.body.classList.remove('is-dragging-scroll');
     }
 
     return () => {
-      document.body.classList.remove('drag-scroll-active');
       document.body.classList.remove('is-dragging-scroll');
     };
-  }, [isEnabled, isDragging, isDesktop]);
-
-  // If not on PC / desktop, do not render button or toasts
-  if (!isDesktop) return null;
+  }, [isDragging]);
 
   return (
     <>
       {/* Dynamic Cursor Styling */}
       <style>{`
-        body.drag-scroll-active {
-          user-select: none;
-        }
-        body.drag-scroll-active button,
-        body.drag-scroll-active a,
-        body.drag-scroll-active input,
-        body.drag-scroll-active textarea {
-          user-select: auto;
-        }
         body.is-dragging-scroll,
         body.is-dragging-scroll * {
           cursor: grabbing !important;
@@ -290,7 +252,7 @@ export const DragScrollManager: React.FC<DragScrollManagerProps> = ({ onToggleCh
       )}
 
       {/* Floating Desktop Quick Toggle Button */}
-      <div className="fixed bottom-6 left-6 z-40 hidden lg:flex items-center gap-2 group">
+      <div className="fixed bottom-6 left-6 z-40 hidden sm:flex items-center gap-2 group">
         <button
           onClick={toggleDragScroll}
           className={`px-3.5 py-2 rounded-2xl text-xs font-bold shadow-xl border backdrop-blur-md transition-all flex items-center gap-2 cursor-pointer ${
@@ -300,8 +262,8 @@ export const DragScrollManager: React.FC<DragScrollManagerProps> = ({ onToggleCh
           }`}
           title={
             isEnabled
-              ? 'PC Click & Drag Scroll is ON (Click and drag anywhere to scroll)'
-              : 'Turn ON PC Click & Drag Scroll (Mobile touch style on PC)'
+              ? 'PC Drag & Swipe Scroll is ON (Click and drag anywhere to scroll)'
+              : 'Turn ON PC Drag & Swipe Scroll'
           }
         >
           <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${
@@ -311,7 +273,7 @@ export const DragScrollManager: React.FC<DragScrollManagerProps> = ({ onToggleCh
           </div>
           <div className="flex flex-col text-left">
             <span className="text-[11px] leading-tight font-extrabold flex items-center gap-1">
-              <span>PC Drag & Swipe Scroll</span>
+              <span>PC Drag Scroll</span>
               <span className={`text-[9px] px-1 py-0.2 rounded ${
                 isEnabled ? 'bg-emerald-500 text-white font-mono' : 'bg-slate-800 text-slate-400'
               }`}>

@@ -190,8 +190,8 @@ export interface PaidStudentAccess {
 export interface UserAdProgress {
   userEmail: string;
   userName?: string;
-  adsWatched: number; // 0 to 20
-  targetAds: number; // 20
+  adsWatched: number; // 0 to 40
+  targetAds: number; // 40
   isUnlocked: boolean;
   unlockedAt?: string;
   lastAdWatchedAt?: string;

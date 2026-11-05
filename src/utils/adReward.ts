@@ -51,7 +51,18 @@ export async function getStudentAdProgress(email: string): Promise<UserAdProgres
   // Fallback to localStorage if offline
   try {
     const saved = localStorage.getItem(`studypro_ad_progress_${cleanEmail}`);
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        userEmail: cleanEmail,
+        userName: parsed.userName,
+        adsWatched: Math.min(TARGET_ADS_REQUIRED, Math.max(0, parsed.adsWatched || 0)),
+        targetAds: TARGET_ADS_REQUIRED,
+        isUnlocked: Boolean(parsed.isUnlocked || (parsed.adsWatched || 0) >= TARGET_ADS_REQUIRED),
+        unlockedAt: parsed.unlockedAt,
+        lastAdWatchedAt: parsed.lastAdWatchedAt,
+      };
+    }
   } catch {}
 
   return defaultProgress;
