@@ -11,6 +11,7 @@ import { User, ResourceCategory } from '../types';
 import { PaperExpressLogo } from './PaperExpressLogo';
 import { ExamCountdown } from './ExamCountdown';
 import { EducationalGuides } from './EducationalGuides';
+import { AdsterraBannerAd } from './AdsterraBannerAd';
 import { playRoboticTab, playRoboticClick } from '../utils/audio';
 
 interface HomePageProps {
@@ -773,6 +774,11 @@ export const HomePage: React.FC<HomePageProps> = ({
 
         {/* Comprehensive Official A/L Academic Guide & Syllabus Insights */}
         <EducationalGuides />
+      </div>
+
+      {/* Clean Bottom Banner & Native Sponsor Ads on Home Page */}
+      <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-12 w-full mt-12 mb-4">
+        <AdsterraBannerAd className="my-6" showNativeBanner={true} show728x90={true} />
       </div>
 
       {/* Comprehensive Professional Publisher & AdSense Compliant Footer */}
