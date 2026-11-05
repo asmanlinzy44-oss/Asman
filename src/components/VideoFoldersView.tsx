@@ -16,6 +16,7 @@ import {
   getAllVideosForFolderRecursive,
   PRIMARY_ROOT_SUBJECT_IDS 
 } from '../utils/folderHierarchy';
+import { AdsterraBannerAd } from './AdsterraBannerAd';
 
 interface VideoFoldersViewProps {
   videos: VideoLesson[];
@@ -447,6 +448,9 @@ export const VideoFoldersView: React.FC<VideoFoldersViewProps> = ({
           </button>
         </div>
       )}
+
+      {/* Adaptive Banner Ad inside Video Lessons Directory */}
+      <AdsterraBannerAd className="my-5" showNativeBanner={false} show728x90={true} />
 
       {/* 2. SEARCH RESULTS VIEW (when search query is present) */}
       {searchResults ? (

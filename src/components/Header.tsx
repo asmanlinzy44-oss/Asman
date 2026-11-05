@@ -86,7 +86,7 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         {/* Primary Desktop Navigation with Physics Beast style animated sliding pill */}
-        <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 text-xs xl:text-sm font-semibold text-slate-600 dark:text-slate-300 overflow-x-auto scrollbar-thin flex-1 min-w-0 justify-end xl:justify-center py-1">
+        <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 text-xs xl:text-sm font-semibold text-slate-600 dark:text-slate-300 overflow-x-auto scrollbar-thin flex-1 min-w-0 justify-start xl:justify-center py-1 flex-nowrap">
           {[
             { id: 'home' as const, label: 'Home' },
             { id: 'past-papers' as const, label: 'Past Papers' },

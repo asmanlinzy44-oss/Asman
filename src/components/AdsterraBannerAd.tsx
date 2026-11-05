@@ -4,39 +4,46 @@ import { ShieldAlert, X } from 'lucide-react';
 interface AdsterraBannerAdProps {
   className?: string;
   showSkyscraper?: boolean;
+  showNativeBanner?: boolean;
+  show728x90?: boolean;
+  show160x300?: boolean;
 }
 
 export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({ 
   className = '',
-  showSkyscraper = true
+  showSkyscraper = false,
+  showNativeBanner = true,
+  show728x90 = true,
+  show160x300 = true,
 }) => {
-  const containerRef1 = useRef<HTMLDivElement>(null);
-  const containerRef2 = useRef<HTMLDivElement>(null);
-  const containerRefTop = useRef<HTMLDivElement>(null);
+  const containerRef468 = useRef<HTMLDivElement>(null);
+  const containerRef728 = useRef<HTMLDivElement>(null);
+  const containerRef160x300 = useRef<HTMLDivElement>(null);
+  const containerRef300 = useRef<HTMLDivElement>(null);
   const nativeRef = useRef<HTMLDivElement>(null);
 
-  // States to track whether each iframe ad successfully loaded or has content (auto-hide if ad blockers or empty)
-  const [ad1Loaded, setAd1Loaded] = useState(true);
-  const [ad2Loaded, setAd2Loaded] = useState(true);
-  const [adTopLoaded, setAdTopLoaded] = useState(true);
+  const [ad468Loaded, setAd468Loaded] = useState(true);
+  const [ad728Loaded, setAd728Loaded] = useState(true);
+  const [ad160x300Loaded, setAd160x300Loaded] = useState(true);
+  const [ad300Loaded, setAd300Loaded] = useState(true);
   const [adBlockDetected, setAdBlockDetected] = useState(false);
   const [showAdBlockToast, setShowAdBlockToast] = useState(true);
 
-  // Simple Ad-blocker detection check
+  // Ad-blocker detection check
   useEffect(() => {
     const timer = setTimeout(() => {
-      const hasAnyAd = ad1Loaded || ad2Loaded || adTopLoaded;
+      const hasAnyAd = ad468Loaded || ad728Loaded || ad160x300Loaded || ad300Loaded;
       if (!hasAnyAd) {
         setAdBlockDetected(true);
       }
     }, 4000);
     return () => clearTimeout(timer);
-  }, [ad1Loaded, ad2Loaded, adTopLoaded]);
+  }, [ad468Loaded, ad728Loaded, ad160x300Loaded, ad300Loaded]);
 
-  // Load Top 160x600 Banner Ad
+  // Load 728x90 Leaderboard Banner Ad
   useEffect(() => {
-    if (!containerRefTop.current) return;
-    const container = containerRefTop.current;
+    if (!show728x90 || !containerRef728.current) return;
+    const container = containerRef728.current;
     container.innerHTML = '';
 
     try {
@@ -44,19 +51,19 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
       confScript.type = 'text/javascript';
       confScript.text = `
         atOptions = {
-          'key' : '2896df15d30e5bd79f502e655ffb4da0',
+          'key' : '1f86267bbc350d1bb190155c7b7af825',
           'format' : 'iframe',
-          'height' : 600,
-          'width' : 160,
+          'height' : 90,
+          'width' : 728,
           'params' : {}
         };
       `;
 
       const srcScript = document.createElement('script');
       srcScript.type = 'text/javascript';
-      srcScript.src = 'https://bauval.org/22/2896df15d30e5bd79f502e655ffb4da0';
+      srcScript.src = 'https://bauval.org/22/1f86267bbc350d1bb190155c7b7af825';
       srcScript.async = true;
-      srcScript.onerror = () => setAdTopLoaded(false);
+      srcScript.onerror = () => setAd728Loaded(false);
 
       container.appendChild(confScript);
       container.appendChild(srcScript);
@@ -64,20 +71,61 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
       const timer = setTimeout(() => {
         const iframe = container.querySelector('iframe');
         if (!iframe || iframe.offsetHeight === 0) {
-          setAdTopLoaded(false);
+          setAd728Loaded(false);
         }
       }, 3000);
 
       return () => clearTimeout(timer);
     } catch (err) {
-      setAdTopLoaded(false);
+      setAd728Loaded(false);
     }
-  }, []);
+  }, [show728x90]);
 
-  // Load 468x60 Horizontal Banner Ad 1
+  // Load 160x300 Skyscraper Banner Ad
   useEffect(() => {
-    if (!containerRef1.current) return;
-    const container = containerRef1.current;
+    if (!show160x300 || !containerRef160x300.current) return;
+    const container = containerRef160x300.current;
+    container.innerHTML = '';
+
+    try {
+      const confScript = document.createElement('script');
+      confScript.type = 'text/javascript';
+      confScript.text = `
+        atOptions = {
+          'key' : '2c9453cf5beca2eba3d3daf52869bf3b',
+          'format' : 'iframe',
+          'height' : 300,
+          'width' : 160,
+          'params' : {}
+        };
+      `;
+
+      const srcScript = document.createElement('script');
+      srcScript.type = 'text/javascript';
+      srcScript.src = 'https://bauval.org/22/2c9453cf5beca2eba3d3daf52869bf3b';
+      srcScript.async = true;
+      srcScript.onerror = () => setAd160x300Loaded(false);
+
+      container.appendChild(confScript);
+      container.appendChild(srcScript);
+
+      const timer = setTimeout(() => {
+        const iframe = container.querySelector('iframe');
+        if (!iframe || iframe.offsetHeight === 0) {
+          setAd160x300Loaded(false);
+        }
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    } catch (err) {
+      setAd160x300Loaded(false);
+    }
+  }, [show160x300]);
+
+  // Load 468x60 Horizontal Banner Ad
+  useEffect(() => {
+    if (!containerRef468.current) return;
+    const container = containerRef468.current;
     container.innerHTML = '';
 
     try {
@@ -97,7 +145,7 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
       srcScript.type = 'text/javascript';
       srcScript.src = 'https://bauval.org/22/223fac3ae07a235a0d8ba8950ee1c4c5';
       srcScript.async = true;
-      srcScript.onerror = () => setAd1Loaded(false);
+      srcScript.onerror = () => setAd468Loaded(false);
 
       container.appendChild(confScript);
       container.appendChild(srcScript);
@@ -105,20 +153,20 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
       const timer = setTimeout(() => {
         const iframe = container.querySelector('iframe');
         if (!iframe || iframe.offsetHeight === 0) {
-          setAd1Loaded(false);
+          setAd468Loaded(false);
         }
       }, 3000);
 
       return () => clearTimeout(timer);
     } catch (err) {
-      setAd1Loaded(false);
+      setAd468Loaded(false);
     }
   }, []);
 
-  // Load 300x250 Banner Ad 2
+  // Load 300x250 Banner (Optional)
   useEffect(() => {
-    if (!showSkyscraper || !containerRef2.current) return;
-    const container = containerRef2.current;
+    if (!showSkyscraper || !containerRef300.current) return;
+    const container = containerRef300.current;
     container.innerHTML = '';
 
     try {
@@ -138,7 +186,7 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
       srcScript.type = 'text/javascript';
       srcScript.src = 'https://bauval.org/22/de48150321be2f036daf667f62eeb33c';
       srcScript.async = true;
-      srcScript.onerror = () => setAd2Loaded(false);
+      srcScript.onerror = () => setAd300Loaded(false);
 
       container.appendChild(confScript);
       container.appendChild(srcScript);
@@ -146,19 +194,19 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
       const timer = setTimeout(() => {
         const iframe = container.querySelector('iframe');
         if (!iframe || iframe.offsetHeight === 0) {
-          setAd2Loaded(false);
+          setAd300Loaded(false);
         }
       }, 3000);
 
       return () => clearTimeout(timer);
     } catch (err) {
-      setAd2Loaded(false);
+      setAd300Loaded(false);
     }
   }, [showSkyscraper]);
 
-  // Load Native Banner Ad 3
+  // Load Native Banner Ad (Strictly for bottom placement when showNativeBanner=true)
   useEffect(() => {
-    if (!nativeRef.current) return;
+    if (!showNativeBanner || !nativeRef.current) return;
     const parent = nativeRef.current;
     parent.innerHTML = '';
 
@@ -177,7 +225,7 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
     } catch (err) {
       console.warn('Native banner script error:', err);
     }
-  }, []);
+  }, [showNativeBanner]);
 
   return (
     <div className={`flex flex-col items-center justify-center gap-4 my-4 overflow-hidden google-anno-skip ${className}`}>
@@ -198,56 +246,71 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
         </div>
       )}
 
-      {/* Top Banner: 160x600 (Auto-hide if adblocked or unavailable) */}
-      {adTopLoaded && (
-        <div className="flex flex-col items-center">
+      {/* Leaderboard Banner: 728x90 */}
+      {show728x90 && ad728Loaded && (
+        <div className="hidden sm:flex flex-col items-center w-full max-w-[728px]">
           <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 opacity-70">
-            Sponsor Top (160x600)
+            Sponsor Banner (728x90)
           </span>
           <div 
-            ref={containerRefTop} 
-            style={{ width: '160px', height: '600px', maxWidth: '160px', maxHeight: '600px' }}
-            className="flex items-center justify-center rounded-2xl bg-slate-900/40 border border-slate-800/60 p-0 overflow-hidden shrink-0"
+            ref={containerRef728} 
+            className="w-full min-h-[90px] flex items-center justify-center rounded-2xl bg-slate-900/40 border border-slate-800/60 p-1 overflow-hidden"
           />
         </div>
       )}
 
-      {/* Banner 1: 468x60 (Auto-hide if adblocked or unavailable) */}
-      {ad1Loaded && (
+      {/* Horizontal Banner: 468x60 */}
+      {ad468Loaded && (
         <div className="flex flex-col items-center w-full max-w-[468px]">
           <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 opacity-70">
-            Sponsor Banner 1 (468x60)
+            Sponsor Banner (468x60)
           </span>
           <div 
-            ref={containerRef1} 
+            ref={containerRef468} 
             className="w-full min-h-[60px] flex items-center justify-center rounded-xl bg-slate-900/40 border border-slate-800/60 p-1 overflow-hidden"
           />
         </div>
       )}
 
-      {/* Banner 2: 300x250 (Auto-hide if adblocked or unavailable) */}
-      {showSkyscraper && ad2Loaded && (
-        <div className="flex flex-col items-center w-full max-w-[300px]">
+      {/* Skyscraper Banner: 160x300 */}
+      {show160x300 && ad160x300Loaded && (
+        <div className="flex flex-col items-center">
           <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 opacity-70">
-            Sponsor Banner 2 (300x250)
+            Sponsor Skyscraper (160x300)
           </span>
           <div 
-            ref={containerRef2} 
+            ref={containerRef160x300} 
+            style={{ width: '160px', height: '300px', maxWidth: '160px', maxHeight: '300px' }}
+            className="flex items-center justify-center rounded-2xl bg-slate-900/40 border border-slate-800/60 p-0 overflow-hidden shrink-0"
+          />
+        </div>
+      )}
+
+      {/* Square Banner: 300x250 */}
+      {showSkyscraper && ad300Loaded && (
+        <div className="flex flex-col items-center w-full max-w-[300px]">
+          <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 opacity-70">
+            Sponsor Banner (300x250)
+          </span>
+          <div 
+            ref={containerRef300} 
             className="w-full min-h-[250px] flex items-center justify-center rounded-2xl bg-slate-900/40 border border-slate-800/60 p-1 overflow-hidden"
           />
         </div>
       )}
 
-      {/* Banner 3: Native Banner Ad */}
-      <div className="flex flex-col items-center w-full max-w-lg">
-        <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 opacity-70">
-          Native Sponsor Banner
-        </span>
-        <div 
-          ref={nativeRef} 
-          className="w-full min-h-[100px] flex items-center justify-center rounded-2xl bg-slate-900/40 border border-slate-800/60 p-2 overflow-hidden shadow-inner"
-        />
-      </div>
+      {/* Native Sponsor Banner (Only shown when showNativeBanner=true, e.g., bottom footer) */}
+      {showNativeBanner && (
+        <div className="flex flex-col items-center w-full max-w-lg">
+          <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 opacity-70">
+            Native Sponsor Banner
+          </span>
+          <div 
+            ref={nativeRef} 
+            className="w-full min-h-[100px] flex items-center justify-center rounded-2xl bg-slate-900/40 border border-slate-800/60 p-2 overflow-hidden shadow-inner"
+          />
+        </div>
+      )}
     </div>
   );
 };

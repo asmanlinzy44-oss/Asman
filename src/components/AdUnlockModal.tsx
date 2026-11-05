@@ -38,6 +38,30 @@ export const AdUnlockModal: React.FC<AdUnlockModalProps> = ({
   const [, setJustCelebrated] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Dynamically load the message/social-bar ad script ONLY when 40 Ads Watch modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const SCRIPT_ID = 'ad-unlock-message-script';
+    let scriptEl = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
+    if (!scriptEl) {
+      scriptEl = document.createElement('script');
+      scriptEl.id = SCRIPT_ID;
+      scriptEl.type = 'text/javascript';
+      scriptEl.src = 'https://pl32196930.profitableratecpmnetwork.com/20/0d/b5/200db5e24d37f1fe9bdce969987cc08b.js';
+      scriptEl.async = true;
+      document.body.appendChild(scriptEl);
+    }
+
+    return () => {
+      // Clean up script tag when user closes the 40 Ads Watch Modal
+      const el = document.getElementById(SCRIPT_ID);
+      if (el && el.parentNode) {
+        el.parentNode.removeChild(el);
+      }
+    };
+  }, [isOpen]);
+
   // Sync progress from Firestore on open or user change
   useEffect(() => {
     if (!isOpen || !user?.email) return;

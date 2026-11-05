@@ -2804,6 +2804,9 @@ export default function App() {
                   </div>
                 )}
 
+                {/* Adaptive Banner Ad between Student Masterclass Portal and Video Directory */}
+                <AdsterraBannerAd className="my-5" showNativeBanner={false} show728x90={true} />
+
                 {/* 2. Masterclass Video Folders System (Always Accessible on All Devices) */}
                 <div className="space-y-4">
                   <VideoFoldersView
@@ -2901,7 +2904,7 @@ export default function App() {
           )}
 
           {/* Clean Non-Intrusive Bottom Banner Ad */}
-          <AdsterraBannerAd className="mt-12 mb-3" />
+          <AdsterraBannerAd className="mt-12 mb-3" showNativeBanner={true} show728x90={true} />
 
           {/* Category View Compliance Footer */}
           <footer className="mt-8 pt-8 border-t border-slate-200 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-4">
