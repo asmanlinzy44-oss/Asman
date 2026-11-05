@@ -50,7 +50,7 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
     };
   }, []);
 
-  // Load 160x300 Vertical Banner Ad 2 (Right Below Banner 1)
+  // Load 300x250 Banner Ad 2 (Right Below Banner 1)
   useEffect(() => {
     if (!showSkyscraper || !containerRef2.current) return;
     const container = containerRef2.current;
@@ -61,17 +61,17 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
       confScript.type = 'text/javascript';
       confScript.text = `
         atOptions = {
-          'key' : '2c9453cf5beca2eba3d3daf52869bf3b',
+          'key' : 'de48150321be2f036daf667f62eeb33c',
           'format' : 'iframe',
-          'height' : 300,
-          'width' : 160,
+          'height' : 250,
+          'width' : 300,
           'params' : {}
         };
       `;
 
       const srcScript = document.createElement('script');
       srcScript.type = 'text/javascript';
-      srcScript.src = 'https://bauval.org/22/2c9453cf5beca2eba3d3daf52869bf3b';
+      srcScript.src = 'https://bauval.org/22/de48150321be2f036daf667f62eeb33c';
       srcScript.async = true;
 
       container.appendChild(confScript);
@@ -129,15 +129,15 @@ export const AdsterraBannerAd: React.FC<AdsterraBannerAdProps> = ({
         />
       </div>
 
-      {/* Banner 2: 160x300 (Right Below Banner 1) */}
+      {/* Banner 2: 300x250 (Right Below Banner 1) */}
       {showSkyscraper && (
         <div className="flex flex-col items-center">
           <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1 opacity-70">
-            Sponsor Banner 2 (160x300)
+            Sponsor Banner 2 (300x250)
           </span>
           <div 
             ref={containerRef2} 
-            className="w-full max-w-[160px] min-h-[300px] flex items-center justify-center rounded-2xl bg-slate-900/40 border border-slate-800/60 p-1 overflow-hidden"
+            className="w-full max-w-[300px] min-h-[250px] flex items-center justify-center rounded-2xl bg-slate-900/40 border border-slate-800/60 p-1 overflow-hidden"
           />
         </div>
       )}
